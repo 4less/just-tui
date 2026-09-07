@@ -1,0 +1,3 @@
+# Defaults for every recipe in the demo module — these beat the project file.
+time = 00:10:00
+mem  = 2G
