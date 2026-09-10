@@ -13,7 +13,10 @@ use crate::slurm::{self, Cluster, Field, Partition};
 use crate::submit::SubmitForm;
 use crate::theme;
 
+/// The form is happiest narrow, but the `sbatch` line under it grows with
+/// every flag, so it takes more when the terminal has it to give.
 const WIDTH: u16 = 78;
+const MAX_WIDTH: u16 = 130;
 
 pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
     let Some(form) = app.form.as_ref() else {
@@ -22,7 +25,11 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
     let fallback = Cluster::default();
     let cluster = app.cluster.as_ref().unwrap_or(&fallback);
 
-    let width = WIDTH.min(area.width.saturating_sub(2));
+    let width = area
+        .width
+        .saturating_sub(6)
+        .clamp(WIDTH.min(area.width.saturating_sub(2)), MAX_WIDTH)
+        .min(area.width.saturating_sub(2));
     let inner = width.saturating_sub(4) as usize;
 
     let mut lines: Vec<Line> = slurm::FIELDS

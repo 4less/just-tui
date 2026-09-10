@@ -146,3 +146,48 @@ fn a_job_name_is_built_from_the_recipe_and_its_arguments() {
     let (out, _) = crate::slurm::log_paths(&form.namepath, &form.settings);
     assert_eq!(out.to_str().unwrap(), "logs/ada-trial-%j.out");
 }
+
+#[test]
+fn overlays_survive_a_tiny_terminal() {
+    use crate::app::HistoryPick;
+    use crate::history::Record;
+
+    let mut app = fixture_app();
+    app.cluster = Some(test_cluster());
+    app.history.push_for_test(Record {
+        job_id: "4190".to_owned(),
+        namepath: "build".to_owned(),
+        when: "2026-09-10T13:03:21".to_owned(),
+        settings: crate::slurm::Settings {
+            args: "arm=cong_filt_peel force=1".to_owned(),
+            mem: "128G".to_owned(),
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    app.open_submit();
+    app.picker = Some(HistoryPick {
+        namepath: Some("build".to_owned()),
+        index: 0,
+        from: Mode::Submit,
+    });
+    app.mode = Mode::History;
+
+    // Narrow enough that every flexible column is squeezed to nothing.
+    for width in [20, 30, 40, 60, 120] {
+        let text = rendered(&mut app, width, 14);
+        assert!(!text.is_empty(), "renders at {width} columns");
+    }
+
+    // With room, the arguments are shown in full: they are what tells two
+    // runs of one recipe apart.
+    let text = rendered(&mut app, 150, 14);
+    assert!(
+        text.contains("arm=cong_filt_peel force=1"),
+        "arguments are not truncated when there is room"
+    );
+    assert!(
+        !text.contains("build arm="),
+        "the title already names the recipe"
+    );
+}

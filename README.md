@@ -243,7 +243,8 @@ the time, the exact `sbatch` line, and every field the form held. Unlike
 any config file, this file forgets nothing.
 
 - `H` lists every past submission; `Enter` loads one back into the submit form.
-- `F6` in the form lists only that recipe's past runs.
+- `F6` in the form lists only that recipe's past runs — and since the title already names the
+  recipe, those rows show the **arguments** instead, which is what tells two runs apart.
 - `u` in the job browser jumps from a job straight to the settings it ran with.
 
 So a job that failed three weeks ago can be found, read, and resubmitted with one field
