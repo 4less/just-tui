@@ -17,6 +17,7 @@ const KEYS: &[(&str, &str)] = &[
     ("r", "run the selected recipe"),
     ("s", "submit to Slurm (sbatch)"),
     ("S", "browse Slurm jobs, their usage and logs"),
+    ("x / X", "in that view: kill a job, or kill and rerun"),
     ("H", "past submissions, to reuse settings"),
     ("a", "run with extra arguments"),
     ("n", "dry run (just --dry-run)"),

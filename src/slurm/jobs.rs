@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use std::collections::HashMap;
 
-use super::cluster::capture;
+use super::cluster::{capture, run};
 use super::parse_mem;
 
 /// Fields asked of `squeue`, in the order [`parse_squeue`] reads them.
@@ -414,6 +414,12 @@ fn parse_rss(text: &str) -> Option<u64> {
         _ => return None,
     };
     Some(mb.round() as u64)
+}
+
+/// Ask Slurm to kill a job. An array task id cancels that task alone; the
+/// allocation id cancels every task in the array.
+pub fn cancel(id: &str) -> Result<(), String> {
+    run("scancel", &[id])
 }
 
 // ---------------------------------------------------------------------------

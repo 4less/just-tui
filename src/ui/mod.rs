@@ -74,8 +74,16 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     if app.mode == Mode::ConfigPick {
         submit::draw_config_pick(frame, app, frame.area());
     }
-    if app.mode == Mode::Jobs {
-        jobs::draw(frame, app, frame.area());
+    if matches!(app.mode, Mode::Jobs | Mode::CancelJob) {
+        // Stop one row short of the bottom: that line carries the status
+        // messages the browser itself reports, and a full-screen overlay
+        // would swallow them.
+        let mut area = frame.area();
+        area.height = area.height.saturating_sub(1);
+        jobs::draw(frame, app, area);
+    }
+    if app.mode == Mode::CancelJob {
+        jobs::draw_confirm(frame, app, frame.area());
     }
     if app.mode == Mode::History {
         recall::draw(frame, app, frame.area());

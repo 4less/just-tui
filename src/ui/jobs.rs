@@ -6,7 +6,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Clear, Paragraph};
 
-use super::{overlay_block, pad, pane_block, truncate};
+use super::{centered, overlay_block, pad, pane_block, truncate};
 use crate::app::{App, LogKind};
 use crate::slurm::{self, Job, Usage, format_mem};
 use crate::theme;
@@ -23,7 +23,7 @@ pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
     };
 
     let footer = format!(
-        " ↑↓ job · ⇥ {} · ⏎ log · u reuse · f {} · d {}d · p {} · r reload · esc back ",
+        " ↑↓ · ⇥ {} · ⏎ log · u reuse · x kill · X kill+resubmit · f {} · d {}d · p {} · r · esc ",
         view.which.other().label(),
         view.filter.label(),
         view.days(),
@@ -331,4 +331,67 @@ fn draw_log(frame: &mut Frame, app: &mut App, area: Rect) {
         })
         .collect();
     frame.render_widget(Paragraph::new(lines), inner);
+}
+
+/// The only irreversible thing this interface does, so it asks first and
+/// takes nothing but `y` for an answer.
+pub fn draw_confirm(frame: &mut Frame, app: &App, area: Rect) {
+    let Some(pending) = app.cancel.as_ref() else {
+        return;
+    };
+    let width = 72.min(area.width.saturating_sub(2));
+    let inner = width.saturating_sub(4) as usize;
+
+    let mut lines = vec![
+        Line::from(vec![
+            Span::styled("  scancel ", theme::label()),
+            Span::styled(
+                pending.id.clone(),
+                Style::default()
+                    .fg(theme::INTERP)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled("   ", theme::label()),
+            Span::styled(
+                truncate(&pending.name, inner.saturating_sub(20)),
+                Style::default().fg(theme::FG),
+            ),
+        ]),
+        Line::default(),
+    ];
+
+    if pending.resubmit {
+        let same = app
+            .job_record()
+            .map(|record| record.command.clone())
+            .unwrap_or_default();
+        lines.push(Line::from(Span::styled(
+            "  then submit the same job again:",
+            theme::label(),
+        )));
+        lines.push(Line::from(Span::styled(
+            format!("  $ {}", truncate(&same, inner.saturating_sub(4))),
+            Style::default().fg(theme::STRING),
+        )));
+    } else {
+        lines.push(Line::from(Span::styled(
+            "  The job stops. Whatever it has written so far is kept.",
+            theme::label(),
+        )));
+    }
+
+    let title = match pending.resubmit {
+        true => " Kill this job and run it again? ",
+        false => " Kill this job? ",
+    };
+    let popup = centered(area, width, lines.len() as u16 + 2);
+    frame.render_widget(Clear, popup);
+    frame.render_widget(
+        Paragraph::new(lines).block(overlay_block(
+            title,
+            " y do it · any other key leaves the job alone ",
+            theme::INTERP,
+        )),
+        popup,
+    );
 }

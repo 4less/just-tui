@@ -12,7 +12,7 @@ pub use command::{
     Submission, job_name, log_paths, preview_command, resolved_log_paths, submit, warnings,
 };
 pub use jobs::{
-    Job, JobList, Logs, Usage, fetch_usage, find_logs, is_error_line, refresh_queue, tail,
+    Job, JobList, Logs, Usage, cancel, fetch_usage, find_logs, is_error_line, refresh_queue, tail,
 };
 // Job listings are fetched by the app; re-exported under a name that says so.
 pub use jobs::fetch as fetch_jobs;

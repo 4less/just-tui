@@ -40,6 +40,9 @@ pub struct Record {
     pub err: String,
     /// The `sbatch …` line as it was shown in the form.
     pub command: String,
+    /// Directory the job ran in, so it can be submitted again from there.
+    /// Empty in records written before this was kept.
+    pub base: String,
     pub settings: Settings,
 }
 
