@@ -219,6 +219,13 @@ Colours read as strain: memory is red near its limit, and **CPU is the other way
 red means allocated cores are idling, green means they are busy. Say the word if you want
 CPU coloured like memory instead.
 
+Finding a log can mean waiting on `scontrol` and walking a large `logs/` tree, so it happens
+on a background thread. The pane spins while it works and the list stays live — arrow keys,
+filters and the clock all keep going. One loader runs at a time: holding a cursor key down
+would otherwise put a thread and a directory walk behind every row it passed over. Whatever
+ends up selected is read once the current one comes back, and answers for a job the cursor
+has already left are dropped.
+
 The bottom pane is the **tail of the selected job's log**, `stderr` first, with anything that
 looks like an error picked out in red. The log file is found by asking `scontrol` while the
 job is still known to the controller, and otherwise by looking for a file ending in `-<job id>`

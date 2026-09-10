@@ -14,6 +14,9 @@ use crate::theme;
 /// Columns the row spends on everything but the job's name.
 const FIXED: usize = 67;
 
+/// Shown while a log is being found and read on another thread.
+const SPINNER: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
 /// Rows the job list gets before the log pane takes the rest.
 const LIST_ROWS: u16 = 12;
 
@@ -287,30 +290,55 @@ fn draw_detail(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 /// The tail of the selected log, with anything that looks like an error
-/// picked out.
+/// picked out. While the loader is still working the pane says so and spins,
+/// rather than freezing the list behind it.
 fn draw_log(frame: &mut Frame, app: &mut App, area: Rect) {
     let Some(view) = app.jobs.as_mut() else {
         return;
     };
     view.height = area.height.saturating_sub(2);
+    let loading = view.loading();
 
     let path = view
         .shown_path()
         .map(|p| super::shorten_home(&p.display().to_string()))
         .unwrap_or_else(|| "no file".to_owned());
-    let title = format!(
-        " {} — {}{} ",
-        view.which.label(),
-        path,
-        if view.truncated { "  (tail)" } else { "" }
-    );
+    let title = match loading {
+        true => format!(
+            " {} {} reading… ",
+            SPINNER[view.frame % SPINNER.len()],
+            view.which.label(),
+        ),
+        false => format!(
+            " {} — {}{} ",
+            view.which.label(),
+            path,
+            if view.truncated { "  (tail)" } else { "" }
+        ),
+    };
 
-    let block = pane_block(title, true).border_style(Style::default().fg(match view.which {
-        LogKind::Err => theme::INTERP,
-        LogKind::Out => theme::BORDER,
-    }));
+    let block =
+        pane_block(title, true).border_style(Style::default().fg(match (loading, view.which) {
+            (true, _) => theme::DIM,
+            (false, LogKind::Err) => theme::INTERP,
+            (false, LogKind::Out) => theme::BORDER,
+        }));
     let inner = block.inner(area);
     frame.render_widget(block, area);
+
+    if loading {
+        frame.render_widget(
+            Paragraph::new(Line::from(Span::styled(
+                format!(
+                    " {} looking for the log — the list stays live",
+                    SPINNER[view.frame % SPINNER.len()]
+                ),
+                Style::default().fg(theme::DIM),
+            ))),
+            inner,
+        );
+        return;
+    }
 
     let first = view.scroll as usize;
     let lines: Vec<Line> = view

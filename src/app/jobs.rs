@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::{Duration, Instant};
 
 use crate::history::Record;
@@ -71,10 +72,26 @@ const RANGES: [u32; 4] = [1, 7, 30, 90];
 /// Longest tail held in memory for one log.
 const LOG_LINES: usize = 4000;
 
+/// How often the spinner steps while a log is being read.
+const SPIN: Duration = Duration::from_millis(90);
+
 /// How often the queue and the usage figures are re-asked for while the
 /// overlay is open. The clock on screen ticks every second regardless: it is
 /// carried forward locally, so this is only about fresh states and stats.
 const REFRESH: Duration = Duration::from_secs(5);
+
+/// A log read on a background thread, on its way back to the interface.
+struct LoadedLog {
+    /// The job and the file that were asked for, so a result that arrives
+    /// after the cursor has moved on can be dropped.
+    want: (String, LogKind),
+    /// The file actually read: a job with nothing on stderr is shown its
+    /// stdout instead.
+    shown: LogKind,
+    logs: Logs,
+    lines: Vec<String>,
+    truncated: bool,
+}
 
 /// Everything the jobs overlay draws.
 pub struct JobsView {
@@ -99,6 +116,12 @@ pub struct JobsView {
     pub auto: bool,
     /// The job and file the loaded lines belong to.
     loaded: Option<(String, LogKind)>,
+    /// What a background thread is reading, if anything.
+    pending: Option<(String, LogKind)>,
+    /// Which spinner frame is showing.
+    pub frame: usize,
+    sender: Sender<LoadedLog>,
+    inbox: Receiver<LoadedLog>,
 }
 
 impl JobsView {
@@ -113,6 +136,7 @@ impl JobsView {
     }
 
     fn new() -> Self {
+        let (sender, inbox) = channel();
         Self {
             list: JobList::default(),
             visible: Vec::new(),
@@ -129,7 +153,23 @@ impl JobsView {
             fetched: Instant::now(),
             auto: true,
             loaded: None,
+            pending: None,
+            frame: 0,
+            sender,
+            inbox,
         }
+    }
+
+    /// Whether a log is still being read, so the pane can say so.
+    pub fn loading(&self) -> bool {
+        self.pending.is_some()
+    }
+
+    /// Pretend a read is in flight, so the spinner can be drawn in a test
+    /// without racing a thread that finishes in microseconds.
+    #[cfg(test)]
+    pub fn mark_loading(&mut self) {
+        self.pending = Some((String::new(), self.which));
     }
 
     /// Seconds since the listing was fetched — how far a running job's clock
@@ -218,14 +258,19 @@ impl App {
         view.fetched = Instant::now();
         view.loaded = None;
         self.refresh_usage();
-        self.load_job_log();
+        self.request_job_log();
     }
 
     /// How long the event loop may wait for a key before the overlay wants
     /// redrawing. `None` means there is nothing to animate, so it can block.
     pub fn tick_interval(&self) -> Option<Duration> {
+        let spinning = self.jobs.as_ref().is_some_and(JobsView::loading);
         match self.mode {
-            Mode::Jobs | Mode::ConfirmJob => Some(Duration::from_secs(1)),
+            // A second is enough for a ticking clock; a spinner needs more.
+            Mode::Jobs | Mode::ConfirmJob => Some(match spinning {
+                true => SPIN,
+                false => Duration::from_secs(1),
+            }),
             _ => None,
         }
     }
@@ -233,6 +278,11 @@ impl App {
     /// Called when no key arrived: the clock is redrawn from the local one,
     /// and every so often the queue itself is re-asked.
     pub fn tick(&mut self) {
+        if let Some(view) = self.jobs.as_mut()
+            && view.loading()
+        {
+            view.frame = view.frame.wrapping_add(1);
+        }
         let due = self
             .jobs
             .as_ref()
@@ -308,8 +358,10 @@ impl App {
         });
     }
 
-    /// Read the selected job's log, unless it is already in hand.
-    pub fn load_job_log(&mut self) {
+    /// Ask for the selected job's log, on a thread. Finding it can mean
+    /// waiting on `scontrol` and walking a large `logs/` tree, neither of
+    /// which the cursor should have to wait for.
+    pub fn request_job_log(&mut self) {
         let hints = vec![self.project().working_dir.clone()];
         let Some(view) = self.jobs.as_mut() else {
             return;
@@ -318,38 +370,84 @@ impl App {
             view.logs = Logs::default();
             view.lines.clear();
             view.loaded = None;
+            view.pending = None;
             return;
         };
-        if view.loaded.as_ref() == Some(&(job.id.clone(), view.which)) {
+
+        let want = (job.id.clone(), view.which);
+        // Already read, or a read is already out. Only one loader runs at a
+        // time: holding the cursor key down would otherwise put a thread and
+        // a walk of the whole `logs/` tree behind every row it passed over.
+        // Whatever ends up selected is asked for once this one comes back.
+        if view.loaded.as_ref() == Some(&want) || view.pending.is_some() {
             return;
         }
+        view.pending = Some(want.clone());
+        view.frame = 0;
 
-        // The paths are per job; only the choice of file changes with `Tab`.
-        if view.loaded.as_ref().map(|(id, _)| id.as_str()) != Some(job.id.as_str()) {
-            view.logs = slurm::find_logs(&job, &hints);
+        let sender = view.sender.clone();
+        std::thread::spawn(move || {
+            let logs = slurm::find_logs(&job, &hints);
             // A job that wrote nothing to stderr is better read from stdout.
-            if view.logs.err.is_none() && view.logs.out.is_some() {
-                view.which = LogKind::Out;
-            }
-        }
+            let shown = match want.1 {
+                LogKind::Err if logs.err.is_none() && logs.out.is_some() => LogKind::Out,
+                asked => asked,
+            };
+            let path = match shown {
+                LogKind::Err => logs.err.clone(),
+                LogKind::Out => logs.out.clone(),
+            };
+            let (lines, truncated) = match &path {
+                Some(path) => slurm::tail(path, LOG_LINES),
+                None => (
+                    vec![match &logs.note {
+                        Some(note) => note.clone(),
+                        None => format!("no {} file for this job", shown.label()),
+                    }],
+                    false,
+                ),
+            };
+            let _ = sender.send(LoadedLog {
+                want,
+                shown,
+                logs,
+                lines,
+                truncated,
+            });
+        });
+    }
 
-        match view.shown_path() {
-            Some(path) => {
-                let (lines, truncated) = slurm::tail(path, LOG_LINES);
-                view.lines = lines;
-                view.truncated = truncated;
+    /// Take delivery of anything the loader has finished, dropping results
+    /// for a job the cursor has already left. Never blocks.
+    pub fn poll_background(&mut self) {
+        let selected = self
+            .jobs
+            .as_ref()
+            .and_then(|view| view.selected().map(|job| job.id.clone()));
+        let Some(view) = self.jobs.as_mut() else {
+            return;
+        };
+
+        while let Ok(loaded) = view.inbox.try_recv() {
+            // The loader is free again whatever the answer was worth.
+            if view.pending.as_ref() == Some(&loaded.want) {
+                view.pending = None;
             }
-            None => {
-                view.lines = vec![match &view.logs.note {
-                    Some(note) => note.clone(),
-                    None => format!("no {} file for this job", view.which.label()),
-                }];
-                view.truncated = false;
+            let current = (selected.as_deref() == Some(loaded.want.0.as_str()))
+                && loaded.want.1 == view.which;
+            if !current {
+                continue;
             }
+            view.logs = loaded.logs;
+            view.which = loaded.shown;
+            view.lines = loaded.lines;
+            view.truncated = loaded.truncated;
+            view.loaded = Some((loaded.want.0, loaded.shown));
+            view.scroll = u16::MAX; // start at the end, where the failure is
         }
-        view.scroll = u16::MAX; // start at the end, where the failure is
-        view.loaded = Some((job.id, view.which));
         self.clamp_job_scroll();
+        // The cursor has usually moved on by the time an answer arrives.
+        self.request_job_log();
     }
 
     pub fn move_job(&mut self, delta: isize) {
@@ -361,7 +459,7 @@ impl App {
         }
         let count = view.visible.len() as isize;
         view.cursor = (view.cursor as isize + delta).rem_euclid(count) as usize;
-        self.load_job_log();
+        self.request_job_log();
     }
 
     pub fn scroll_job_log(&mut self, delta: i32) {
@@ -386,7 +484,7 @@ impl App {
         if let Some(view) = self.jobs.as_mut() {
             view.which = view.which.other();
         }
-        self.load_job_log();
+        self.request_job_log();
     }
 
     pub fn cycle_job_filter(&mut self) {
@@ -395,7 +493,7 @@ impl App {
             view.cursor = 0;
             view.refilter();
         }
-        self.load_job_log();
+        self.request_job_log();
     }
 
     pub fn cycle_job_range(&mut self) {

@@ -152,6 +152,9 @@ fn list_recipes(sources: &[Loaded], cache: &mut SourceCache, private: bool) -> R
 /// out here rather than inside [`App`].
 fn run(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
     loop {
+        // Anything a background thread has finished is taken up before the
+        // frame it belongs in is drawn.
+        app.poll_background();
         terminal.draw(|frame| ui::draw(frame, app))?;
 
         // While the job browser is open the clock has to move on its own, so
