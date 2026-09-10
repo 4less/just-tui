@@ -65,6 +65,7 @@ fn contents(app: &App) -> (String, Vec<Line<'static>>) {
     let Some(info) = node.info.as_ref() else {
         let text = match node.kind {
             Kind::Module => "select a recipe inside this module",
+            Kind::Group => "select a recipe inside this group",
             _ => "aliases have no body — press Enter to follow",
         };
         return (

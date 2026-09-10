@@ -103,7 +103,7 @@ impl App {
             KeyCode::Enter | KeyCode::Char(' ') => {
                 if self
                     .selected()
-                    .is_some_and(|n| n.kind == Kind::Module || n.kind == Kind::Alias)
+                    .is_some_and(|n| n.is_container() || n.kind == Kind::Alias)
                 {
                     if self.selected().is_some_and(|n| n.kind == Kind::Alias) {
                         let target = self
@@ -149,6 +149,10 @@ impl App {
             }
             KeyCode::Char('p') => {
                 self.toggle_private();
+                Action::None
+            }
+            KeyCode::Char('m') => {
+                self.toggle_groups();
                 Action::None
             }
             KeyCode::Char('e') => {

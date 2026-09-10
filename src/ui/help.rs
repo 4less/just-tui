@@ -27,6 +27,7 @@ const KEYS: &[(&str, &str)] = &[
     ("PgDn / PgUp", "page down / up"),
     ("e / c", "expand all / collapse all modules"),
     ("p", "show or hide private recipes"),
+    ("m", "fold the [group(...)] layer in or out"),
     ("v", "toggle doc/code split direction"),
     ("w", "wrap long source lines"),
     ("f", "zoom the focused pane"),

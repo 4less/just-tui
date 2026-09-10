@@ -9,6 +9,9 @@ use crate::source::SourceCache;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     Module,
+    /// A `[group('x')]` layer inside a module. Display only: it holds recipes
+    /// but is not part of any namepath.
+    Group,
     Recipe,
     Alias,
 }
@@ -57,9 +60,40 @@ pub struct Node {
 }
 
 impl Node {
-    /// Modules hold other entries; recipes and aliases do not.
+    /// Modules and groups hold other entries; recipes and aliases do not.
     pub fn is_container(&self) -> bool {
-        self.kind == Kind::Module
+        matches!(self.kind, Kind::Module | Kind::Group)
+    }
+}
+
+/// A group folder, taking its context from the module it sits in.
+fn group_node(parent: &Node, name: &str, depth: usize, members: usize) -> Node {
+    Node {
+        kind: Kind::Group,
+        name: name.to_owned(),
+        // Groups are not part of any namepath; this is only for context.
+        namepath: parent.namepath.clone(),
+        depth,
+        parent: None,
+        children: Vec::new(),
+        expanded: true,
+        private: false,
+        is_default: false,
+        group: Some(name.to_owned()),
+        summary: Some(format!(
+            "{members} recipe{}",
+            if members == 1 { "" } else { "s" }
+        )),
+        info: None,
+        alias_target: None,
+        // No file of its own, so config scopes are resolved as before.
+        source: None,
+        search_path: search_path(&parent.search_path, name),
+        root_index: parent.root_index,
+        global: parent.global,
+        settings: Vec::new(),
+        variables: Vec::new(),
+        is_root: false,
     }
 }
 
@@ -99,13 +133,92 @@ impl Tree {
     /// One root row per loaded source: the project first, then any global
     /// recipe files.
     pub fn build(sources: &[Loaded], cache: &mut SourceCache) -> Self {
+        Tree::build_with(sources, cache, true)
+    }
+
+    /// `groups` inserts a collapsible `[group('x')]` layer inside any module
+    /// whose recipes are actually divided by one.
+    pub fn build_with(sources: &[Loaded], cache: &mut SourceCache, groups: bool) -> Self {
         let mut tree = Tree::default();
         for (index, source) in sources.iter().enumerate() {
             let root = tree.add_source(source, index);
             tree.roots.push(root);
         }
         tree.load_sources(cache);
+        if groups {
+            tree.apply_groups();
+        }
         tree
+    }
+
+    /// Sort each module's recipes into their groups. Done as a pass over the
+    /// finished tree rather than during the build, so a module that turns out
+    /// not to need the layer is left exactly as it was.
+    fn apply_groups(&mut self) {
+        // Group nodes are appended as this runs, and hold only recipes, so
+        // only the modules that existed beforehand need visiting.
+        let count = self.nodes.len();
+        for id in 0..count {
+            if self.nodes[id].kind == Kind::Module {
+                self.group_children(id);
+            }
+        }
+    }
+
+    /// Recipes fall into buckets by group, in the order the module lists them.
+    /// One bucket means the layer would divide nothing, so it is not added.
+    fn group_children(&mut self, parent: usize) {
+        let children = self.nodes[parent].children.clone();
+        let mut buckets: Vec<(Option<String>, Vec<usize>)> = Vec::new();
+        for &child in &children {
+            if self.nodes[child].kind != Kind::Recipe {
+                continue;
+            }
+            let key = self.nodes[child].group.clone();
+            match buckets.iter_mut().find(|(name, _)| *name == key) {
+                Some((_, members)) => members.push(child),
+                None => buckets.push((key, vec![child])),
+            }
+        }
+        if buckets.len() < 2 {
+            return;
+        }
+        // Ungrouped first, then the groups by name, the way `just --list` puts
+        // them; the module's own sub-modules and aliases keep their places.
+        buckets.sort_by(|a, b| a.0.cmp(&b.0));
+
+        let depth = self.nodes[parent].depth + 1;
+        let mut modules = Vec::new();
+        let mut plain = Vec::new();
+        let mut aliases = Vec::new();
+        for &child in &children {
+            match self.nodes[child].kind {
+                Kind::Module | Kind::Group => modules.push(child),
+                Kind::Alias => aliases.push(child),
+                Kind::Recipe => {}
+            }
+        }
+
+        let mut folders = Vec::new();
+        for (name, members) in buckets {
+            let Some(name) = name else {
+                plain.extend(members);
+                continue;
+            };
+            let id = self.push(group_node(&self.nodes[parent], &name, depth, members.len()));
+            for &member in &members {
+                self.nodes[member].parent = Some(id);
+                self.nodes[member].depth = depth + 1;
+            }
+            self.nodes[id].children = members;
+            folders.push(id);
+        }
+
+        let mut order = modules;
+        order.extend(plain);
+        order.extend(folders);
+        order.extend(aliases);
+        self.nodes[parent].children = order;
     }
 
     fn add_source(&mut self, source: &Loaded, index: usize) -> usize {
@@ -352,6 +465,11 @@ impl Tree {
     /// Recipes across every source, private ones included.
     pub fn count_recipes(&self) -> usize {
         self.nodes.iter().filter(|n| n.kind == Kind::Recipe).count()
+    }
+
+    /// Whether any module needed a group layer, so the toggle can say so.
+    pub fn has_groups(&self) -> bool {
+        self.nodes.iter().any(|n| n.kind == Kind::Group)
     }
 
     /// Real `mod` entries — the synthetic root does not count.

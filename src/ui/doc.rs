@@ -31,6 +31,7 @@ fn contents(app: &App) -> Vec<Line<'static>> {
         None => vec![Line::from(Span::styled("no recipes match", theme::label()))],
         Some(node) => match node.kind {
             Kind::Module => module_lines(node),
+            Kind::Group => group_lines(node),
             Kind::Alias => alias_lines(node),
             Kind::Recipe => recipe_lines(node),
         },
@@ -45,6 +46,25 @@ fn heading(name: &str, kind: &str, color: ratatui::style::Color) -> Line<'static
         ),
         Span::styled(format!("  {kind}"), theme::label()),
     ])
+}
+
+/// A `[group('x')]` folder: what it is, and what is filed under it.
+fn group_lines(node: &Node) -> Vec<Line<'static>> {
+    let mut lines = vec![
+        heading(&node.name, "group", theme::VARIABLE),
+        Line::default(),
+        field("attribute", &format!("[group('{}')]", node.name)),
+        field("recipes", &node.children.len().to_string()),
+    ];
+    if !node.namepath.is_empty() {
+        lines.push(field("in module", &node.namepath));
+    }
+    lines.push(Line::default());
+    lines.push(Line::from(Span::styled(
+        "Grouping is just's own; it does not change how a recipe is invoked.",
+        theme::label(),
+    )));
+    lines
 }
 
 fn module_lines(node: &Node) -> Vec<Line<'static>> {

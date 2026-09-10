@@ -93,6 +93,7 @@ all — you get the global roots alone.
 | `g` `G` `PgUp` `PgDn` `Ctrl-u` `Ctrl-d` | scroll |
 | `e` `c` | expand / collapse every module |
 | `p` | show or hide private recipes |
+| `m` | fold the `[group(…)]` layer in or out |
 | `v` | doc above code, or beside it |
 | `w` | wrap long source lines |
 | `f` | zoom the focused pane |
@@ -152,6 +153,31 @@ Always under `logs/` in the justfile's base directory, mirroring the module stru
 | `level3::db::tree` | `logs/level3/db/tree-%j.out` |
 
 Array jobs use `-%A_%a` instead of `-%j`. The directory is created before submitting.
+
+## Groups
+
+A recipe carrying `[group('x')]` is filed under a collapsible folder inside its module —
+**next to** the modules, never instead of them, since that is what `just --list` does too:
+
+```
+│▾ project/                     ← the module
+││ ▸ tools/                     ← a real `mod`, untouched
+││ • default ★  Show every rec… ← ungrouped recipes stay put, above the folders
+││ ▾ build  2 recipes           ← [group('build')]
+││ │ • compile  Build the binary
+││ │ • release  Optimised build
+││ ▾ data  2 recipes            ← [group('data')]
+││ │ • fetch  Download the inputs
+││ │ • clean  Drop the cache
+```
+
+The layer only appears where it actually divides something: a module whose recipes fall into
+two or more buckets (ungrouped counts as one). A module where everything shares a single
+group, or none at all, is left exactly as it was.
+
+Groups are display only — a namepath never contains one, so running, submitting and config
+scopes are unaffected. `m` folds the layer away and back; groups expand, collapse, search and
+navigate like any other folder.
 
 ## Looking at jobs
 

@@ -115,11 +115,32 @@ impl App {
 
     pub fn set_all_expanded(&mut self, expanded: bool) {
         for node in &mut self.tree.nodes {
-            if node.kind == Kind::Module {
+            if node.is_container() {
                 node.expanded = expanded || node.depth == 0;
             }
         }
         self.refresh_visible();
+    }
+
+    /// Fold the `[group('x')]` layer in or out. The tree is rebuilt rather
+    /// than hidden, so indentation and the cursor stay honest.
+    pub fn toggle_groups(&mut self) {
+        self.group_layer = !self.group_layer;
+        let selected = self.selected().map(|n| (n.root_index, n.namepath.clone()));
+
+        self.tree = crate::tree::Tree::build_with(&self.sources, &mut self.cache, self.group_layer);
+        self.refresh_visible();
+        if let Some(id) = selected.and_then(|(root, path)| self.tree.find_namepath(root, &path)) {
+            self.tree.reveal(id);
+            self.selected_id = Some(id);
+            self.refresh_visible();
+        }
+
+        self.info(match (self.group_layer, self.tree.has_groups()) {
+            (true, true) => "grouped by [group(…)]",
+            (true, false) => "no [group(…)] attributes here",
+            (false, _) => "groups folded away",
+        });
     }
 
     pub fn toggle_private(&mut self) {

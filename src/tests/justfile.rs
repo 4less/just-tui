@@ -1,9 +1,11 @@
 //! Reading justfiles: the JSON dump, the explorer tree, source extraction,
 //! and the search filter.
 
+use std::path::PathBuf;
+
 use super::{fixture, fixture_source, fixture_tree, global_source};
 use crate::just;
-use crate::model::render_literal;
+use crate::model::{Justfile, render_literal};
 use crate::source::SourceCache;
 use crate::tree::{Filter, Kind, Tree};
 
@@ -193,4 +195,89 @@ fn a_global_recipe_runs_in_the_current_directory() {
 
     // A project source needs neither flag: just finds the file itself.
     assert!(just::file_args(&fixture_source()).is_empty());
+}
+
+/// A justfile whose recipes carry `[group(...)]`, plus one that does not.
+fn grouped_source() -> just::Loaded {
+    let mut file = Justfile::default();
+    for (name, group) in [
+        ("compile", Some("build")),
+        ("release", Some("build")),
+        ("fetch", Some("data")),
+        ("default", None),
+    ] {
+        let attributes = match group {
+            Some(name) => format!(r#"[{{"group": "{name}"}}]"#),
+            None => "[]".to_owned(),
+        };
+        file.recipes.insert(
+            name.to_owned(),
+            serde_json::from_str(&format!(
+                r#"{{"attributes":{attributes},"body":[["echo x"]],"dependencies":[],
+                    "doc":null,"name":"{name}","namepath":"{name}","parameters":[],
+                    "priors":0,"private":false,"quiet":false,"shebang":false}}"#
+            ))
+            .unwrap(),
+        );
+    }
+    just::Loaded {
+        justfile: file,
+        working_dir: PathBuf::from("/tmp/does-not-exist"),
+        path: Some(PathBuf::from("/tmp/does-not-exist/justfile")),
+        explicit_file: None,
+        label: "grouped".to_owned(),
+        global: false,
+    }
+}
+
+#[test]
+fn groups_become_a_layer_inside_the_module() {
+    let mut cache = SourceCache::default();
+    let tree = Tree::build_with(&[grouped_source()], &mut cache, true);
+
+    let groups: Vec<&str> = tree
+        .nodes
+        .iter()
+        .filter(|n| n.kind == Kind::Group)
+        .map(|n| n.name.as_str())
+        .collect();
+    assert_eq!(groups, ["build", "data"], "one folder per group, sorted");
+
+    let build = tree.nodes.iter().find(|n| n.name == "build").unwrap();
+    assert_eq!(build.children.len(), 2);
+    assert!(build.is_container() && build.expanded);
+    assert!(build.source.is_none(), "a group owns no file of its own");
+
+    // The ungrouped recipe stays directly under the root, above the folders.
+    let root = &tree.nodes[tree.roots[0]];
+    let order: Vec<&str> = root
+        .children
+        .iter()
+        .map(|&id| tree.nodes[id].name.as_str())
+        .collect();
+    assert_eq!(order, ["default", "build", "data"]);
+
+    // Grouping is display only: namepaths, and so invocation, are untouched.
+    let compile = tree.nodes.iter().find(|n| n.name == "compile").unwrap();
+    assert_eq!(compile.namepath, "compile");
+    assert_eq!(
+        compile.depth, 2,
+        "one level deeper than an ungrouped recipe"
+    );
+    assert!(tree.find_namepath(0, "compile").is_some());
+}
+
+#[test]
+fn a_module_no_group_divides_is_left_alone() {
+    // Nothing in the global library is grouped: one bucket, so no layer.
+    let mut cache = SourceCache::default();
+    let tree = Tree::build_with(&[global_source()], &mut cache, true);
+    assert!(!tree.has_groups());
+
+    // And the layer can be folded away entirely.
+    let mut cache = SourceCache::default();
+    let flat = Tree::build_with(&[grouped_source()], &mut cache, false);
+    assert!(!flat.has_groups());
+    let compile = flat.nodes.iter().find(|n| n.name == "compile").unwrap();
+    assert_eq!(compile.depth, 1, "back to sitting under the module");
 }

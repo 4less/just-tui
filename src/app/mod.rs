@@ -103,6 +103,8 @@ pub struct App {
     pub search: String,
     pub args_input: String,
     pub show_private: bool,
+    /// Show `[group('x')]` folders inside modules that are divided by one.
+    pub group_layer: bool,
     pub doc_scroll: u16,
     pub code_scroll: u16,
     pub code_height: u16,
@@ -144,6 +146,7 @@ impl App {
             search: String::new(),
             args_input: String::new(),
             show_private: false,
+            group_layer: true,
             doc_scroll: 0,
             code_scroll: 0,
             code_height: 10,
@@ -206,7 +209,7 @@ impl App {
 
         self.cache.invalidate();
         self.sources = reloaded;
-        self.tree = Tree::build(&self.sources, &mut self.cache);
+        self.tree = Tree::build_with(&self.sources, &mut self.cache, self.group_layer);
         self.refresh_visible();
         if let Some(id) = selected.and_then(|(root, path)| self.tree.find_namepath(root, &path)) {
             self.selected_id = Some(id);
@@ -232,7 +235,7 @@ impl App {
         match node.kind {
             Kind::Recipe => Some(node.namepath.clone()),
             Kind::Alias => Some(node.namepath.clone()),
-            Kind::Module => None,
+            Kind::Module | Kind::Group => None,
         }
     }
 
