@@ -9,7 +9,8 @@ mod units;
 
 pub use cluster::{Cluster, Partition};
 pub use command::{
-    Submission, job_name, log_paths, preview_command, resolved_log_paths, submit, warnings,
+    Submission, job_name, log_dir, log_paths, log_stem, preview_command, resolved_log_paths,
+    submit, warnings,
 };
 pub use jobs::{
     Job, JobList, Logs, Usage, cancel, fetch_usage, find_logs, is_error_line, refresh_queue, tail,

@@ -21,6 +21,8 @@ pub struct Settings {
     pub extra: String,
     /// Arguments appended to the `just` invocation, not to sbatch.
     pub args: String,
+    /// A glob, or `@file`, expanding the recipe into one array task per value.
+    pub each: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -37,9 +39,10 @@ pub enum Field {
     Array,
     Extra,
     Args,
+    Each,
 }
 
-pub const FIELDS: [Field; 12] = [
+pub const FIELDS: [Field; 13] = [
     Field::Name,
     Field::Partition,
     Field::Account,
@@ -52,6 +55,7 @@ pub const FIELDS: [Field; 12] = [
     Field::Array,
     Field::Extra,
     Field::Args,
+    Field::Each,
 ];
 
 impl Field {
@@ -69,6 +73,7 @@ impl Field {
             Field::Array => "array",
             Field::Extra => "extra",
             Field::Args => "args",
+            Field::Each => "each",
         }
     }
 
@@ -84,7 +89,7 @@ impl Field {
             Field::Nodes => "--nodes",
             Field::Gpus => "--gres",
             Field::Array => "--array",
-            Field::Name | Field::Extra | Field::Args => return None,
+            Field::Name | Field::Extra | Field::Args | Field::Each => return None,
         })
     }
 
@@ -102,6 +107,7 @@ impl Field {
             Field::Array => "e.g. 0-31%4",
             Field::Extra => "any further sbatch flags",
             Field::Args => "arguments for the recipe",
+            Field::Each => "one job per match: data/*.txt or @runs.txt",
         }
     }
 }
@@ -121,6 +127,7 @@ impl Settings {
             Field::Array => &self.array,
             Field::Extra => &self.extra,
             Field::Args => &self.args,
+            Field::Each => &self.each,
         }
     }
 
@@ -138,6 +145,7 @@ impl Settings {
             Field::Array => &mut self.array,
             Field::Extra => &mut self.extra,
             Field::Args => &mut self.args,
+            Field::Each => &mut self.each,
         }
     }
 }

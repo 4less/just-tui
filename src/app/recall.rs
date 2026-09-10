@@ -91,7 +91,7 @@ impl App {
 
         self.mode = Mode::Submit;
         if let Some(form) = self.form.as_mut() {
-            form.settings = record.settings.clone();
+            form.adopt(record.settings.clone());
         }
         self.info(format!(
             "loaded the settings job {} ran with ({})",

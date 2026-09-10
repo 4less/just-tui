@@ -142,6 +142,53 @@ what the cluster actually offers, with each partition's limits shown beside it
 flagged before you submit. Detection is skipped silently on a machine without Slurm — the
 fields stay free text.
 
+### One recipe over many inputs
+
+`each` expands a recipe into one Slurm array task per input:
+
+```ini
+[level3::run::s01_msa]
+each = data/level3/*.fna     # a glob…
+args = {}                    # …and where each match lands
+
+[level3::run::s02_refilter]
+each = @arms.txt             # …or one line of arguments per row
+```
+
+`{}` works like `xargs -I{}`. Without it the value is appended, which is how `just` takes a
+positional parameter. With `@file`, blank lines and `#` comments are skipped, so a run list
+can be kept under version control and commented.
+
+On submit the expansion is written to a **manifest** beside the logs — one line of arguments
+per task — and a single array is submitted that reads it:
+
+```
+logs/level3/run/s01_msa-245df667.args     ← the manifest
+  data/level3/focal_target.fna              task 0
+  data/level3/nonfocal_cong.fna             task 1
+  …
+
+sbatch --array=0-36 --wrap 'just level3::run::s01_msa $(sed -n "$((SLURM_ARRAY_TASK_ID+1))p" logs/…/s01_msa-245df667.args)'
+```
+
+The form says what it will do before you commit to it — `expands 37 jobs · first:
+data/level3/focal_target.fna` — and names the manifest it would write.
+
+The manifest is named after **its own contents**, so resubmitting an unchanged expansion
+writes the same file, and a changed one gets a new name rather than overwriting a manifest
+an array is still reading its way through. Task order is sorted, so a task number means the
+same thing every time.
+
+Each task writes `logs/…/<recipe>-%A_%a.out`, and the job browser lists tasks separately and
+shows each one's own line of the manifest, so `23474919_7` reads
+`level3::run::s01_msa data/level3/nonfocal_cong.fna` rather than the template. Set `array`
+to `%4` alongside `each` to cap how many run at once; a range typed there is ignored, since
+the expansion sets it.
+
+Two things to know: every task gets the **same** `--mem`, `--cpus` and `--time`, so this
+suits work that is uniform across inputs; and rerunning a few failed tasks means resubmitting
+the array with `--array=3,7,19` rather than pressing `s`.
+
 ### Logs
 
 Always under `logs/` in the justfile's base directory, mirroring the module structure:
@@ -304,7 +351,7 @@ time = 96:00:00
 ```
 
 Keys: `partition` (or `queue`), `account`, `qos`, `cpus`, `mem`, `time`, `nodes`, `gpus`
-(or `gres`), `array`, `extra`, `args`. An empty or absent key means the flag is not passed.
+(or `gres`), `array`, `extra`, `args`, `each` (or `glob`, `inputs`). An empty or absent key means the flag is not passed.
 
 Precedence, weakest first — **the nearer config always wins**, and every config beats the
 automatically recorded state:

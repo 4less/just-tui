@@ -258,7 +258,7 @@ fn draw_detail(frame: &mut Frame, app: &App, area: Rect) {
                 Span::styled("   submitted ", theme::label()),
                 Span::styled(record.when.clone(), Style::default().fg(theme::STRING)),
                 Span::styled("  ·  ", theme::label()),
-                Span::styled(record.label(), Style::default().fg(theme::RECIPE)),
+                Span::styled(task_label(app, record), Style::default().fg(theme::RECIPE)),
                 Span::styled("  ·  ", theme::label()),
                 Span::styled(record.asked_for(), Style::default().fg(theme::VARIABLE)),
             ]),
@@ -424,4 +424,27 @@ pub fn draw_confirm(frame: &mut Frame, app: &App, area: Rect) {
         )),
         popup,
     );
+}
+
+/// What the selected job was doing. For one task of an expansion that is its
+/// own line of the manifest, not the whole recipe's arguments, which are the
+/// same for every task and so tell you nothing.
+fn task_label(app: &App, record: &crate::history::Record) -> String {
+    let Some(job) = app.jobs.as_ref().and_then(|view| view.selected()) else {
+        return record.label();
+    };
+    let task = job
+        .id
+        .split_once('_')
+        .and_then(|(_, index)| index.parse::<usize>().ok());
+
+    match (task, record.manifest.is_empty()) {
+        (Some(task), false) => {
+            match crate::batch::line(std::path::Path::new(&record.base), &record.manifest, task) {
+                Some(args) => format!("{} {args}", record.namepath),
+                None => format!("{} task {task}", record.namepath),
+            }
+        }
+        _ => record.label(),
+    }
 }

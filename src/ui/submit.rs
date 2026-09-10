@@ -123,9 +123,48 @@ fn note(cluster: &Cluster, field: Field, value: &str) -> String {
 /// Log path, the command as it will be run, warnings, and provenance.
 fn summary(form: &SubmitForm, cluster: &Cluster, width: usize) -> Vec<Line<'static>> {
     let (out, _) = slurm::log_paths(&form.namepath, &form.settings);
-    let command = slurm::preview_command(&form.base, &form.namepath, &form.settings);
+    let command = slurm::preview_command(&form.base, &form.namepath, &form.settings, form.batch());
 
-    let mut lines = vec![
+    let mut lines = Vec::new();
+
+    // An expansion changes what "submitting" means, so it is said plainly and
+    // before anything else.
+    if let Some(plan) = form.plan.as_ref() {
+        lines.push(Line::from(vec![
+            Span::styled("   expands   ", theme::label()),
+            Span::styled(
+                format!("{} jobs", plan.count()),
+                Style::default()
+                    .fg(theme::MATCH)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled("  first: ", theme::label()),
+            Span::styled(
+                truncate(
+                    plan.lines.first().map(String::as_str).unwrap_or(""),
+                    width.saturating_sub(34),
+                ),
+                Style::default().fg(theme::STRING),
+            ),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("   manifest  ", theme::label()),
+            Span::styled(
+                plan.manifest.display().to_string(),
+                Style::default().fg(theme::RECIPE),
+            ),
+        ]));
+    }
+    if let Some(problem) = form.plan_error.as_ref() {
+        lines.push(Line::from(Span::styled(
+            format!("   ! each: {problem}"),
+            Style::default()
+                .fg(theme::INTERP)
+                .add_modifier(Modifier::BOLD),
+        )));
+    }
+
+    lines.extend(vec![
         Line::from(vec![
             Span::styled("   job name  ", theme::label()),
             Span::styled(
@@ -147,7 +186,7 @@ fn summary(form: &SubmitForm, cluster: &Cluster, width: usize) -> Vec<Line<'stat
                 Style::default().fg(theme::FG),
             ),
         ]),
-    ];
+    ]);
 
     for warning in slurm::warnings(cluster, &form.settings) {
         lines.push(Line::from(Span::styled(

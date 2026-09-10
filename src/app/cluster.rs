@@ -1,6 +1,7 @@
 //! Opening the submit form, resolving its defaults, and submitting.
 
 use super::{Action, App, Mode};
+use crate::batch;
 use crate::config;
 use crate::history::{self, Record};
 use crate::slurm::{self, Cluster};
@@ -60,7 +61,19 @@ impl App {
         let Some(form) = self.form.take() else { return };
         self.mode = Mode::Normal;
 
-        match slurm::submit(&form.base, &form.namepath, &form.settings) {
+        // The manifest has to be on disk before the first task starts.
+        if let Some(plan) = form.plan.as_ref()
+            && let Err(err) = batch::write(&form.base, plan)
+        {
+            self.error(format!("could not write the manifest: {err}"));
+            return;
+        }
+        if let Some(problem) = form.plan_error.as_ref() {
+            self.error(format!("each: {problem}"));
+            return;
+        }
+
+        match slurm::submit(&form.base, &form.namepath, &form.settings, form.batch()) {
             slurm::Submission::Ok { job_id } => {
                 let (out, err) = slurm::resolved_log_paths(&form.namepath, &form.settings, &job_id);
                 let record = Record {
@@ -71,18 +84,33 @@ impl App {
                     when: history::timestamp(),
                     out: out.clone(),
                     err,
-                    command: slurm::preview_command(&form.base, &form.namepath, &form.settings),
+                    command: slurm::preview_command(
+                        &form.base,
+                        &form.namepath,
+                        &form.settings,
+                        form.batch(),
+                    ),
                     base: form.base.display().to_string(),
+                    manifest: form
+                        .plan
+                        .as_ref()
+                        .map(|plan| plan.manifest.display().to_string())
+                        .unwrap_or_default(),
+                    tasks: form.plan.as_ref().map_or(0, |plan| plan.count()),
                     settings: form.settings.clone(),
                 };
                 let name = record.name.clone();
+                let tasks = record.tasks;
 
                 let saved = self
                     .configs
                     .remember(&form.namepath, &form.settings)
                     .and_then(|()| self.history.append(record));
                 match saved {
-                    Ok(()) => self.info(format!("submitted {name} as job {job_id} — log {out}")),
+                    Ok(()) => self.info(match tasks {
+                        0 => format!("submitted {name} as job {job_id} — log {out}"),
+                        n => format!("submitted {name} as job {job_id} — {n} tasks"),
+                    }),
                     Err(err) => self.error(format!(
                         "submitted {job_id}, but could not save settings: {err}"
                     )),
