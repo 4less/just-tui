@@ -422,7 +422,7 @@ impl App {
         }
         self.open_submit();
         if let Some(form) = self.form.as_mut() {
-            form.settings = record.settings.clone();
+            form.adopt(record.settings.clone());
         }
         self.info(format!("settings from job {}", record.job_id));
         Action::None

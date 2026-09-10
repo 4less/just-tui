@@ -46,7 +46,12 @@ pub fn job_name(namepath: &str, settings: &Settings) -> String {
         return clip(slug(settings.name.trim()));
     }
     let mut name = slug(&namepath.replace("::", "-"));
-    let args = slug(settings.args.trim());
+    // An expansion gives every task different arguments, so baking the
+    // template into the name would say nothing about any of them.
+    let args = match is_expansion(settings) {
+        true => String::new(),
+        false => slug(settings.args.trim()),
+    };
     if !args.is_empty() {
         name.push('-');
         name.push_str(&args);
@@ -54,15 +59,24 @@ pub fn job_name(namepath: &str, settings: &Settings) -> String {
     clip(name)
 }
 
+/// Whether this submission is a job array: an explicit `--array`, or an
+/// `each` that expands into one.
+fn is_expansion(settings: &Settings) -> bool {
+    !settings.array.trim().is_empty() || !settings.each.trim().is_empty()
+}
+
 /// The log file stem. The module path is already in the directory, so only the
 /// recipe name and its arguments are needed here.
-fn log_stem(namepath: &str, settings: &Settings) -> String {
+pub fn log_stem(namepath: &str, settings: &Settings) -> String {
     if !settings.name.trim().is_empty() {
         return clip(slug(settings.name.trim()));
     }
     let leaf = namepath.rsplit("::").next().unwrap_or("job");
     let mut stem = slug(leaf);
-    let args = slug(settings.args.trim());
+    let args = match is_expansion(settings) {
+        true => String::new(),
+        false => slug(settings.args.trim()),
+    };
     if !args.is_empty() {
         stem.push('-');
         stem.push_str(&args);
@@ -79,10 +93,9 @@ pub fn log_paths(namepath: &str, settings: &Settings) -> (PathBuf, PathBuf) {
         path.push(module);
     }
     // Array tasks need the array id as well, or every task writes to one file.
-    let stem = if settings.array.trim().is_empty() {
-        format!("{}-%j", log_stem(namepath, settings))
-    } else {
-        format!("{}-%A_%a", log_stem(namepath, settings))
+    let stem = match is_expansion(settings) {
+        true => format!("{}-%A_%a", log_stem(namepath, settings)),
+        false => format!("{}-%j", log_stem(namepath, settings)),
     };
     (
         path.join(format!("{stem}.out")),
@@ -105,7 +118,12 @@ pub fn resolved_log_paths(namepath: &str, settings: &Settings, job_id: &str) -> 
 }
 
 /// The full `sbatch` argument list for a recipe.
-pub fn build_command(base: &Path, namepath: &str, settings: &Settings) -> Vec<String> {
+pub fn build_command(
+    base: &Path,
+    namepath: &str,
+    settings: &Settings,
+    batch: Option<(&Path, usize)>,
+) -> Vec<String> {
     let (out, err) = log_paths(namepath, settings);
     let mut args = vec![
         "--parsable".to_owned(),
@@ -121,6 +139,9 @@ pub fn build_command(base: &Path, namepath: &str, settings: &Settings) -> Vec<St
             continue;
         }
         match field.flag() {
+            // An expansion sets the range itself; anything typed in the array
+            // field is then only good for a `%n` throttle.
+            Some(_) if field == Field::Array && batch.is_some() => {}
             Some(flag) => args.push(format!("{flag}={value}")),
             None if field == Field::Extra => {
                 args.extend(value.split_whitespace().map(str::to_owned));
@@ -128,20 +149,54 @@ pub fn build_command(base: &Path, namepath: &str, settings: &Settings) -> Vec<St
             None => {}
         }
     }
+    if let Some((_, count)) = batch {
+        args.push(format!("--array={}", array_range(settings, count)));
+    }
 
+    args.push("--wrap".to_owned());
+    args.push(wrap_command(
+        namepath,
+        settings,
+        batch.map(|(path, _)| path),
+    ));
+    args
+}
+
+/// `0-36`, carrying over a `%n` throttle if one was typed in the array field.
+fn array_range(settings: &Settings, count: usize) -> String {
+    let range = format!("0-{}", count.saturating_sub(1));
+    match settings.array.trim().split_once('%') {
+        Some((_, throttle)) if !throttle.is_empty() => format!("{range}%{throttle}"),
+        _ => range,
+    }
+}
+
+/// What the job actually runs. An expansion reads its own line of the
+/// manifest; `$(…)` is left for the shell sbatch runs this under, so the task
+/// id is resolved on the node rather than here.
+fn wrap_command(namepath: &str, settings: &Settings, manifest: Option<&Path>) -> String {
+    if let Some(manifest) = manifest {
+        return format!(
+            "just {namepath} $(sed -n \"$((SLURM_ARRAY_TASK_ID+1))p\" {})",
+            manifest.display()
+        );
+    }
     let mut command = format!("just {namepath}");
     if !settings.args.trim().is_empty() {
         command.push(' ');
         command.push_str(settings.args.trim());
     }
-    args.push("--wrap".to_owned());
-    args.push(command);
-    args
+    command
 }
 
 /// The same command, trimmed to what a reader cares about: the bookkeeping
 /// flags are shown elsewhere in the form.
-pub fn preview_command(base: &Path, namepath: &str, settings: &Settings) -> String {
+pub fn preview_command(
+    base: &Path,
+    namepath: &str,
+    settings: &Settings,
+    batch: Option<(&Path, usize)>,
+) -> String {
     let skip = [
         "--parsable",
         "--chdir=",
@@ -149,7 +204,7 @@ pub fn preview_command(base: &Path, namepath: &str, settings: &Settings) -> Stri
         "--output=",
         "--error=",
     ];
-    let shown: Vec<String> = build_command(base, namepath, settings)
+    let shown: Vec<String> = build_command(base, namepath, settings, batch)
         .into_iter()
         .filter(|arg| !skip.iter().any(|prefix| arg.starts_with(prefix)))
         .collect();
@@ -180,7 +235,12 @@ pub enum Submission {
 }
 
 /// Create the log directory, then hand the job to sbatch.
-pub fn submit(base: &Path, namepath: &str, settings: &Settings) -> Submission {
+pub fn submit(
+    base: &Path,
+    namepath: &str,
+    settings: &Settings,
+    batch: Option<(&Path, usize)>,
+) -> Submission {
     let dir = log_dir(base, namepath, settings);
     if let Err(err) = std::fs::create_dir_all(&dir) {
         return Submission::Failed {
@@ -188,7 +248,7 @@ pub fn submit(base: &Path, namepath: &str, settings: &Settings) -> Submission {
         };
     }
 
-    let args = build_command(base, namepath, settings);
+    let args = build_command(base, namepath, settings, batch);
     match Command::new("sbatch")
         .args(&args)
         .current_dir(base)

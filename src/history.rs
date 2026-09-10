@@ -43,6 +43,10 @@ pub struct Record {
     /// Directory the job ran in, so it can be submitted again from there.
     /// Empty in records written before this was kept.
     pub base: String,
+    /// For an expansion, the manifest of argument lines, one per array task.
+    pub manifest: String,
+    /// How many tasks that expansion came to; 0 for an ordinary job.
+    pub tasks: usize,
     pub settings: Settings,
 }
 

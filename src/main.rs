@@ -1,6 +1,7 @@
 //! just-tui — a file-explorer style browser for `just` recipes.
 
 mod app;
+mod batch;
 mod config;
 mod highlight;
 mod history;

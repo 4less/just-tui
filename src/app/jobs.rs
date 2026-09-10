@@ -625,7 +625,20 @@ impl App {
             false => PathBuf::from(&record.base),
         };
 
-        match slurm::submit(&base, &record.namepath, &record.settings) {
+        // Re-expand: the inputs may have changed since, and the manifest is
+        // named after its contents, so an unchanged one writes the same file.
+        let plan = crate::batch::plan(&base, &record.namepath, &record.settings)
+            .map_err(|problem| format!("each: {problem}"))?;
+        if let Some(plan) = plan.as_ref()
+            && let Err(err) = crate::batch::write(&base, plan)
+        {
+            return Err(format!("could not write the manifest: {err}"));
+        }
+        let batch = plan
+            .as_ref()
+            .map(|plan| (plan.manifest.as_path(), plan.count()));
+
+        match slurm::submit(&base, &record.namepath, &record.settings, batch) {
             slurm::Submission::Failed { message } => Err(format!("sbatch: {message}")),
             slurm::Submission::Ok { job_id } => {
                 let (out, err) =
@@ -636,6 +649,11 @@ impl App {
                     when: crate::history::timestamp(),
                     out,
                     err,
+                    manifest: plan
+                        .as_ref()
+                        .map(|plan| plan.manifest.display().to_string())
+                        .unwrap_or_default(),
+                    tasks: plan.as_ref().map_or(0, |plan| plan.count()),
                     ..record
                 };
                 if let Err(problem) = self.history.append(again) {

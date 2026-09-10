@@ -4,6 +4,7 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::batch::{self, Plan};
 use crate::config::Resolved;
 use crate::slurm::{self, Cluster, Field, Settings};
 
@@ -47,6 +48,10 @@ pub struct SubmitForm {
     /// Config scopes this recipe answers to, for the edit chooser.
     pub scopes: Vec<(&'static str, PathBuf)>,
     pub scope_index: usize,
+    /// What `each` expands to, or why it does not. Recomputed when the fields
+    /// it depends on change, since globbing on every frame would be wasteful.
+    pub plan: Option<Plan>,
+    pub plan_error: Option<String>,
 }
 
 impl SubmitForm {
@@ -59,7 +64,7 @@ impl SubmitForm {
         // A recipe at the project root has no separate module scope.
         scopes.dedup_by(|a, b| a.1 == b.1);
 
-        Self {
+        let mut form = Self {
             namepath,
             settings: resolved.settings.clone(),
             resolved,
@@ -68,7 +73,32 @@ impl SubmitForm {
             base,
             scopes,
             scope_index: 0,
+            plan: None,
+            plan_error: None,
+        };
+        form.refresh_plan();
+        form
+    }
+
+    /// Re-expand `each`. Cheap when it is empty, which is the common case.
+    pub fn refresh_plan(&mut self) {
+        match batch::plan(&self.base, &self.namepath, &self.settings) {
+            Ok(plan) => {
+                self.plan = plan;
+                self.plan_error = None;
+            }
+            Err(problem) => {
+                self.plan = None;
+                self.plan_error = Some(problem);
+            }
         }
+    }
+
+    /// The manifest and task count to submit with, if this is an expansion.
+    pub fn batch(&self) -> Option<(&Path, usize)> {
+        self.plan
+            .as_ref()
+            .map(|plan| (plan.manifest.as_path(), plan.count()))
     }
 
     /// The field the cursor is on.
@@ -80,6 +110,13 @@ impl SubmitForm {
     pub fn reset_to(&mut self, resolved: Resolved) {
         self.settings = resolved.settings.clone();
         self.resolved = resolved;
+        self.refresh_plan();
+    }
+
+    /// Adopt settings from somewhere else — a past submission, say.
+    pub fn adopt(&mut self, settings: Settings) {
+        self.settings = settings;
+        self.refresh_plan();
     }
 
     /// Where the selected field's value came from, if it was not typed here.
@@ -120,16 +157,19 @@ impl SubmitForm {
     pub fn push_char(&mut self, c: char) {
         let field = self.current();
         self.settings.get_mut(field).push(c);
+        self.refresh_plan();
     }
 
     pub fn pop_char(&mut self) {
         let field = self.current();
         self.settings.get_mut(field).pop();
+        self.refresh_plan();
     }
 
     pub fn clear_field(&mut self) {
         let field = self.current();
         self.settings.get_mut(field).clear();
+        self.refresh_plan();
     }
 
     /// Step a pick-list field through the values the cluster reported.
@@ -149,6 +189,7 @@ impl SubmitForm {
         let position = options.iter().position(|c| c == current).unwrap_or(0) as isize;
         let next = (position + delta).rem_euclid(options.len() as isize) as usize;
         *self.settings.get_mut(field) = options[next].clone();
+        self.refresh_plan();
     }
 
     /// The directory and optional recipe section a save should write to.

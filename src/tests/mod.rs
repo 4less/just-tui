@@ -1,6 +1,7 @@
 //! Test fixtures shared by the suites below.
 
 mod app;
+mod batch;
 mod cluster;
 mod highlight;
 mod jobs;
