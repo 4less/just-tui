@@ -210,24 +210,24 @@ fn killing_a_job_has_to_be_confirmed() {
 
     // Nothing to kill on a job that has already stopped.
     app.move_job(1);
-    app.ask_cancel(false);
+    app.ask_job_action(true, false);
     assert_eq!(app.mode, Mode::Jobs, "no confirmation for a finished job");
-    assert!(app.cancel.is_none());
+    assert!(app.pending.is_none());
 
     // A running one asks first, and leaves rather than acts on any other key.
     app.move_job(-1);
-    app.ask_cancel(false);
-    assert_eq!(app.mode, Mode::CancelJob);
-    assert_eq!(app.cancel.as_ref().unwrap().id, "4210");
+    app.ask_job_action(true, false);
+    assert_eq!(app.mode, Mode::ConfirmJob);
+    assert_eq!(app.pending.as_ref().unwrap().id, "4210");
     let text = rendered(&mut app, 100, 20);
     assert!(text.contains("Kill this job?") && text.contains("scancel 4210"));
 
-    app.abandon_cancel();
+    app.abandon_job_action();
     assert_eq!(app.mode, Mode::Jobs);
-    assert!(app.cancel.is_none(), "the job is left alone");
+    assert!(app.pending.is_none(), "the job is left alone");
 
     // Resubmitting needs the settings it went out with.
-    app.ask_cancel(true);
+    app.ask_job_action(true, true);
     assert_eq!(app.mode, Mode::Jobs, "nothing recorded for this job");
 
     app.history.push_for_test(Record {
@@ -236,13 +236,51 @@ fn killing_a_job_has_to_be_confirmed() {
         command: "sbatch --mem=128G --wrap \"just build\"".to_owned(),
         ..Default::default()
     });
-    app.ask_cancel(true);
-    assert_eq!(app.mode, Mode::CancelJob);
-    assert!(app.cancel.as_ref().unwrap().resubmit);
+    app.ask_job_action(true, true);
+    assert_eq!(app.mode, Mode::ConfirmJob);
+    assert!(app.pending.as_ref().unwrap().resubmit);
     let text = rendered(&mut app, 100, 20);
     assert!(text.contains("Kill this job and run it again?"));
     assert!(
         text.contains("just build"),
         "it shows what would be resubmitted"
     );
+}
+
+#[test]
+fn a_job_is_rerun_only_once_it_has_stopped() {
+    use crate::history::Record;
+
+    let mut app = fixture_app();
+    app.jobs = Some(JobsView::with(crate::slurm::merge_jobs(
+        Some("4210|nightly|RUNNING|qib|s|s|00:12:33|node07|/work|64|128G"),
+        Some("4190|nightly|FAILED|qib|s|s|e|00:00:35|1:0|node03|/work|64|128G"),
+        7,
+    )));
+    app.mode = Mode::Jobs;
+
+    for id in ["4210", "4190"] {
+        app.history.push_for_test(Record {
+            job_id: id.to_owned(),
+            namepath: "build".to_owned(),
+            command: "sbatch --wrap \"just build\"".to_owned(),
+            ..Default::default()
+        });
+    }
+
+    // A job still on the queue is replaced, not duplicated.
+    app.ask_job_action(false, true);
+    assert_eq!(app.mode, Mode::Jobs, "no confirmation while it runs");
+    assert!(app.pending.is_none());
+
+    // One that has stopped — failed here — is exactly what rerunning is for.
+    app.move_job(1);
+    app.ask_job_action(false, true);
+    assert_eq!(app.mode, Mode::ConfirmJob);
+    let pending = app.pending.as_ref().expect("asked to confirm");
+    assert!(pending.resubmit && !pending.kill);
+
+    let text = rendered(&mut app, 100, 20);
+    assert!(text.contains("Submit this job again?"));
+    assert!(!text.contains("scancel"), "nothing is being killed");
 }

@@ -23,7 +23,7 @@ pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
     };
 
     let footer = format!(
-        " ↑↓ · ⇥ {} · ⏎ log · u reuse · x kill · X kill+resubmit · f {} · d {}d · p {} · r · esc ",
+        " ↑↓ · ⇥ {} · ⏎ log · u reuse · s rerun · x kill · X kill+rerun · f {} · d {}d · p {} · esc ",
         view.which.other().label(),
         view.filter.label(),
         view.days(),
@@ -333,10 +333,10 @@ fn draw_log(frame: &mut Frame, app: &mut App, area: Rect) {
     frame.render_widget(Paragraph::new(lines), inner);
 }
 
-/// The only irreversible thing this interface does, so it asks first and
-/// takes nothing but `y` for an answer.
+/// Anything that reaches the scheduler asks first, and takes nothing but `y`
+/// for an answer.
 pub fn draw_confirm(frame: &mut Frame, app: &App, area: Rect) {
-    let Some(pending) = app.cancel.as_ref() else {
+    let Some(pending) = app.pending.as_ref() else {
         return;
     };
     let width = 72.min(area.width.saturating_sub(2));
@@ -344,7 +344,10 @@ pub fn draw_confirm(frame: &mut Frame, app: &App, area: Rect) {
 
     let mut lines = vec![
         Line::from(vec![
-            Span::styled("  scancel ", theme::label()),
+            Span::styled(
+                if pending.kill { "  scancel " } else { "  job " },
+                theme::label(),
+            ),
             Span::styled(
                 pending.id.clone(),
                 Style::default()
@@ -366,7 +369,10 @@ pub fn draw_confirm(frame: &mut Frame, app: &App, area: Rect) {
             .map(|record| record.command.clone())
             .unwrap_or_default();
         lines.push(Line::from(Span::styled(
-            "  then submit the same job again:",
+            match pending.kill {
+                true => "  then submit the same job again:",
+                false => "  goes back on the queue exactly as it was:",
+            },
             theme::label(),
         )));
         lines.push(Line::from(Span::styled(
@@ -380,15 +386,11 @@ pub fn draw_confirm(frame: &mut Frame, app: &App, area: Rect) {
         )));
     }
 
-    let title = match pending.resubmit {
-        true => " Kill this job and run it again? ",
-        false => " Kill this job? ",
-    };
     let popup = centered(area, width, lines.len() as u16 + 2);
     frame.render_widget(Clear, popup);
     frame.render_widget(
         Paragraph::new(lines).block(overlay_block(
-            title,
+            pending.title(),
             " y do it · any other key leaves the job alone ",
             theme::INTERP,
         )),
