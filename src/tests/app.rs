@@ -284,3 +284,96 @@ fn a_job_is_rerun_only_once_it_has_stopped() {
     assert!(text.contains("Submit this job again?"));
     assert!(!text.contains("scancel"), "nothing is being killed");
 }
+
+#[test]
+fn a_log_is_read_off_the_ui_thread() {
+    use std::time::{Duration, Instant};
+
+    let dir = std::env::temp_dir().join(format!("just-tui-async-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("logs")).unwrap();
+    std::fs::write(dir.join("logs/nightly-4190.err"), "boom: it broke\n").unwrap();
+    std::fs::write(dir.join("logs/nightly-4180.err"), "the other job\n").unwrap();
+
+    // Finished jobs, so finding the log does not wait on scontrol.
+    let listing = format!(
+        "4190|nightly|FAILED|qib|s|s|e|00:00:35|1:0|node03|{0}|8|64G\n\
+         4180|nightly|COMPLETED|qib|s|s|e|00:03:50|0:0|node02|{0}|8|64G",
+        dir.display()
+    );
+
+    let mut app = fixture_app();
+    app.jobs = Some(JobsView::with(crate::slurm::merge_jobs(
+        None,
+        Some(&listing),
+        7,
+    )));
+    app.mode = Mode::Jobs;
+
+    // Asking returns at once; the read happens elsewhere.
+    let asked = Instant::now();
+    app.request_job_log();
+    assert!(
+        asked.elapsed() < Duration::from_millis(50),
+        "requesting a log must not block the cursor"
+    );
+
+    // The cursor moves while that is in flight, and the second job wins.
+    app.move_job(1);
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline {
+        app.poll_background();
+        if !app.jobs.as_ref().unwrap().loading() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+
+    // The first answer is for the job the cursor has left, so it is dropped
+    // and the one now selected is asked for; give that one time too.
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline {
+        app.poll_background();
+        let view = app.jobs.as_ref().unwrap();
+        if !view.loading() && view.lines.iter().any(|line| line.contains("the other job")) {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+
+    let view = app.jobs.as_ref().unwrap();
+    assert!(!view.loading(), "the read was delivered");
+    assert!(
+        view.lines.iter().any(|line| line.contains("the other job")),
+        "the log shown belongs to the job under the cursor, got {:?}",
+        view.lines
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_log_pane_spins_while_it_waits() {
+    let mut app = fixture_app();
+    let mut view = JobsView::with(crate::slurm::merge_jobs(
+        Some("4210|nightly|RUNNING|qib|s|s|00:12:33|node07|/work|64|128G"),
+        None,
+        7,
+    ));
+    view.mark_loading();
+    app.jobs = Some(view);
+    app.mode = Mode::Jobs;
+
+    let text = rendered(&mut app, 100, 20);
+    assert!(text.contains("reading"), "the pane says what it is doing");
+    assert!(
+        text.contains("4210") && text.contains("RUNNING"),
+        "and the list is still drawn behind it"
+    );
+
+    // The frame advances on a tick, which is what makes it a spinner.
+    let before = app.jobs.as_ref().unwrap().frame;
+    app.tick();
+    assert_ne!(app.jobs.as_ref().unwrap().frame, before);
+}
