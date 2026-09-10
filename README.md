@@ -200,6 +200,25 @@ finished, merged into one list, newest first.
 ╰ ↑↓ job · ⇥ stdout · ⏎ open log · u reuse settings · f all · d 7d · r reload · esc back ─╯
 ```
 
+While the browser is open it **refreshes itself**: the clock on a running job ticks every
+second, and every five seconds `squeue` and `sstat` are re-asked for states and usage. `p`
+pauses that; `r` reloads everything including `sacct`.
+
+A running job shows what it is **actually using** against what it reserved:
+
+```
+23474919  RUNNING   level3-run-s01_msa-nonfocal_tgt…  00:01:32   233G/1280G  18%   64c  93%
+23474878  RUNNING   level3-run-s01_msa-nonfocal_cong…  06:39:02  1240G/1280G  97%   64c  98%
+```
+
+`MaxRSS` and `AveCPU` come from one `sstat` call for every running job at once, not one per
+job. CPU % is CPU time consumed against CPU time reserved — `AveCPU / (elapsed × cpus)` —
+so 100% means every allocated core was busy throughout.
+
+Colours read as strain: memory is red near its limit, and **CPU is the other way round** —
+red means allocated cores are idling, green means they are busy. Say the word if you want
+CPU coloured like memory instead.
+
 The bottom pane is the **tail of the selected job's log**, `stderr` first, with anything that
 looks like an error picked out in red. The log file is found by asking `scontrol` while the
 job is still known to the controller, and otherwise by looking for a file ending in `-<job id>`
@@ -213,6 +232,7 @@ under the job's working directory — so jobs submitted outside just-tui are rea
 | `u` | load the settings this job ran with back into the submit form |
 | `f` | filter: all / running / failed |
 | `d` | how far back to look: 1 / 7 / 30 / 90 days |
+| `p` | pause or resume the five-second refresh |
 | `r` | reload · `y` copy the log path · `PgUp`/`PgDn`/`g`/`G` scroll |
 
 ## Old settings: `.just-tui-cluster-history`

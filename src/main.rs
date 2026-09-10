@@ -154,7 +154,17 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
     loop {
         terminal.draw(|frame| ui::draw(frame, app))?;
 
-        let action = match event::read()? {
+        // While the job browser is open the clock has to move on its own, so
+        // input is waited for with a timeout rather than blocked on.
+        let event = match app.tick_interval() {
+            Some(timeout) if !event::poll(timeout)? => {
+                app.tick();
+                continue;
+            }
+            _ => event::read()?,
+        };
+
+        let action = match event {
             Event::Key(key) if key.kind == KeyEventKind::Press => app.handle_key(key),
             Event::Mouse(mouse) => {
                 handle_mouse(app, mouse);

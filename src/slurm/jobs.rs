@@ -4,14 +4,20 @@
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
+use std::collections::HashMap;
+
 use super::cluster::capture;
+use super::parse_mem;
 
 /// Fields asked of `squeue`, in the order [`parse_squeue`] reads them.
-const SQUEUE_FORMAT: &str = "--format=%i|%j|%T|%P|%V|%S|%M|%R|%Z";
+const SQUEUE_FORMAT: &str = "--format=%i|%j|%T|%P|%V|%S|%M|%R|%Z|%C|%m";
 
 /// Fields asked of `sacct`, in the order [`parse_sacct`] reads them.
-const SACCT_FORMAT: &str =
-    "--format=JobID,JobName,State,Partition,Submit,Start,End,Elapsed,ExitCode,NodeList,WorkDir";
+const SACCT_FORMAT: &str = "--format=JobID,JobName,State,Partition,Submit,Start,End,Elapsed,\
+                            ExitCode,NodeList,WorkDir,AllocCPUS,ReqMem";
+
+/// Fields asked of `sstat`, in the order [`parse_usage`] reads them.
+const SSTAT_FORMAT: &str = "--format=JobID,MaxRSS,AveCPU";
 
 /// Longest tail read from a log file. A job that printed a gigabyte of
 /// progress bars should still open instantly.
@@ -38,6 +44,43 @@ pub struct Job {
     pub work_dir: String,
     /// Still known to the controller, so `scontrol` can be asked about it.
     pub live: bool,
+    /// CPUs allocated to the job.
+    pub cpus: u32,
+    /// Memory allocated, in MB.
+    pub alloc_mem_mb: Option<u64>,
+    /// [`Self::elapsed`] in seconds, so the clock can be carried forward
+    /// between refreshes rather than re-queried every second.
+    pub elapsed_secs: u64,
+}
+
+/// What a running job is actually using, from `sstat`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Usage {
+    /// High-water memory across the job's tasks, in MB.
+    pub max_rss_mb: Option<u64>,
+    /// Averaged CPU time consumed, in seconds.
+    pub cpu_secs: Option<u64>,
+}
+
+impl Usage {
+    /// Memory used as a share of what was asked for.
+    pub fn mem_percent(&self, job: &Job) -> Option<f64> {
+        let (used, alloc) = (self.max_rss_mb?, job.alloc_mem_mb?);
+        if alloc == 0 {
+            return None;
+        }
+        Some(used as f64 / alloc as f64 * 100.0)
+    }
+
+    /// CPU time consumed against the CPU time reserved: 100% means every
+    /// allocated core has been busy for the whole run.
+    pub fn cpu_percent(&self, job: &Job) -> Option<f64> {
+        let reserved = job.elapsed_secs * u64::from(job.cpus);
+        if reserved == 0 {
+            return None;
+        }
+        Some(self.cpu_secs? as f64 / reserved as f64 * 100.0)
+    }
 }
 
 impl Job {
@@ -92,13 +135,22 @@ impl Job {
         }
     }
 
+    /// The clock as it stands `since` seconds after the listing was fetched.
+    /// Only a running job's clock moves.
+    pub fn elapsed_now(&self, since: u64) -> String {
+        match self.state_word() {
+            "RUNNING" => format_elapsed(self.elapsed_secs + since),
+            _ => self.elapsed.clone(),
+        }
+    }
+
     /// Array jobs are `12345_7`; the allocation they belong to is `12345`.
     pub fn array_root(&self) -> &str {
         self.id.split('_').next().unwrap_or(&self.id)
     }
 
     /// Sort key: newest first, tasks of one array in order.
-    fn order(&self) -> (u64, u64) {
+    pub fn order(&self) -> (u64, u64) {
         let root = self.array_root().parse().unwrap_or(0);
         let task = self
             .id
@@ -187,6 +239,8 @@ fn parse_squeue(line: &str) -> Option<Job> {
         elapsed,
         reason,
         work_dir,
+        cpus,
+        mem,
     ] = fields[..]
     else {
         return None;
@@ -204,6 +258,9 @@ fn parse_squeue(line: &str) -> Option<Job> {
         nodes: reason.trim_matches(['(', ')']).to_owned(),
         work_dir: work_dir.to_owned(),
         live: true,
+        cpus: cpus.parse().unwrap_or(0),
+        alloc_mem_mb: parse_mem(mem),
+        elapsed_secs: parse_elapsed(elapsed).unwrap_or(0),
     })
 }
 
@@ -221,6 +278,8 @@ fn parse_sacct(line: &str) -> Option<Job> {
         exit,
         nodes,
         work_dir,
+        cpus,
+        mem,
     ] = fields[..]
     else {
         return None;
@@ -242,7 +301,119 @@ fn parse_sacct(line: &str) -> Option<Job> {
         nodes: nodes.to_owned(),
         work_dir: work_dir.to_owned(),
         live: false,
+        cpus: cpus.parse().unwrap_or(0),
+        // `ReqMem` may be per-cpu, written `4Gc`; the trailing letter is
+        // dropped by parse_mem, which is close enough for a display column.
+        alloc_mem_mb: parse_mem(mem.trim_end_matches(['c', 'n'])),
+        elapsed_secs: parse_elapsed(elapsed).unwrap_or(0),
     })
+}
+
+/// Re-ask `squeue` alone. Finished jobs never change, so a refresh on a timer
+/// has no reason to wake `sacct` as well.
+pub fn refresh_queue() -> Option<Vec<Job>> {
+    let user = std::env::var("USER").unwrap_or_default();
+    let raw = match user.is_empty() {
+        true => capture("squeue", &["--me", "--noheader", SQUEUE_FORMAT])?,
+        false => capture("squeue", &["-u", &user, "--noheader", SQUEUE_FORMAT])?,
+    };
+    Some(raw.lines().filter_map(parse_squeue).collect())
+}
+
+/// What each running job is using, in one `sstat` call rather than one per
+/// job. Only the batch step is asked for: that is where the work happens.
+pub fn fetch_usage(ids: &[String]) -> HashMap<String, Usage> {
+    if ids.is_empty() {
+        return HashMap::new();
+    }
+    let steps = ids
+        .iter()
+        .map(|id| format!("{id}.batch"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let Some(raw) = capture(
+        "sstat",
+        &["--noheader", "--parsable2", "-j", &steps, SSTAT_FORMAT],
+    ) else {
+        return HashMap::new();
+    };
+    raw.lines().filter_map(parse_usage).collect()
+}
+
+/// `12345.batch|4321108K|00:12:34`
+fn parse_usage(line: &str) -> Option<(String, Usage)> {
+    let fields: Vec<&str> = line.split('|').map(str::trim).collect();
+    let [id, rss, cpu] = fields[..] else {
+        return None;
+    };
+    let id = id.split('.').next()?.to_owned();
+    Some((
+        id,
+        Usage {
+            max_rss_mb: parse_rss(rss),
+            cpu_secs: parse_elapsed(cpu),
+        },
+    ))
+}
+
+/// Slurm's elapsed notation, to the second: `MM:SS`, `HH:MM:SS`, `D-HH:MM:SS`.
+/// [`super::parse_time`] rounds to whole minutes, which a ticking clock cannot.
+pub fn parse_elapsed(text: &str) -> Option<u64> {
+    let text = text.trim();
+    if text.is_empty() || text.eq_ignore_ascii_case("UNKNOWN") || text == "N/A" {
+        return None;
+    }
+    let (days, rest) = match text.split_once('-') {
+        Some((days, rest)) => (days.parse::<u64>().ok()?, rest),
+        None => (0, text),
+    };
+    // Sub-second precision is noise here.
+    let rest = rest.split('.').next().unwrap_or(rest);
+    let parts: Vec<u64> = rest
+        .split(':')
+        .map(|part| part.parse::<u64>().ok())
+        .collect::<Option<_>>()?;
+
+    let seconds = match parts.as_slice() {
+        [only] => *only,
+        [m, s] => m * 60 + s,
+        [h, m, s] => h * 3600 + m * 60 + s,
+        _ => return None,
+    };
+    Some(days * 86_400 + seconds)
+}
+
+/// `HH:MM:SS`, or `D-HH:MM:SS` once it runs past a day.
+pub fn format_elapsed(seconds: u64) -> String {
+    let (days, rest) = (seconds / 86_400, seconds % 86_400);
+    let (hours, minutes, seconds) = (rest / 3600, (rest % 3600) / 60, rest % 60);
+    match days {
+        0 => format!("{hours:02}:{minutes:02}:{seconds:02}"),
+        _ => format!("{days}-{hours:02}:{minutes:02}:{seconds:02}"),
+    }
+}
+
+/// `sstat` reports memory as a number with a unit letter, and in kilobytes
+/// when the letter is missing. Values like `1.5G` are common, so the number
+/// is read as a float.
+fn parse_rss(text: &str) -> Option<u64> {
+    let text = text.trim();
+    if text.is_empty() {
+        return None;
+    }
+    let split = text
+        .find(|c: char| !c.is_ascii_digit() && c != '.')
+        .unwrap_or(text.len());
+    let (number, suffix) = text.split_at(split);
+    let number: f64 = number.parse().ok()?;
+    let mb = match suffix.trim().to_ascii_uppercase().as_str() {
+        "" | "K" | "KB" => number / 1024.0,
+        "M" | "MB" => number,
+        "G" | "GB" => number * 1024.0,
+        "T" | "TB" => number * 1024.0 * 1024.0,
+        _ => return None,
+    };
+    Some(mb.round() as u64)
 }
 
 // ---------------------------------------------------------------------------
