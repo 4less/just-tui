@@ -232,6 +232,7 @@ under the job's working directory — so jobs submitted outside just-tui are rea
 | `u` | load the settings this job ran with back into the submit form |
 | `f` | filter: all / running / failed |
 | `d` | how far back to look: 1 / 7 / 30 / 90 days |
+| `s` | submit the same job again (only once it has stopped) |
 | `x` | kill the job (`scancel`), after confirming |
 | `X` | kill it and submit the same job again |
 | `p` | pause or resume the five-second refresh |
@@ -239,9 +240,17 @@ under the job's working directory — so jobs submitted outside just-tui are rea
 
 ### Killing and rerunning
 
-`x` cancels the selected job and `X` cancels it and submits the identical job again — same
-recipe, same arguments, same flags, read back from the history record, so a job that needs
-one more attempt does not have to be retyped. It comes back with a new job id and is
+Three keys, all reading the settings back from the history record, so a job that needs
+another attempt does not have to be retyped:
+
+| | |
+| --- | --- |
+| `s` | submit the same job again — for one that has **stopped**: completed, failed, cancelled, out of memory |
+| `x` | cancel the job |
+| `X` | cancel it **and** submit the same job again — for one still queued or running |
+
+`s` is refused while a job is still on the queue, since two copies of it is almost never
+what was meant; `X` is the key for that. Either way the job comes back with a new id and is
 recorded as its own submission.
 
 Both ask first and take nothing but `y`:
@@ -255,8 +264,8 @@ Both ask first and take nothing but `y`:
 ╰ y do it · any other key leaves the job alone ────────────────╯
 ```
 
-`X` needs a history record, so it only offers itself for jobs just-tui submitted. `x` works
-on anything Slurm lets you cancel.
+`s` and `X` need a history record, so they only offer themselves for jobs just-tui
+submitted. `x` works on anything Slurm lets you cancel.
 
 ## Old settings: `.just-tui-cluster-history`
 

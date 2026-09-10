@@ -225,7 +225,7 @@ impl App {
     /// redrawing. `None` means there is nothing to animate, so it can block.
     pub fn tick_interval(&self) -> Option<Duration> {
         match self.mode {
-            Mode::Jobs | Mode::CancelJob => Some(Duration::from_secs(1)),
+            Mode::Jobs | Mode::ConfirmJob => Some(Duration::from_secs(1)),
             _ => None,
         }
     }
@@ -419,65 +419,98 @@ impl App {
     }
 }
 
-/// A kill waiting to be confirmed.
-pub struct PendingCancel {
+/// Something that touches the queue, waiting to be confirmed.
+pub struct PendingAction {
     pub id: String,
     pub name: String,
-    /// Submit the same job again once it has been killed.
+    /// Cancel the job that is there now.
+    pub kill: bool,
+    /// Put the same job back on the queue.
     pub resubmit: bool,
 }
 
+impl PendingAction {
+    pub fn title(&self) -> &'static str {
+        match (self.kill, self.resubmit) {
+            (true, true) => " Kill this job and run it again? ",
+            (true, false) => " Kill this job? ",
+            _ => " Submit this job again? ",
+        }
+    }
+}
+
 impl App {
-    /// Ask before killing anything: `scancel` cannot be taken back.
-    pub fn ask_cancel(&mut self, resubmit: bool) {
+    /// Ask before anything reaches the scheduler: `scancel` cannot be taken
+    /// back, and a stray keystroke should not queue work twice.
+    pub fn ask_job_action(&mut self, kill: bool, resubmit: bool) {
         let Some(job) = self.jobs.as_ref().and_then(|view| view.selected()).cloned() else {
             return;
         };
-        if !job.active() {
+        if kill && !job.active() {
             self.error(format!("job {} has already finished", job.id));
             return;
         }
+        // Submitting again on its own is for a job that has stopped. While one
+        // is still queued or running, the thing wanted is nearly always to
+        // replace it rather than to end up with two.
+        if resubmit && !kill && job.active() {
+            self.error(format!(
+                "job {} is still {} — X kills it and submits it again",
+                job.id,
+                job.state_word().to_lowercase()
+            ));
+            return;
+        }
         if resubmit && self.job_record().is_none() {
-            self.error("only jobs submitted from just-tui can be resubmitted");
+            self.error("only jobs submitted from just-tui can be submitted again");
             return;
         }
 
-        self.cancel = Some(PendingCancel {
+        self.pending = Some(PendingAction {
             id: job.id.clone(),
             name: job.name.clone(),
+            kill,
             resubmit,
         });
-        self.mode = Mode::CancelJob;
+        self.mode = Mode::ConfirmJob;
     }
 
-    pub fn abandon_cancel(&mut self) {
-        self.cancel = None;
+    pub fn abandon_job_action(&mut self) {
+        self.pending = None;
         self.mode = Mode::Jobs;
     }
 
-    /// Kill the job, and put it back on the queue when that was asked for.
-    pub fn confirm_cancel(&mut self) {
-        let Some(pending) = self.cancel.take() else {
+    /// Carry it out: kill first when asked to, then submit again when asked
+    /// to. A failed kill stops the whole thing — resubmitting alongside a job
+    /// that is still running is never what was meant.
+    pub fn confirm_job_action(&mut self) {
+        let Some(pending) = self.pending.take() else {
             return;
         };
         self.mode = Mode::Jobs;
 
-        if let Err(err) = slurm::cancel(&pending.id) {
-            self.error(format!("scancel {}: {err}", pending.id));
-            return;
-        }
-        if !pending.resubmit {
-            self.info(format!("cancelled job {}", pending.id));
-            self.refresh_queue();
-            return;
+        if pending.kill {
+            if let Err(err) = slurm::cancel(&pending.id) {
+                self.error(format!("scancel {}: {err}", pending.id));
+                return;
+            }
+            if !pending.resubmit {
+                self.info(format!("cancelled job {}", pending.id));
+                self.refresh_queue();
+                return;
+            }
         }
 
-        match self.resubmit(&pending.id) {
-            Ok(new_id) => self.info(format!(
+        match (self.resubmit(&pending.id), pending.kill) {
+            (Ok(new_id), true) => self.info(format!(
                 "cancelled {} and submitted it again as {new_id}",
                 pending.id
             )),
-            Err(err) => self.error(format!("cancelled {}, but {err}", pending.id)),
+            (Ok(new_id), false) => {
+                self.info(format!("submitted {} again as job {new_id}", pending.name))
+            }
+            (Err(err), true) => self.error(format!("cancelled {}, but {err}", pending.id)),
+            (Err(err), false) => self.error(err),
         }
         self.refresh_queue();
     }
