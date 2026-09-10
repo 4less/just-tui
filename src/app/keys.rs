@@ -379,6 +379,7 @@ impl App {
             KeyCode::Char('f') => self.cycle_job_filter(),
             KeyCode::Char('d') => self.cycle_job_range(),
             KeyCode::Char('r') => self.refresh_jobs(),
+            KeyCode::Char('p') => self.toggle_job_auto(),
             KeyCode::Char('u') => return self.reuse_job_settings(),
             KeyCode::Enter | KeyCode::Char('o') => {
                 return match self.jobs.as_ref().and_then(|view| view.shown_path()) {

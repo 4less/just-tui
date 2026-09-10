@@ -8,8 +8,11 @@ use ratatui::widgets::{Clear, Paragraph};
 
 use super::{overlay_block, pad, pane_block, truncate};
 use crate::app::{App, LogKind};
-use crate::slurm::{self, Job};
+use crate::slurm::{self, Job, Usage, format_mem};
 use crate::theme;
+
+/// Columns the row spends on everything but the job's name.
+const FIXED: usize = 67;
 
 /// Rows the job list gets before the log pane takes the rest.
 const LIST_ROWS: u16 = 12;
@@ -20,16 +23,18 @@ pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
     };
 
     let footer = format!(
-        " ↑↓ job · ⇥ {} · ⏎ open log · u reuse settings · f {} · d {}d · r reload · esc back ",
+        " ↑↓ job · ⇥ {} · ⏎ log · u reuse · f {} · d {}d · p {} · r reload · esc back ",
         view.which.other().label(),
         view.filter.label(),
         view.days(),
+        if view.auto { "pause" } else { "resume" },
     );
     let title = format!(
-        " Slurm jobs — {} shown of {} in the last {} days ",
+        " Slurm jobs — {} shown of {} in the last {} days — {} ",
         view.visible.len(),
         view.list.jobs.len(),
         view.days(),
+        if view.auto { "live" } else { "paused" },
     );
 
     frame.render_widget(Clear, area);
@@ -82,13 +87,23 @@ fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
         .enumerate()
         .skip(first)
         .take(rows)
-        .map(|(index, &job)| row(&view.list.jobs[job], index == view.cursor, width))
+        .map(|(index, &job)| {
+            let job = &view.list.jobs[job];
+            row(
+                job,
+                view.usage.get(&job.id).copied(),
+                index == view.cursor,
+                view.since_fetch(),
+                width,
+            )
+        })
         .collect();
 
     frame.render_widget(Paragraph::new(lines), area);
 }
 
-fn row(job: &Job, selected: bool, width: usize) -> Line<'static> {
+fn row(job: &Job, usage: Option<Usage>, selected: bool, since: u64, width: usize) -> Line<'static> {
+    let name = width.saturating_sub(FIXED).max(8);
     let mut spans = vec![
         Span::styled(
             if selected { " ▸ " } else { "   " },
@@ -99,35 +114,86 @@ fn row(job: &Job, selected: bool, width: usize) -> Line<'static> {
             Style::default().fg(theme::VARIABLE),
         ),
         Span::styled(
-            format!("{:<11}", truncate(job.state_word(), 10)),
+            format!("{:<11}", truncate(&state_label(job), 10)),
             Style::default().fg(state_color(job)),
         ),
         Span::styled(
-            format!("{:<34}", truncate(&job.name, 33)),
+            format!("{:<width$}", truncate(&job.name, name), width = name + 1),
             Style::default().fg(theme::FG),
         ),
-        Span::styled(format!("{:<9}", truncate(&job.elapsed, 8)), theme::label()),
+        Span::styled(format!("{:<11}", job.elapsed_now(since)), theme::label()),
     ];
-
-    let tail = match (job.exit_label().is_empty(), job.pending()) {
-        (false, _) => job.exit_label(),
-        (true, true) => job.nodes.clone(),
-        (true, false) => job.partition.clone(),
-    };
-    spans.push(Span::styled(
-        truncate(&tail, width.saturating_sub(68).max(6)),
-        Style::default().fg(if job.failed() {
-            theme::INTERP
-        } else {
-            theme::DIM
-        }),
-    ));
+    spans.extend(stats(job, usage));
     pad(&mut spans, width);
 
     let line = Line::from(spans);
     match selected {
         true => line.style(Style::default().bg(theme::SELECTION_BG)),
         false => line,
+    }
+}
+
+/// The right-hand columns: what a running job is using, and for anything else
+/// how it ended or why it has not started.
+fn stats(job: &Job, usage: Option<Usage>) -> Vec<Span<'static>> {
+    if job.state_word() != "RUNNING" {
+        let tail = match (job.exit_label().is_empty(), job.pending()) {
+            (false, _) => job.exit_label(),
+            (true, true) => job.nodes.clone(),
+            (true, false) => job.partition.clone(),
+        };
+        return vec![Span::styled(
+            tail,
+            Style::default().fg(if job.failed() {
+                theme::INTERP
+            } else {
+                theme::DIM
+            }),
+        )];
+    }
+
+    let usage = usage.unwrap_or_default();
+    let alloc = job
+        .alloc_mem_mb
+        .map(format_mem)
+        .unwrap_or_else(|| "?".to_owned());
+    let used = usage
+        .max_rss_mb
+        .map(format_mem)
+        .unwrap_or_else(|| "—".to_owned());
+
+    vec![
+        Span::styled(
+            format!("{used:>6}/{alloc:<6}"),
+            Style::default().fg(theme::FG),
+        ),
+        percent(usage.mem_percent(job), true),
+        Span::styled(format!("  {:>3}c ", job.cpus), theme::label()),
+        percent(usage.cpu_percent(job), false),
+    ]
+}
+
+/// A usage figure, coloured by how comfortable it is. Memory reads the way it
+/// does in `seff` — high is close to the limit — while CPU is the other way
+/// round: a low figure means allocated cores are sitting idle.
+fn percent(value: Option<f64>, memory: bool) -> Span<'static> {
+    let Some(value) = value else {
+        return Span::styled("   —", theme::label());
+    };
+    let strain = if memory { value } else { 100.0 - value };
+    let color = match strain {
+        s if s < 20.0 => theme::RECIPE,
+        s if s <= 80.0 => theme::MATCH,
+        _ => theme::INTERP,
+    };
+    Span::styled(format!("{value:>4.0}%"), Style::default().fg(color))
+}
+
+/// Slurm's longest state name does not fit, and everyone calls it OOM.
+fn state_label(job: &Job) -> String {
+    match job.state_word() {
+        "OUT_OF_MEMORY" => "OOM".to_owned(),
+        other => other.to_owned(),
     }
 }
 
@@ -141,9 +207,48 @@ fn state_color(job: &Job) -> Color {
     }
 }
 
-/// What the job asked for, if just-tui is the one that submitted it.
+/// What the job asked for, if just-tui is the one that submitted it, and what
+/// it is using if it is still running.
 fn draw_detail(frame: &mut Frame, app: &App, area: Rect) {
     let width = area.width as usize;
+    if let Some((job, usage)) = app.job_usage() {
+        let since = app.jobs.as_ref().map_or(0, |view| view.since_fetch());
+        let lines = vec![
+            Line::from(vec![
+                Span::styled("   using    ", theme::label()),
+                Span::styled(
+                    format!(
+                        "{} of {}",
+                        usage.max_rss_mb.map(format_mem).unwrap_or("—".to_owned()),
+                        job.alloc_mem_mb.map(format_mem).unwrap_or("?".to_owned()),
+                    ),
+                    Style::default().fg(theme::FG),
+                ),
+                Span::raw(" "),
+                percent(usage.mem_percent(job), true),
+                Span::styled("  ·  cpu ", theme::label()),
+                percent(usage.cpu_percent(job), false),
+                Span::styled(format!(" of {} cores", job.cpus), theme::label()),
+                Span::styled("  ·  ", theme::label()),
+                Span::styled(job.elapsed_now(since), Style::default().fg(theme::RECIPE)),
+                Span::styled(" on ", theme::label()),
+                Span::styled(job.nodes.clone(), Style::default().fg(theme::VARIABLE)),
+            ]),
+            match app.job_record() {
+                Some(record) => Line::from(vec![
+                    Span::styled("   $ ", theme::label()),
+                    Span::styled(
+                        truncate(&record.command, width.saturating_sub(6)),
+                        Style::default().fg(theme::DIM),
+                    ),
+                ]),
+                None => Line::default(),
+            },
+        ];
+        frame.render_widget(Paragraph::new(lines), area);
+        return;
+    }
+
     let lines = match app.job_record() {
         Some(record) => vec![
             Line::from(vec![

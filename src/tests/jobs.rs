@@ -6,14 +6,14 @@ use crate::history::{History, Record};
 use crate::slurm::{self, Settings};
 
 const SQUEUE: &str = "\
-4210|nightly-run|RUNNING|qib-compute|2026-09-09T09:00:00|2026-09-09T09:01:00|00:12:33|node07|/work/proj
-4211|greet-force-1|PENDING|qib-compute|2026-09-09T09:05:00|N/A|0:00|(Resources)|/work/proj";
+4210|nightly-run|RUNNING|qib-compute|2026-09-09T09:00:00|2026-09-09T09:01:00|00:12:33|node07|/work/proj|64|128G
+4211|greet-force-1|PENDING|qib-compute|2026-09-09T09:05:00|N/A|0:00|(Resources)|/work/proj|8|16G";
 
 const SACCT: &str = "\
-4180|build|COMPLETED|qib-compute|2026-09-08T20:00:00|2026-09-08T20:00:10|2026-09-08T20:04:00|00:03:50|0:0|node02|/work/proj
-4190|tree-force-1|FAILED|qib-compute|2026-09-08T22:00:00|2026-09-08T22:00:05|2026-09-08T22:00:40|00:00:35|1:0|node03|/work/proj
-4190.batch|batch|FAILED|qib-compute|2026-09-08T22:00:00|2026-09-08T22:00:05|2026-09-08T22:00:40|00:00:35|1:0|node03|/work/proj
-4211|greet-force-1|PENDING|qib-compute|2026-09-09T09:05:00|None|Unknown|00:00:00|0:0|None assigned|/work/proj";
+4180|build|COMPLETED|qib-compute|2026-09-08T20:00:00|2026-09-08T20:00:10|2026-09-08T20:04:00|00:03:50|0:0|node02|/work/proj|4|16G
+4190|tree-force-1|FAILED|qib-compute|2026-09-08T22:00:00|2026-09-08T22:00:05|2026-09-08T22:00:40|00:00:35|1:0|node03|/work/proj|8|64Gn
+4190.batch|batch|FAILED|qib-compute|2026-09-08T22:00:00|2026-09-08T22:00:05|2026-09-08T22:00:40|00:00:35|1:0|node03|/work/proj|8|64Gn
+4211|greet-force-1|PENDING|qib-compute|2026-09-09T09:05:00|None|Unknown|00:00:00|0:0|None assigned|/work/proj|8|16G";
 
 #[test]
 fn merges_the_queue_with_the_accounting_database() {
@@ -33,6 +33,9 @@ fn merges_the_queue_with_the_accounting_database() {
     assert!(failed.failed());
     assert_eq!(failed.exit_label(), "exit 1");
     assert_eq!(failed.work_dir, "/work/proj");
+    assert_eq!(failed.cpus, 8);
+    // `ReqMem` writes `64Gn` for per-node; the suffix is not part of the size.
+    assert_eq!(failed.alloc_mem_mb, Some(64 * 1024));
 
     let done = list.jobs.iter().find(|job| job.id == "4180").unwrap();
     assert!(!done.failed());
@@ -41,7 +44,7 @@ fn merges_the_queue_with_the_accounting_database() {
 
 #[test]
 fn a_cancelled_job_counts_as_failed() {
-    let line = "4300|x|CANCELLED by 1001|p|s|s|e|00:01:00|0:0|node01|/work";
+    let line = "4300|x|CANCELLED by 1001|p|s|s|e|00:01:00|0:0|node01|/work|2|8G";
     let list = slurm::merge_jobs(None, Some(line), 7);
     let job = &list.jobs[0];
 
@@ -148,4 +151,42 @@ fn logs_are_found_by_the_job_id_in_their_name() {
     assert!(logs.note.unwrap().contains("5000"));
 
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_running_clock_carries_on_between_refreshes() {
+    let list = slurm::merge_jobs(Some(SQUEUE), None, 7);
+    let running = list.jobs.iter().find(|job| job.id == "4210").unwrap();
+
+    assert_eq!(running.elapsed_secs, 12 * 60 + 33);
+    assert_eq!(running.elapsed_now(0), "00:12:33");
+    assert_eq!(running.elapsed_now(7), "00:12:40", "seven seconds later");
+
+    // A job that is not running has stopped counting.
+    let pending = list.jobs.iter().find(|job| job.id == "4211").unwrap();
+    assert_eq!(pending.elapsed_now(90), "0:00");
+}
+
+#[test]
+fn usage_is_measured_against_what_was_allocated() {
+    let list = slurm::merge_jobs(Some(SQUEUE), None, 7);
+    let job = list.jobs.iter().find(|job| job.id == "4210").unwrap();
+
+    // 64G used of 128G allocated, and 8 core-hours of the 13.4 reserved.
+    let usage = slurm::Usage {
+        max_rss_mb: Some(64 * 1024),
+        cpu_secs: Some(12 * 60 + 33),
+    };
+    assert_eq!(usage.mem_percent(job), Some(50.0));
+
+    let cpu = usage.cpu_percent(job).unwrap();
+    assert!(
+        (cpu - 100.0 / 64.0).abs() < 0.01,
+        "one core busy out of 64 is ~1.6%, got {cpu}"
+    );
+
+    // Nothing measured yet, and nothing to divide by, both say so.
+    assert_eq!(slurm::Usage::default().mem_percent(job), None);
+    let pending = list.jobs.iter().find(|job| job.id == "4211").unwrap();
+    assert_eq!(usage.cpu_percent(pending), None, "no elapsed time yet");
 }

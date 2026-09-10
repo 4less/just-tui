@@ -93,8 +93,8 @@ fn rendered(app: &mut crate::app::App, width: u16, height: u16) -> String {
 #[test]
 fn the_job_browser_shows_the_queue_and_a_log() {
     let listing = "\
-4190|tree-force-1|FAILED|qib-compute|s|s|e|00:00:35|1:0|node03|/work/proj
-4180|build|COMPLETED|qib-compute|s|s|e|00:03:50|0:0|node02|/work/proj";
+4190|tree-force-1|FAILED|qib-compute|s|s|e|00:00:35|1:0|node03|/work/proj|8|64G
+4180|build|COMPLETED|qib-compute|s|s|e|00:03:50|0:0|node02|/work/proj|4|16G";
 
     let mut app = fixture_app();
     let mut view = JobsView::with(crate::slurm::merge_jobs(None, Some(listing), 7));

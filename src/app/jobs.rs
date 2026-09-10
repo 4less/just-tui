@@ -1,10 +1,12 @@
 //! The Slurm job browser: what is queued, what has finished, and the log a
 //! failed job left behind.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use crate::history::Record;
-use crate::slurm::{self, Job, JobList, Logs};
+use crate::slurm::{self, Job, JobList, Logs, Usage};
 
 /// Which jobs the list shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,6 +71,11 @@ const RANGES: [u32; 4] = [1, 7, 30, 90];
 /// Longest tail held in memory for one log.
 const LOG_LINES: usize = 4000;
 
+/// How often the queue and the usage figures are re-asked for while the
+/// overlay is open. The clock on screen ticks every second regardless: it is
+/// carried forward locally, so this is only about fresh states and stats.
+const REFRESH: Duration = Duration::from_secs(5);
+
 /// Everything the jobs overlay draws.
 pub struct JobsView {
     pub list: JobList,
@@ -84,6 +91,12 @@ pub struct JobsView {
     pub scroll: u16,
     /// Rows the log pane had last frame, so paging knows how far to go.
     pub height: u16,
+    /// What each running job is using, by job id.
+    pub usage: HashMap<String, Usage>,
+    /// When the listing was last fetched, so the clock can run on from it.
+    pub fetched: Instant,
+    /// Whether the queue is re-asked on a timer.
+    pub auto: bool,
     /// The job and file the loaded lines belong to.
     loaded: Option<(String, LogKind)>,
 }
@@ -112,8 +125,27 @@ impl JobsView {
             truncated: false,
             scroll: 0,
             height: 10,
+            usage: HashMap::new(),
+            fetched: Instant::now(),
+            auto: true,
             loaded: None,
         }
+    }
+
+    /// Seconds since the listing was fetched — how far a running job's clock
+    /// has moved on from the elapsed time Slurm reported.
+    pub fn since_fetch(&self) -> u64 {
+        self.fetched.elapsed().as_secs()
+    }
+
+    /// Ids of the jobs `sstat` can say something about.
+    fn running(&self) -> Vec<String> {
+        self.list
+            .jobs
+            .iter()
+            .filter(|job| job.state_word() == "RUNNING")
+            .map(|job| job.id.clone())
+            .collect()
     }
 
     pub fn days(&self) -> u32 {
@@ -182,8 +214,98 @@ impl App {
         {
             view.cursor = position;
         }
+        view.usage.clear();
+        view.fetched = Instant::now();
         view.loaded = None;
+        self.refresh_usage();
         self.load_job_log();
+    }
+
+    /// How long the event loop may wait for a key before the overlay wants
+    /// redrawing. `None` means there is nothing to animate, so it can block.
+    pub fn tick_interval(&self) -> Option<Duration> {
+        match self.mode {
+            Mode::Jobs => Some(Duration::from_secs(1)),
+            _ => None,
+        }
+    }
+
+    /// Called when no key arrived: the clock is redrawn from the local one,
+    /// and every so often the queue itself is re-asked.
+    pub fn tick(&mut self) {
+        let due = self
+            .jobs
+            .as_ref()
+            .is_some_and(|view| view.auto && view.fetched.elapsed() >= REFRESH);
+        if due {
+            self.refresh_queue();
+        }
+    }
+
+    /// Re-ask `squeue` and `sstat` only. Finished jobs cannot change, so
+    /// `sacct` is left alone until the user asks for it with `r`.
+    pub fn refresh_queue(&mut self) {
+        let Some(fresh) = slurm::refresh_queue() else {
+            if let Some(view) = self.jobs.as_mut() {
+                view.fetched = Instant::now();
+            }
+            return;
+        };
+        let keep = self
+            .jobs
+            .as_ref()
+            .and_then(|view| view.selected().map(|job| job.id.clone()));
+
+        let Some(view) = self.jobs.as_mut() else {
+            return;
+        };
+        // Anything that has left the queue since the last look keeps the row
+        // sacct gave it, but stops being live.
+        let mut jobs = fresh;
+        for old in &view.list.jobs {
+            if !jobs.iter().any(|job| job.id == old.id) {
+                let mut old = old.clone();
+                old.live = false;
+                jobs.push(old);
+            }
+        }
+        jobs.sort_by_key(|job| std::cmp::Reverse(job.order()));
+        view.list.jobs = jobs;
+        view.fetched = Instant::now();
+        view.refilter();
+        if let Some(id) = keep
+            && let Some(position) = view
+                .visible
+                .iter()
+                .position(|&index| view.list.jobs[index].id == id)
+        {
+            view.cursor = position;
+        }
+        self.refresh_usage();
+    }
+
+    /// Ask `sstat` what the running jobs are using.
+    pub fn refresh_usage(&mut self) {
+        let Some(view) = self.jobs.as_ref() else {
+            return;
+        };
+        let usage = slurm::fetch_usage(&view.running());
+        if let Some(view) = self.jobs.as_mut() {
+            view.usage = usage;
+        }
+    }
+
+    /// Stop or restart the timer, for a cluster where asking is expensive.
+    pub fn toggle_job_auto(&mut self) {
+        let Some(view) = self.jobs.as_mut() else {
+            return;
+        };
+        view.auto = !view.auto;
+        let on = view.auto;
+        self.info(match on {
+            true => "refreshing every 5s",
+            false => "auto-refresh off — r reloads",
+        });
     }
 
     /// Read the selected job's log, unless it is already in hand.
@@ -281,6 +403,13 @@ impl App {
             view.range = (view.range + 1) % RANGES.len();
         }
         self.refresh_jobs();
+    }
+
+    /// What the selected job is using right now, if `sstat` knew.
+    pub fn job_usage(&self) -> Option<(&Job, Usage)> {
+        let view = self.jobs.as_ref()?;
+        let job = view.selected()?;
+        Some((job, *view.usage.get(&job.id)?))
     }
 
     /// The recorded submission behind the selected job, if just-tui made it.

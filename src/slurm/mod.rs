@@ -11,7 +11,9 @@ pub use cluster::{Cluster, Partition};
 pub use command::{
     Submission, job_name, log_paths, preview_command, resolved_log_paths, submit, warnings,
 };
-pub use jobs::{Job, JobList, Logs, find_logs, is_error_line, tail};
+pub use jobs::{
+    Job, JobList, Logs, Usage, fetch_usage, find_logs, is_error_line, refresh_queue, tail,
+};
 // Job listings are fetched by the app; re-exported under a name that says so.
 pub use jobs::fetch as fetch_jobs;
 // The pure half of the fetch, so the parsing can be tested without a cluster.
