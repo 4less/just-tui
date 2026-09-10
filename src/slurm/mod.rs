@@ -3,11 +3,20 @@
 
 mod cluster;
 mod command;
+mod jobs;
 mod settings;
 mod units;
 
 pub use cluster::{Cluster, Partition};
-pub use command::{Submission, log_paths, preview_command, submit, warnings};
+pub use command::{
+    Submission, job_name, log_paths, preview_command, resolved_log_paths, submit, warnings,
+};
+pub use jobs::{Job, JobList, Logs, find_logs, is_error_line, tail};
+// Job listings are fetched by the app; re-exported under a name that says so.
+pub use jobs::fetch as fetch_jobs;
+// The pure half of the fetch, so the parsing can be tested without a cluster.
+#[allow(unused_imports)]
+pub use jobs::merge as merge_jobs;
 // The full argument list every other form is derived from. Exported for tests
 // and for callers who want the exact command rather than the display form.
 #[allow(unused_imports)]

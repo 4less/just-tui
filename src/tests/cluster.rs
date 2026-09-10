@@ -25,16 +25,68 @@ fn parses_slurm_units() {
 
 #[test]
 fn logs_mirror_the_module_structure() {
-    let (out, err) = slurm::log_paths("level3::db::tree", false);
+    let plain = Settings::default();
+    let (out, err) = slurm::log_paths("level3::db::tree", &plain);
     assert_eq!(out.to_str().unwrap(), "logs/level3/db/tree-%j.out");
     assert_eq!(err.to_str().unwrap(), "logs/level3/db/tree-%j.err");
 
-    let (out, _) = slurm::log_paths("build", false);
+    let (out, _) = slurm::log_paths("build", &plain);
     assert_eq!(out.to_str().unwrap(), "logs/build-%j.out");
 
     // Array tasks need the task id, or they all write to one file.
-    let (out, _) = slurm::log_paths("demo::greet", true);
+    let array = Settings {
+        array: "0-3".into(),
+        ..Default::default()
+    };
+    let (out, _) = slurm::log_paths("demo::greet", &array);
     assert_eq!(out.to_str().unwrap(), "logs/demo/greet-%A_%a.out");
+}
+
+#[test]
+fn job_names_carry_the_arguments() {
+    let args = Settings {
+        args: "force=1 n=10".into(),
+        ..Default::default()
+    };
+    assert_eq!(
+        slurm::job_name("level3::db::tree", &args),
+        "level3-db-tree-force-1-n-10"
+    );
+    // The module path is already in the directory, so the file stem is not.
+    let (out, _) = slurm::log_paths("level3::db::tree", &args);
+    assert_eq!(
+        out.to_str().unwrap(),
+        "logs/level3/db/tree-force-1-n-10-%j.out"
+    );
+
+    // A typed name replaces the generated one everywhere.
+    let named = Settings {
+        name: "nightly run".into(),
+        args: "force=1".into(),
+        ..Default::default()
+    };
+    assert_eq!(slurm::job_name("level3::db::tree", &named), "nightly-run");
+    let (out, _) = slurm::log_paths("level3::db::tree", &named);
+    assert_eq!(out.to_str().unwrap(), "logs/level3/db/nightly-run-%j.out");
+
+    // With no arguments nothing changes from the plain recipe name.
+    assert_eq!(slurm::job_name("build", &Settings::default()), "build");
+}
+
+#[test]
+fn resolves_log_paths_once_a_job_has_an_id() {
+    let plain = Settings::default();
+    let (out, err) = slurm::resolved_log_paths("demo::greet", &plain, "12345");
+    assert_eq!(out, "logs/demo/greet-12345.out");
+    assert_eq!(err, "logs/demo/greet-12345.err");
+
+    // Only the running task knows its own array index.
+    let array = Settings {
+        array: "0-3".into(),
+        ..Default::default()
+    };
+    let (out, _) = slurm::resolved_log_paths("demo::greet", &array, "12345");
+    assert_eq!(out, "logs/demo/greet-12345_*.out");
 }
 
 #[test]
@@ -51,8 +103,9 @@ fn builds_an_sbatch_command() {
     let args = slurm::build_command(Path::new("/work/proj"), "level3::db::tree", &settings);
 
     assert!(args.contains(&"--chdir=/work/proj".to_owned()));
-    assert!(args.contains(&"--job-name=level3-db-tree".to_owned()));
-    assert!(args.contains(&"--output=logs/level3/db/tree-%j.out".to_owned()));
+    // The arguments are baked into the name, so two runs stay apart.
+    assert!(args.contains(&"--job-name=level3-db-tree-force-1".to_owned()));
+    assert!(args.contains(&"--output=logs/level3/db/tree-force-1-%j.out".to_owned()));
     assert!(args.contains(&"--partition=qib-compute".to_owned()));
     assert!(args.contains(&"--cpus-per-task=32".to_owned()));
     assert!(

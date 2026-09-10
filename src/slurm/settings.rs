@@ -1,9 +1,14 @@
 //! What a job asks for: one string per sbatch flag.
 
+use serde::{Deserialize, Serialize};
+
 /// Every field is a string; empty means "do not pass this flag at all", so a
 /// justfile that leaves `slurm_account` blank submits without `--account`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Settings {
+    /// Job name. Empty means one is generated from the recipe and its args.
+    pub name: String,
     pub partition: String,
     pub account: String,
     pub qos: String,
@@ -20,6 +25,7 @@ pub struct Settings {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Field {
+    Name,
     Partition,
     Account,
     Qos,
@@ -33,7 +39,8 @@ pub enum Field {
     Args,
 }
 
-pub const FIELDS: [Field; 11] = [
+pub const FIELDS: [Field; 12] = [
+    Field::Name,
     Field::Partition,
     Field::Account,
     Field::Qos,
@@ -50,6 +57,7 @@ pub const FIELDS: [Field; 11] = [
 impl Field {
     pub fn label(self) -> &'static str {
         match self {
+            Field::Name => "name",
             Field::Partition => "partition",
             Field::Account => "account",
             Field::Qos => "qos",
@@ -76,12 +84,13 @@ impl Field {
             Field::Nodes => "--nodes",
             Field::Gpus => "--gres",
             Field::Array => "--array",
-            Field::Extra | Field::Args => return None,
+            Field::Name | Field::Extra | Field::Args => return None,
         })
     }
 
     pub fn hint(self) -> &'static str {
         match self {
+            Field::Name => "job name — empty means auto",
             Field::Partition => "queue to run in",
             Field::Account => "billing account",
             Field::Qos => "quality of service",
@@ -100,6 +109,7 @@ impl Field {
 impl Settings {
     pub fn get(&self, field: Field) -> &str {
         match field {
+            Field::Name => &self.name,
             Field::Partition => &self.partition,
             Field::Account => &self.account,
             Field::Qos => &self.qos,
@@ -116,6 +126,7 @@ impl Settings {
 
     pub fn get_mut(&mut self, field: Field) -> &mut String {
         match field {
+            Field::Name => &mut self.name,
             Field::Partition => &mut self.partition,
             Field::Account => &mut self.account,
             Field::Qos => &mut self.qos,

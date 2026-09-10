@@ -5,20 +5,84 @@ use std::process::Command;
 
 use super::{Cluster, FIELDS, Field, Settings, format_mem, format_time, parse_mem, parse_time};
 
-/// `logs/<module path>/<recipe>-%j.out`, mirroring the module tree under the
-/// base directory of the root justfile.
-pub fn log_paths(namepath: &str, array: bool) -> (PathBuf, PathBuf) {
+/// Longest generated job name. Slurm truncates in its own displays long before
+/// this, but a name built from a dozen arguments is unreadable anyway.
+const NAME_MAX: usize = 96;
+
+/// `force=1 n=10` reads as `force-1-n-10`: safe in a file name, and still
+/// recognisable in `squeue`.
+pub fn slug(text: &str) -> String {
+    let mut out = String::new();
+    let mut dashed = true;
+    for c in text.chars() {
+        if c.is_ascii_alphanumeric() || c == '.' || c == '_' {
+            out.push(c);
+            dashed = false;
+        } else if !dashed {
+            out.push('-');
+            dashed = true;
+        }
+    }
+    while out.ends_with('-') {
+        out.pop();
+    }
+    out
+}
+
+fn clip(mut name: String) -> String {
+    if name.chars().count() > NAME_MAX {
+        name = name.chars().take(NAME_MAX).collect();
+        while name.ends_with('-') {
+            name.pop();
+        }
+    }
+    name
+}
+
+/// What `--job-name` gets: whatever was typed in the form, or the recipe path
+/// with its arguments baked in, so two runs of one recipe stay apart.
+pub fn job_name(namepath: &str, settings: &Settings) -> String {
+    if !settings.name.trim().is_empty() {
+        return clip(slug(settings.name.trim()));
+    }
+    let mut name = slug(&namepath.replace("::", "-"));
+    let args = slug(settings.args.trim());
+    if !args.is_empty() {
+        name.push('-');
+        name.push_str(&args);
+    }
+    clip(name)
+}
+
+/// The log file stem. The module path is already in the directory, so only the
+/// recipe name and its arguments are needed here.
+fn log_stem(namepath: &str, settings: &Settings) -> String {
+    if !settings.name.trim().is_empty() {
+        return clip(slug(settings.name.trim()));
+    }
+    let leaf = namepath.rsplit("::").next().unwrap_or("job");
+    let mut stem = slug(leaf);
+    let args = slug(settings.args.trim());
+    if !args.is_empty() {
+        stem.push('-');
+        stem.push_str(&args);
+    }
+    clip(stem)
+}
+
+/// `logs/<module path>/<recipe>-<args>-%j.out`, mirroring the module tree
+/// under the base directory of the root justfile.
+pub fn log_paths(namepath: &str, settings: &Settings) -> (PathBuf, PathBuf) {
     let mut path = PathBuf::from("logs");
     let parts: Vec<&str> = namepath.split("::").collect();
     for module in &parts[..parts.len().saturating_sub(1)] {
         path.push(module);
     }
-    let name = parts.last().copied().unwrap_or("job");
     // Array tasks need the array id as well, or every task writes to one file.
-    let stem = if array {
-        format!("{name}-%A_%a")
+    let stem = if settings.array.trim().is_empty() {
+        format!("{}-%j", log_stem(namepath, settings))
     } else {
-        format!("{name}-%j")
+        format!("{}-%A_%a", log_stem(namepath, settings))
     };
     (
         path.join(format!("{stem}.out")),
@@ -26,13 +90,27 @@ pub fn log_paths(namepath: &str, array: bool) -> (PathBuf, PathBuf) {
     )
 }
 
+/// The log paths with Slurm's patterns filled in, for a job that now has an
+/// id. `%a` stays a glob: only the running task knows its own number.
+pub fn resolved_log_paths(namepath: &str, settings: &Settings, job_id: &str) -> (String, String) {
+    let (out, err) = log_paths(namepath, settings);
+    let fill = |p: PathBuf| {
+        p.display()
+            .to_string()
+            .replace("%j", job_id)
+            .replace("%A", job_id)
+            .replace("%a", "*")
+    };
+    (fill(out), fill(err))
+}
+
 /// The full `sbatch` argument list for a recipe.
 pub fn build_command(base: &Path, namepath: &str, settings: &Settings) -> Vec<String> {
-    let (out, err) = log_paths(namepath, !settings.array.is_empty());
+    let (out, err) = log_paths(namepath, settings);
     let mut args = vec![
         "--parsable".to_owned(),
         format!("--chdir={}", base.display()),
-        format!("--job-name={}", namepath.replace("::", "-")),
+        format!("--job-name={}", job_name(namepath, settings)),
         format!("--output={}", out.display()),
         format!("--error={}", err.display()),
     ];
@@ -91,8 +169,8 @@ pub fn preview_command(base: &Path, namepath: &str, settings: &Settings) -> Stri
 }
 
 /// Directory the log files will land in, so it can be created first.
-pub fn log_dir(base: &Path, namepath: &str) -> PathBuf {
-    let (out, _) = log_paths(namepath, false);
+pub fn log_dir(base: &Path, namepath: &str, settings: &Settings) -> PathBuf {
+    let (out, _) = log_paths(namepath, settings);
     base.join(out.parent().unwrap_or(Path::new("logs")))
 }
 
@@ -103,7 +181,7 @@ pub enum Submission {
 
 /// Create the log directory, then hand the job to sbatch.
 pub fn submit(base: &Path, namepath: &str, settings: &Settings) -> Submission {
-    let dir = log_dir(base, namepath);
+    let dir = log_dir(base, namepath, settings);
     if let Err(err) = std::fs::create_dir_all(&dir) {
         return Submission::Failed {
             message: format!("could not create {}: {err}", dir.display()),

@@ -3,6 +3,7 @@
 mod app;
 mod cluster;
 mod highlight;
+mod jobs;
 mod justfile;
 
 use std::path::PathBuf;

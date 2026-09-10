@@ -2,6 +2,7 @@
 
 use super::{Action, App, Mode};
 use crate::config;
+use crate::history::{self, Record};
 use crate::slurm::{self, Cluster};
 use crate::submit::{SaveScope, SubmitForm};
 
@@ -52,19 +53,35 @@ impl App {
         }
     }
 
-    /// Hand the job to sbatch, then remember what it was submitted with.
+    /// Hand the job to sbatch, then remember what it was submitted with —
+    /// once as the recipe's new default, once as a history record that keeps
+    /// this job's settings for good.
     pub(super) fn submit_job(&mut self) {
         let Some(form) = self.form.take() else { return };
         self.mode = Mode::Normal;
 
         match slurm::submit(&form.base, &form.namepath, &form.settings) {
             slurm::Submission::Ok { job_id } => {
-                let (out, _) = slurm::log_paths(&form.namepath, form.is_array());
-                match self.configs.remember(&form.namepath, &form.settings) {
-                    Ok(()) => self.info(format!(
-                        "submitted job {job_id} — logs in {}",
-                        out.display()
-                    )),
+                let (out, err) = slurm::resolved_log_paths(&form.namepath, &form.settings, &job_id);
+                let record = Record {
+                    job_id: job_id.clone(),
+                    namepath: form.namepath.clone(),
+                    name: slurm::job_name(&form.namepath, &form.settings),
+                    at: history::now(),
+                    when: history::timestamp(),
+                    out: out.clone(),
+                    err,
+                    command: slurm::preview_command(&form.base, &form.namepath, &form.settings),
+                    settings: form.settings.clone(),
+                };
+                let name = record.name.clone();
+
+                let saved = self
+                    .configs
+                    .remember(&form.namepath, &form.settings)
+                    .and_then(|()| self.history.append(record));
+                match saved {
+                    Ok(()) => self.info(format!("submitted {name} as job {job_id} — log {out}")),
                     Err(err) => self.error(format!(
                         "submitted {job_id}, but could not save settings: {err}"
                     )),

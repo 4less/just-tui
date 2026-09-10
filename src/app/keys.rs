@@ -15,6 +15,8 @@ impl App {
             Mode::Args => return self.handle_args_key(key),
             Mode::Submit => return self.handle_submit_key(key),
             Mode::ConfigPick => return self.handle_config_pick_key(key),
+            Mode::Jobs => return self.handle_jobs_key(key),
+            Mode::History => return self.handle_history_key(key),
             Mode::Help => {
                 self.mode = Mode::Normal;
                 return Action::None;
@@ -201,6 +203,14 @@ impl App {
                 self.open_submit();
                 Action::None
             }
+            KeyCode::Char('S') => {
+                self.open_jobs();
+                Action::None
+            }
+            KeyCode::Char('H') => {
+                self.open_history(None);
+                Action::None
+            }
             KeyCode::Char('?') => {
                 self.mode = Mode::Help;
                 Action::None
@@ -259,6 +269,11 @@ impl App {
             KeyCode::F(4) => return self.save_scope_action(SaveScope::Recipe),
             KeyCode::F(5) => {
                 self.mode = Mode::ConfigPick;
+                return Action::None;
+            }
+            KeyCode::F(6) => {
+                let namepath = self.form.as_ref().map(|form| form.namepath.clone());
+                self.open_history(namepath);
                 return Action::None;
             }
             KeyCode::Left | KeyCode::Right => {
@@ -331,5 +346,90 @@ impl App {
             }
             _ => Action::None,
         }
+    }
+
+    /// The job browser. Up and down move through jobs; the log pane is paged
+    /// rather than scrolled line by line, since it is read from the end.
+    fn handle_jobs_key(&mut self, key: KeyEvent) -> Action {
+        if key.modifiers.contains(KeyModifiers::CONTROL) {
+            match key.code {
+                KeyCode::Char('c') => return Action::Quit,
+                KeyCode::Char('d') => self.scroll_job_log(10),
+                KeyCode::Char('u') => self.scroll_job_log(-10),
+                _ => {}
+            }
+            return Action::None;
+        }
+
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') => {
+                self.mode = Mode::Normal;
+            }
+            KeyCode::Down | KeyCode::Char('j') => self.move_job(1),
+            KeyCode::Up | KeyCode::Char('k') => self.move_job(-1),
+            KeyCode::PageDown => self.scroll_job_log(10),
+            KeyCode::PageUp => self.scroll_job_log(-10),
+            KeyCode::Char('g') | KeyCode::Home => self.scroll_job_log(i32::MIN / 4),
+            KeyCode::Char('G') | KeyCode::End => self.scroll_job_log(i32::MAX / 4),
+            KeyCode::Tab | KeyCode::Char('t') => self.toggle_job_log(),
+            KeyCode::Char('f') => self.cycle_job_filter(),
+            KeyCode::Char('d') => self.cycle_job_range(),
+            KeyCode::Char('r') => self.refresh_jobs(),
+            KeyCode::Char('u') => return self.reuse_job_settings(),
+            KeyCode::Enter | KeyCode::Char('o') => {
+                return match self.jobs.as_ref().and_then(|view| view.shown_path()) {
+                    Some(path) => Action::View { path: path.clone() },
+                    None => {
+                        self.error("no log file to open for this job");
+                        Action::None
+                    }
+                };
+            }
+            KeyCode::Char('y') => {
+                return match self.jobs.as_ref().and_then(|view| view.shown_path()) {
+                    Some(path) => Action::Copy(path.display().to_string()),
+                    None => Action::None,
+                };
+            }
+            _ => {}
+        }
+        Action::None
+    }
+
+    /// Jump from a job to the recipe that submitted it, with the settings it
+    /// used loaded back into the form.
+    fn reuse_job_settings(&mut self) -> Action {
+        let Some(record) = self.job_record().cloned() else {
+            self.error("this job was not submitted from just-tui");
+            return Action::None;
+        };
+        self.mode = Mode::Normal;
+        if !self.select_namepath(&record.namepath) {
+            self.error(format!(
+                "{} is not in this justfile any more",
+                record.namepath
+            ));
+            return Action::None;
+        }
+        self.open_submit();
+        if let Some(form) = self.form.as_mut() {
+            form.settings = record.settings.clone();
+        }
+        self.info(format!("settings from job {}", record.job_id));
+        Action::None
+    }
+
+    fn handle_history_key(&mut self, key: KeyEvent) -> Action {
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') => {
+                self.mode = self.picker.as_ref().map_or(Mode::Normal, |pick| pick.from);
+                self.picker = None;
+            }
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Tab => self.move_history(1),
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::BackTab => self.move_history(-1),
+            KeyCode::Enter => self.apply_history(),
+            _ => {}
+        }
+        Action::None
     }
 }

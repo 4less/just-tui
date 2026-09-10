@@ -39,7 +39,7 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(
         Paragraph::new(lines).block(overlay_block(
             &format!(" Submit {} to Slurm ", form.namepath),
-            " ↑↓ field · ←→ pick · del clear · ⏎ submit · F2/F3/F4 save · F5 edit config ",
+            " ↑↓ field · ←→ pick · ⏎ submit · F2/F3/F4 save · F5 edit · F6 history ",
             theme::ACCENT,
         )),
         popup,
@@ -102,6 +102,7 @@ fn note(cluster: &Cluster, field: Field, value: &str) -> String {
     if choices.is_empty() {
         return match field {
             Field::Partition => "no partitions detected".to_owned(),
+            Field::Name if value.is_empty() => "auto: recipe + args".to_owned(),
             other => other.hint().to_owned(),
         };
     }
@@ -114,10 +115,17 @@ fn note(cluster: &Cluster, field: Field, value: &str) -> String {
 
 /// Log path, the command as it will be run, warnings, and provenance.
 fn summary(form: &SubmitForm, cluster: &Cluster, width: usize) -> Vec<Line<'static>> {
-    let (out, _) = slurm::log_paths(&form.namepath, form.is_array());
+    let (out, _) = slurm::log_paths(&form.namepath, &form.settings);
     let command = slurm::preview_command(&form.base, &form.namepath, &form.settings);
 
     let mut lines = vec![
+        Line::from(vec![
+            Span::styled("   job name  ", theme::label()),
+            Span::styled(
+                slurm::job_name(&form.namepath, &form.settings),
+                Style::default().fg(theme::VARIABLE),
+            ),
+        ]),
         Line::from(vec![
             Span::styled("   logs      ", theme::label()),
             Span::styled(
