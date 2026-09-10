@@ -191,3 +191,58 @@ fn overlays_survive_a_tiny_terminal() {
         "the title already names the recipe"
     );
 }
+
+#[test]
+fn killing_a_job_has_to_be_confirmed() {
+    use crate::history::Record;
+
+    let listing = "\
+4210|nightly|RUNNING|qib|s|s|00:12:33|node07|/work|64|128G
+4180|build|COMPLETED|qib|s|s|00:03:50|node02|/work|4|16G";
+
+    let mut app = fixture_app();
+    app.jobs = Some(JobsView::with(crate::slurm::merge_jobs(
+        Some(listing),
+        None,
+        7,
+    )));
+    app.mode = Mode::Jobs;
+
+    // Nothing to kill on a job that has already stopped.
+    app.move_job(1);
+    app.ask_cancel(false);
+    assert_eq!(app.mode, Mode::Jobs, "no confirmation for a finished job");
+    assert!(app.cancel.is_none());
+
+    // A running one asks first, and leaves rather than acts on any other key.
+    app.move_job(-1);
+    app.ask_cancel(false);
+    assert_eq!(app.mode, Mode::CancelJob);
+    assert_eq!(app.cancel.as_ref().unwrap().id, "4210");
+    let text = rendered(&mut app, 100, 20);
+    assert!(text.contains("Kill this job?") && text.contains("scancel 4210"));
+
+    app.abandon_cancel();
+    assert_eq!(app.mode, Mode::Jobs);
+    assert!(app.cancel.is_none(), "the job is left alone");
+
+    // Resubmitting needs the settings it went out with.
+    app.ask_cancel(true);
+    assert_eq!(app.mode, Mode::Jobs, "nothing recorded for this job");
+
+    app.history.push_for_test(Record {
+        job_id: "4210".to_owned(),
+        namepath: "build".to_owned(),
+        command: "sbatch --mem=128G --wrap \"just build\"".to_owned(),
+        ..Default::default()
+    });
+    app.ask_cancel(true);
+    assert_eq!(app.mode, Mode::CancelJob);
+    assert!(app.cancel.as_ref().unwrap().resubmit);
+    let text = rendered(&mut app, 100, 20);
+    assert!(text.contains("Kill this job and run it again?"));
+    assert!(
+        text.contains("just build"),
+        "it shows what would be resubmitted"
+    );
+}

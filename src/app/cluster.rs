@@ -72,6 +72,7 @@ impl App {
                     out: out.clone(),
                     err,
                     command: slurm::preview_command(&form.base, &form.namepath, &form.settings),
+                    base: form.base.display().to_string(),
                     settings: form.settings.clone(),
                 };
                 let name = record.name.clone();

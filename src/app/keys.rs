@@ -16,6 +16,7 @@ impl App {
             Mode::Submit => return self.handle_submit_key(key),
             Mode::ConfigPick => return self.handle_config_pick_key(key),
             Mode::Jobs => return self.handle_jobs_key(key),
+            Mode::CancelJob => return self.handle_cancel_key(key),
             Mode::History => return self.handle_history_key(key),
             Mode::Help => {
                 self.mode = Mode::Normal;
@@ -380,6 +381,8 @@ impl App {
             KeyCode::Char('d') => self.cycle_job_range(),
             KeyCode::Char('r') => self.refresh_jobs(),
             KeyCode::Char('p') => self.toggle_job_auto(),
+            KeyCode::Char('x') => self.ask_cancel(false),
+            KeyCode::Char('X') => self.ask_cancel(true),
             KeyCode::Char('u') => return self.reuse_job_settings(),
             KeyCode::Enter | KeyCode::Char('o') => {
                 return match self.jobs.as_ref().and_then(|view| view.shown_path()) {
@@ -421,6 +424,15 @@ impl App {
             form.settings = record.settings.clone();
         }
         self.info(format!("settings from job {}", record.job_id));
+        Action::None
+    }
+
+    /// Killing a job takes a deliberate `y`: Enter is too easy to lean on.
+    fn handle_cancel_key(&mut self, key: KeyEvent) -> Action {
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => self.confirm_cancel(),
+            _ => self.abandon_cancel(),
+        }
         Action::None
     }
 

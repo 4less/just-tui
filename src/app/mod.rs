@@ -21,7 +21,7 @@ use crate::submit::SubmitForm;
 use crate::tree::{Filter, Kind, Tree};
 use crate::ui::Panes;
 
-pub use jobs::{JobsView, LogKind};
+pub use jobs::{JobsView, LogKind, PendingCancel};
 pub use recall::HistoryPick;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,6 +60,8 @@ pub enum Mode {
     ConfigPick,
     /// Browsing Slurm jobs and their logs.
     Jobs,
+    /// Confirming that a job really is to be killed.
+    CancelJob,
     /// Browsing past submissions, to load one back into the form.
     History,
 }
@@ -127,6 +129,8 @@ pub struct App {
     /// Built the first time the job browser is opened.
     pub jobs: Option<JobsView>,
     pub picker: Option<HistoryPick>,
+    /// A `scancel` waiting to be confirmed.
+    pub cancel: Option<PendingCancel>,
 }
 
 impl App {
@@ -165,6 +169,7 @@ impl App {
             history,
             jobs: None,
             picker: None,
+            cancel: None,
         };
         app.refresh_visible();
         app.select_first_recipe();

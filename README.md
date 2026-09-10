@@ -232,8 +232,31 @@ under the job's working directory — so jobs submitted outside just-tui are rea
 | `u` | load the settings this job ran with back into the submit form |
 | `f` | filter: all / running / failed |
 | `d` | how far back to look: 1 / 7 / 30 / 90 days |
+| `x` | kill the job (`scancel`), after confirming |
+| `X` | kill it and submit the same job again |
 | `p` | pause or resume the five-second refresh |
 | `r` | reload · `y` copy the log path · `PgUp`/`PgDn`/`g`/`G` scroll |
+
+### Killing and rerunning
+
+`x` cancels the selected job and `X` cancels it and submits the identical job again — same
+recipe, same arguments, same flags, read back from the history record, so a job that needs
+one more attempt does not have to be retyped. It comes back with a new job id and is
+recorded as its own submission.
+
+Both ask first and take nothing but `y`:
+
+```
+╭ Kill this job and run it again? ─────────────────────────────╮
+│  scancel 23474919   level3-run-s02_refilter-tgt_filt_rank    │
+│                                                              │
+│  then submit the same job again:                             │
+│  $ sbatch --partition=qib-compute --cpus-per-task=64 --mem…  │
+╰ y do it · any other key leaves the job alone ────────────────╯
+```
+
+`X` needs a history record, so it only offers itself for jobs just-tui submitted. `x` works
+on anything Slurm lets you cancel.
 
 ## Old settings: `.just-tui-cluster-history`
 

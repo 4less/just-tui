@@ -235,6 +235,32 @@ fn list_field(value: Option<&str>) -> Vec<String> {
     }
 }
 
+/// Run a command for its effect rather than its output, reporting what it
+/// complained about. Same timeout as [`capture`]: a wedged controller must
+/// not take the interface down with it.
+pub(super) fn run(program: &str, args: &[&str]) -> Result<(), String> {
+    let owned_program = program.to_owned();
+    let owned_args: Vec<String> = args.iter().map(|a| (*a).to_owned()).collect();
+    let (tx, rx) = mpsc::channel();
+
+    std::thread::spawn(move || {
+        let result = Command::new(&owned_program).args(&owned_args).output();
+        let _ = tx.send(result);
+    });
+
+    match rx.recv_timeout(QUERY_TIMEOUT) {
+        Ok(Ok(output)) if output.status.success() => Ok(()),
+        Ok(Ok(output)) => Err(String::from_utf8_lossy(&output.stderr)
+            .trim()
+            .lines()
+            .next()
+            .unwrap_or("it failed without saying why")
+            .to_owned()),
+        Ok(Err(err)) => Err(format!("could not run {program}: {err}")),
+        Err(_) => Err(format!("{program} did not answer")),
+    }
+}
+
 /// Run a command, giving up rather than hanging when the controller is down.
 pub(super) fn capture(program: &str, args: &[&str]) -> Option<String> {
     let program = program.to_owned();

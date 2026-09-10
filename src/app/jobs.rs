@@ -225,7 +225,7 @@ impl App {
     /// redrawing. `None` means there is nothing to animate, so it can block.
     pub fn tick_interval(&self) -> Option<Duration> {
         match self.mode {
-            Mode::Jobs => Some(Duration::from_secs(1)),
+            Mode::Jobs | Mode::CancelJob => Some(Duration::from_secs(1)),
             _ => None,
         }
     }
@@ -416,5 +416,102 @@ impl App {
     pub fn job_record(&self) -> Option<&Record> {
         let job = self.jobs.as_ref()?.selected()?;
         self.history.for_job(&job.id)
+    }
+}
+
+/// A kill waiting to be confirmed.
+pub struct PendingCancel {
+    pub id: String,
+    pub name: String,
+    /// Submit the same job again once it has been killed.
+    pub resubmit: bool,
+}
+
+impl App {
+    /// Ask before killing anything: `scancel` cannot be taken back.
+    pub fn ask_cancel(&mut self, resubmit: bool) {
+        let Some(job) = self.jobs.as_ref().and_then(|view| view.selected()).cloned() else {
+            return;
+        };
+        if !job.active() {
+            self.error(format!("job {} has already finished", job.id));
+            return;
+        }
+        if resubmit && self.job_record().is_none() {
+            self.error("only jobs submitted from just-tui can be resubmitted");
+            return;
+        }
+
+        self.cancel = Some(PendingCancel {
+            id: job.id.clone(),
+            name: job.name.clone(),
+            resubmit,
+        });
+        self.mode = Mode::CancelJob;
+    }
+
+    pub fn abandon_cancel(&mut self) {
+        self.cancel = None;
+        self.mode = Mode::Jobs;
+    }
+
+    /// Kill the job, and put it back on the queue when that was asked for.
+    pub fn confirm_cancel(&mut self) {
+        let Some(pending) = self.cancel.take() else {
+            return;
+        };
+        self.mode = Mode::Jobs;
+
+        if let Err(err) = slurm::cancel(&pending.id) {
+            self.error(format!("scancel {}: {err}", pending.id));
+            return;
+        }
+        if !pending.resubmit {
+            self.info(format!("cancelled job {}", pending.id));
+            self.refresh_queue();
+            return;
+        }
+
+        match self.resubmit(&pending.id) {
+            Ok(new_id) => self.info(format!(
+                "cancelled {} and submitted it again as {new_id}",
+                pending.id
+            )),
+            Err(err) => self.error(format!("cancelled {}, but {err}", pending.id)),
+        }
+        self.refresh_queue();
+    }
+
+    /// Submit a recorded job again, exactly as it went out the first time.
+    fn resubmit(&mut self, id: &str) -> Result<String, String> {
+        let Some(record) = self.history.for_job(id).cloned() else {
+            return Err("it was not submitted from just-tui".to_owned());
+        };
+        // Older records predate the directory being kept; the project is the
+        // only sensible guess, and is right for anything but a global recipe.
+        let base = match record.base.is_empty() {
+            true => self.project().working_dir.clone(),
+            false => PathBuf::from(&record.base),
+        };
+
+        match slurm::submit(&base, &record.namepath, &record.settings) {
+            slurm::Submission::Failed { message } => Err(format!("sbatch: {message}")),
+            slurm::Submission::Ok { job_id } => {
+                let (out, err) =
+                    slurm::resolved_log_paths(&record.namepath, &record.settings, &job_id);
+                let again = Record {
+                    job_id: job_id.clone(),
+                    at: crate::history::now(),
+                    when: crate::history::timestamp(),
+                    out,
+                    err,
+                    ..record
+                };
+                if let Err(problem) = self.history.append(again) {
+                    return Err(format!("could not record {job_id}: {problem}"));
+                }
+                Ok(job_id)
+            }
+        }
     }
 }
