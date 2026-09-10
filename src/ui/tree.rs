@@ -88,6 +88,16 @@ fn icon_for(node: &Node, filtering: bool) -> (&'static str, Color) {
             };
             (arrow, color)
         }
+        // A group folds like a module, but is coloured apart from one: it is
+        // a label just put on the recipes, not a place they live.
+        Kind::Group => {
+            let arrow = if node.expanded || filtering {
+                "▾ "
+            } else {
+                "▸ "
+            };
+            (arrow, theme::VARIABLE)
+        }
         Kind::Recipe => ("• ", theme::RECIPE),
         Kind::Alias => ("↪ ", theme::ALIAS),
     }
@@ -99,7 +109,7 @@ fn name_spans(node: &Node, filter: &Filter, color: Color) -> Vec<Span<'static>> 
         Style::default()
             .fg(theme::DIM)
             .add_modifier(Modifier::ITALIC)
-    } else if node.kind == Kind::Module {
+    } else if node.is_container() {
         Style::default().fg(color).add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(color)
