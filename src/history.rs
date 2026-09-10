@@ -136,6 +136,12 @@ impl History {
         std::fs::write(&self.path, text)
     }
 
+    /// Add a record without touching the disk, for tests.
+    #[cfg(test)]
+    pub fn push_for_test(&mut self, record: Record) {
+        self.records.push(record);
+    }
+
     /// Re-read the file, so a run from another window shows up.
     pub fn reload(&mut self) {
         self.records = std::fs::read_to_string(&self.path)
