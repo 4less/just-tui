@@ -185,6 +185,21 @@ shows each one's own line of the manifest, so `23474919_7` reads
 to `%4` alongside `each` to cap how many run at once; a range typed there is ignored, since
 the expansion sets it.
 
+#### `each` and `array`
+
+Both make a job array, from opposite ends:
+
+| | `array` | `each` |
+| --- | --- | --- |
+| you write | the range: `0-31%4` | the inputs: `data/*.fna` |
+| the range comes from | you | the number of matches |
+| the recipe | reads `$SLURM_ARRAY_TASK_ID` itself | takes ordinary arguments |
+| a manifest is written | no | yes |
+
+Use `array` alone when the recipe already knows how to index itself. Use `each` when it just
+takes arguments. Set both and `each` wins the range, keeping only a `%n` throttle from
+`array` — the form says so on the field, and warns if a range typed there is being dropped.
+
 Two things to know: every task gets the **same** `--mem`, `--cpus` and `--time`, so this
 suits work that is uniform across inputs; and rerunning a few failed tasks means resubmitting
 the array with `--array=3,7,19` rather than pressing `s`.
