@@ -3,6 +3,8 @@
 mod code;
 mod doc;
 mod help;
+mod jobs;
+mod recall;
 mod submit;
 mod tree;
 
@@ -60,12 +62,23 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     draw_body(frame, app, body);
     draw_footer(frame, app, footer);
 
-    // Overlays, outermost last.
-    if matches!(app.mode, Mode::Submit | Mode::ConfigPick) {
+    // Overlays, outermost last. The submit form stays behind the pickers it
+    // opens, so its values are still readable while one is chosen.
+    let over_submit = app
+        .picker
+        .as_ref()
+        .is_some_and(|pick| pick.from == Mode::Submit);
+    if matches!(app.mode, Mode::Submit | Mode::ConfigPick) || over_submit {
         submit::draw(frame, app, frame.area());
     }
     if app.mode == Mode::ConfigPick {
         submit::draw_config_pick(frame, app, frame.area());
+    }
+    if app.mode == Mode::Jobs {
+        jobs::draw(frame, app, frame.area());
+    }
+    if app.mode == Mode::History {
+        recall::draw(frame, app, frame.area());
     }
     if app.mode == Mode::Help {
         help::draw(frame, frame.area());
@@ -219,8 +232,8 @@ fn hints(app: &App) -> Line<'static> {
         ("↑↓", "move"),
         ("→←", "open/close"),
         ("⏎", "run"),
-        ("s", "slurm"),
-        ("a", "args"),
+        ("s", "submit"),
+        ("S", "jobs"),
         ("/", "search"),
         ("⇥", "pane"),
         ("?", "help"),

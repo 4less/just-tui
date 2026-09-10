@@ -236,7 +236,7 @@ fn list_field(value: Option<&str>) -> Vec<String> {
 }
 
 /// Run a command, giving up rather than hanging when the controller is down.
-fn capture(program: &str, args: &[&str]) -> Option<String> {
+pub(super) fn capture(program: &str, args: &[&str]) -> Option<String> {
     let program = program.to_owned();
     let args: Vec<String> = args.iter().map(|a| (*a).to_owned()).collect();
     let (tx, rx) = mpsc::channel();

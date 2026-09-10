@@ -3,20 +3,26 @@
 //! for the Slurm submit form.
 
 mod cluster;
+mod jobs;
 mod keys;
 mod navigate;
+mod recall;
 
 use std::path::PathBuf;
 
 use ratatui::widgets::ListState;
 
 use crate::config::Configs;
+use crate::history::History;
 use crate::just::{self, Loaded};
 use crate::slurm::Cluster;
 use crate::source::SourceCache;
 use crate::submit::SubmitForm;
 use crate::tree::{Filter, Kind, Tree};
 use crate::ui::Panes;
+
+pub use jobs::{JobsView, LogKind};
+pub use recall::HistoryPick;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Pane {
@@ -52,6 +58,10 @@ pub enum Mode {
     Submit,
     /// Choosing which `.just-tui-cluster-config` to open in an editor.
     ConfigPick,
+    /// Browsing Slurm jobs and their logs.
+    Jobs,
+    /// Browsing past submissions, to load one back into the form.
+    History,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,6 +82,10 @@ pub enum Action {
     Edit {
         path: PathBuf,
         line: usize,
+    },
+    /// Show a file without offering to reload the justfile afterwards.
+    View {
+        path: PathBuf,
     },
     Copy(String),
 }
@@ -106,12 +120,18 @@ pub struct App {
     /// Detected lazily, the first time the submit form is opened.
     pub cluster: Option<Cluster>,
     pub form: Option<SubmitForm>,
+    /// Every job submitted from this project, with the settings it used.
+    pub history: History,
+    /// Built the first time the job browser is opened.
+    pub jobs: Option<JobsView>,
+    pub picker: Option<HistoryPick>,
 }
 
 impl App {
     pub fn new(sources: Vec<Loaded>, mut cache: SourceCache) -> Self {
         let tree = Tree::build(&sources, &mut cache);
         let configs = Configs::new(&sources[0].working_dir);
+        let history = History::load(&sources[0].working_dir);
         let mut app = Self {
             sources,
             tree,
@@ -139,6 +159,9 @@ impl App {
             configs,
             cluster: None,
             form: None,
+            history,
+            jobs: None,
+            picker: None,
         };
         app.refresh_visible();
         app.select_first_recipe();
@@ -190,6 +213,7 @@ impl App {
             self.refresh_visible();
         }
         self.configs = Configs::new(&self.project().working_dir);
+        self.history.reload();
         self.refresh_form();
         self.info("reloaded");
     }

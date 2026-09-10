@@ -381,6 +381,15 @@ impl Tree {
         chain
     }
 
+    /// Expand every module above `id`, so a node found by name can be shown.
+    pub fn reveal(&mut self, id: usize) {
+        let mut current = self.nodes[id].parent;
+        while let Some(node_id) = current {
+            self.nodes[node_id].expanded = true;
+            current = self.nodes[node_id].parent;
+        }
+    }
+
     /// Find a recipe node by its full `mod::name` path within one source.
     pub fn find_namepath(&self, root_index: usize, namepath: &str) -> Option<usize> {
         self.nodes.iter().position(|n| {

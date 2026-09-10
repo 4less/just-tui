@@ -3,6 +3,7 @@
 mod app;
 mod config;
 mod highlight;
+mod history;
 mod just;
 mod model;
 mod slurm;
@@ -167,6 +168,7 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
             Action::Quit => return Ok(()),
             Action::Run { args, dir, dry } => terminal::run_just(terminal, app, &args, &dir, dry)?,
             Action::Edit { path, line } => terminal::edit(terminal, app, &path, line)?,
+            Action::View { path } => terminal::view(terminal, app, &path)?,
             Action::Copy(text) => {
                 terminal::copy_osc52(&text);
                 app.info("recipe copied to clipboard");

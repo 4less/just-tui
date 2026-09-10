@@ -97,6 +97,8 @@ all — you get the global roots alone.
 | `w` | wrap long source lines |
 | `f` | zoom the focused pane |
 | `s` | submit the recipe to Slurm |
+| `S` | browse Slurm jobs and read their logs |
+| `H` | past submissions, to load old settings back |
 | `y` | copy the recipe source (OSC 52, works over ssh) |
 | `o` | open the justfile at that line in `$EDITOR` |
 | `R` | reload |
@@ -114,6 +116,20 @@ script:
 ```
 sbatch --chdir=<justfile dir> --job-name=… --output=… <your flags> --wrap "just demo::greet"
 ```
+
+### Job names
+
+The name is built from the recipe **and its arguments**, so two runs of one recipe stay
+apart in `squeue` and in `logs/`:
+
+| recipe | args | job name | log file |
+| --- | --- | --- | --- |
+| `build` | | `build` | `logs/build-%j.out` |
+| `demo::greet` | `name=ada` | `demo-greet-name-ada` | `logs/demo/greet-name-ada-%j.out` |
+
+The `name` field at the top of the form overrides that. Leave it empty and the name is
+generated; type one and it is used verbatim (tidied into `a-safe-file-name`), for the job
+and for its log.
 
 Nothing is inferred from the justfile. Fields start empty unless a config file or a previous
 run filled them in.
@@ -136,6 +152,56 @@ Always under `logs/` in the justfile's base directory, mirroring the module stru
 | `level3::db::tree` | `logs/level3/db/tree-%j.out` |
 
 Array jobs use `-%A_%a` instead of `-%j`. The directory is created before submitting.
+
+## Looking at jobs
+
+`S` opens the job browser: `squeue` for what is queued or running, `sacct` for what has
+finished, merged into one list, newest first.
+
+```
+╭ Slurm jobs — 4 shown of 4 in the last 7 days ──────────────────────────────────────────╮
+│ ▸ 4211       PENDING    greet-name-ada     0:00      Resources                         │
+│   4210       RUNNING    nightly-run        00:12:33  qib-compute                       │
+│   4190       FAILED     tree-force-1       00:00:35  exit 1                            │
+│   4180       COMPLETED  build              00:03:50  ok                                │
+│                                                                                        │
+│   submitted 2026-09-08T22:00:00  ·  level3::db::tree force=1  ·  qib-compute · mem 128G │
+│   $ sbatch --partition=qib-compute --mem=128G --wrap "just level3::db::tree force=1"    │
+│╭ stderr — logs/level3/db/tree-force-1-4190.err ────────────────────────────────────────╮│
+││ loading 4.2M rows                                                                     ││
+││ slurmstepd: error: Exceeded job memory limit                                          ││
+│╰───────────────────────────────────────────────────────────────────────────────────────╯│
+╰ ↑↓ job · ⇥ stdout · ⏎ open log · u reuse settings · f all · d 7d · r reload · esc back ─╯
+```
+
+The bottom pane is the **tail of the selected job's log**, `stderr` first, with anything that
+looks like an error picked out in red. The log file is found by asking `scontrol` while the
+job is still known to the controller, and otherwise by looking for a file ending in `-<job id>`
+under the job's working directory — so jobs submitted outside just-tui are readable too.
+
+| in the browser | |
+| --- | --- |
+| `↑` `↓` | move between jobs |
+| `Tab` | switch between `stderr` and `stdout` |
+| `Enter` `o` | open the whole log in `$PAGER` |
+| `u` | load the settings this job ran with back into the submit form |
+| `f` | filter: all / running / failed |
+| `d` | how far back to look: 1 / 7 / 30 / 90 days |
+| `r` | reload · `y` copy the log path · `PgUp`/`PgDn`/`g`/`G` scroll |
+
+## Old settings: `.just-tui-cluster-history`
+
+Every submission is appended to `.just-tui-cluster-history` beside the justfile — the job id,
+the time, the exact `sbatch` line, and every field the form held. Unlike
+`.just-tui-cluster-state`, which only keeps the *last* run of each recipe and is overridden by
+any config file, this file forgets nothing.
+
+- `H` lists every past submission; `Enter` loads one back into the submit form.
+- `F6` in the form lists only that recipe's past runs.
+- `u` in the job browser jumps from a job straight to the settings it ran with.
+
+So a job that failed three weeks ago can be found, read, and resubmitted with one field
+changed. The file is machine-written and gitignored; it is trimmed to the last 500 entries.
 
 ### Defaults: `.just-tui-cluster-config`
 
@@ -225,7 +291,8 @@ generated that way.
 | `highlight.rs`, `theme.rs` | justfile syntax colouring |
 | `app/` | state, navigation, key handling |
 | `ui/` | one module per pane, plus the overlays |
-| `slurm/` | cluster detection, settings, `sbatch` |
+| `slurm/` | cluster detection, settings, `sbatch`, `squeue`/`sacct` |
 | `config.rs`, `submit.rs` | `.just-tui-cluster-config`, the submit form |
+| `history.rs` | `.just-tui-cluster-history`, every submission ever made |
 | `terminal.rs`, `snapshot.rs` | the real terminal, and rendering without one |
 # just-tui

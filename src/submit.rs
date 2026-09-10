@@ -76,11 +76,6 @@ impl SubmitForm {
         slurm::FIELDS[self.field]
     }
 
-    /// Array jobs need per-task log names.
-    pub fn is_array(&self) -> bool {
-        !self.settings.array.is_empty()
-    }
-
     /// Adopt freshly resolved settings, keeping the cursor where it was.
     pub fn reset_to(&mut self, resolved: Resolved) {
         self.settings = resolved.settings.clone();

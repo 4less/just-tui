@@ -102,6 +102,26 @@ pub fn edit(terminal: &mut DefaultTerminal, app: &mut App, path: &Path, line: us
     Ok(())
 }
 
+/// Show a file — a job log — without treating it as a justfile afterwards.
+/// `$PAGER` is preferred over `$EDITOR`: a log is read from the end, and
+/// `less` starts there when asked to.
+pub fn view(terminal: &mut DefaultTerminal, app: &mut App, path: &Path) -> Result<()> {
+    let pager = std::env::var("PAGER").unwrap_or_else(|_| "less".to_owned());
+
+    leave();
+    let mut command = Command::new(&pager);
+    if Path::new(&pager).file_name().is_some_and(|n| n == "less") {
+        command.args(["-R", "+G"]);
+    }
+    let status = command.arg(path).status();
+    re_enter(terminal)?;
+
+    if let Err(err) = status {
+        app.error(format!("could not launch {pager}: {err}"));
+    }
+    Ok(())
+}
+
 /// Editors that understand `+42` as "start on line 42".
 fn opens_at_line(editor: &str) -> bool {
     let name = Path::new(editor)
