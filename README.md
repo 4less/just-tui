@@ -185,6 +185,21 @@ shows each one's own line of the manifest, so `23474919_7` reads
 to `%4` alongside `each` to cap how many run at once; a range typed there is ignored, since
 the expansion sets it.
 
+#### `each` and `array`
+
+Both make a job array, from opposite ends:
+
+| | `array` | `each` |
+| --- | --- | --- |
+| you write | the range: `0-31%4` | the inputs: `data/*.fna` |
+| the range comes from | you | the number of matches |
+| the recipe | reads `$SLURM_ARRAY_TASK_ID` itself | takes ordinary arguments |
+| a manifest is written | no | yes |
+
+Use `array` alone when the recipe already knows how to index itself. Use `each` when it just
+takes arguments. Set both and `each` wins the range, keeping only a `%n` throttle from
+`array` — the form says so on the field, and warns if a range typed there is being dropped.
+
 Two things to know: every task gets the **same** `--mem`, `--cpus` and `--time`, so this
 suits work that is uniform across inputs; and rerunning a few failed tasks means resubmitting
 the array with `--array=3,7,19` rather than pressing `s`.
@@ -265,6 +280,13 @@ so 100% means every allocated core was busy throughout.
 Colours read as strain: memory is red near its limit, and **CPU is the other way round** —
 red means allocated cores are idling, green means they are busy. Say the word if you want
 CPU coloured like memory instead.
+
+**Nothing that talks to Slurm runs on the drawing thread.** `squeue`, `sacct`, `sstat`,
+`scontrol` and the cluster detection behind the submit form are all asked for on threads and
+delivered through a channel the event loop drains before each frame. The browser opens on
+`⠋ asking squeue and sacct…` rather than on a pause, the submit form opens on free text and
+fills its pick lists in when the controller answers, and the five-second refresh never lands
+in the middle of a keystroke.
 
 Finding a log can mean waiting on `scontrol` and walking a large `logs/` tree, so it happens
 on a background thread. The pane spins while it works and the list stays live — arrow keys,

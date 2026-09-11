@@ -377,3 +377,60 @@ fn the_log_pane_spins_while_it_waits() {
     app.tick();
     assert_ne!(app.jobs.as_ref().unwrap().frame, before);
 }
+
+#[test]
+fn opening_the_browser_does_not_wait_for_slurm() {
+    use std::time::{Duration, Instant};
+
+    let mut app = fixture_app();
+
+    // squeue and sacct are asked on a thread; the overlay is up before they
+    // answer, and says what it is waiting for.
+    let opened = Instant::now();
+    app.open_jobs();
+    assert!(
+        opened.elapsed() < Duration::from_millis(100),
+        "opening blocked for {:?}",
+        opened.elapsed()
+    );
+    assert_eq!(app.mode, Mode::Jobs);
+    assert!(app.jobs.as_ref().unwrap().fetching());
+
+    let text = rendered(&mut app, 100, 16);
+    assert!(text.contains("asking squeue and sacct"));
+    assert!(text.contains("refreshing"), "the title says so too");
+
+    // A timed refresh does not block either, and does not pile a second
+    // request on top of one already out.
+    let ticked = Instant::now();
+    app.tick();
+    app.refresh_queue();
+    assert!(
+        ticked.elapsed() < Duration::from_millis(100),
+        "a refresh blocked for {:?}",
+        ticked.elapsed()
+    );
+}
+
+#[test]
+fn the_submit_form_opens_before_the_cluster_answers() {
+    use std::time::{Duration, Instant};
+
+    let mut app = fixture_app();
+    let opened = Instant::now();
+    app.open_submit();
+
+    assert!(
+        opened.elapsed() < Duration::from_millis(100),
+        "opening blocked for {:?}",
+        opened.elapsed()
+    );
+    assert_eq!(app.mode, Mode::Submit);
+    assert!(app.cluster.is_none() && app.detecting.is_some());
+
+    let text = rendered(&mut app, 110, 24);
+    assert!(
+        text.contains("asking the cluster"),
+        "the pick lists say they are still filling in"
+    );
+}
