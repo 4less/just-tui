@@ -80,6 +80,19 @@ const SPIN: Duration = Duration::from_millis(90);
 /// carried forward locally, so this is only about fresh states and stats.
 const REFRESH: Duration = Duration::from_secs(5);
 
+/// Work finished on a background thread, on its way back to the interface.
+/// Everything that talks to the scheduler goes through here: none of it is
+/// fast enough to do between a keystroke and the frame that answers it.
+enum Fetched {
+    /// A full listing: `squeue` and `sacct`.
+    Listing(JobList),
+    /// `squeue` alone, which is all a timed refresh needs.
+    Queue(Option<Vec<Job>>),
+    /// `sstat` for the running jobs.
+    Usage(HashMap<String, Usage>),
+    Log(LoadedLog),
+}
+
 /// A log read on a background thread, on its way back to the interface.
 struct LoadedLog {
     /// The job and the file that were asked for, so a result that arrives
@@ -120,8 +133,15 @@ pub struct JobsView {
     pending: Option<(String, LogKind)>,
     /// Which spinner frame is showing.
     pub frame: usize,
-    sender: Sender<LoadedLog>,
-    inbox: Receiver<LoadedLog>,
+    sender: Sender<Fetched>,
+    inbox: Receiver<Fetched>,
+    /// A listing is being fetched, so a second is not started on top of it.
+    fetching: bool,
+    /// The job to put the cursor back on once that listing lands.
+    keep: Option<String>,
+    /// The selected task's line of the manifest, read when the selection
+    /// changes rather than on every frame.
+    pub task_args: Option<String>,
 }
 
 impl JobsView {
@@ -157,7 +177,16 @@ impl JobsView {
             frame: 0,
             sender,
             inbox,
+            fetching: false,
+            keep: None,
+            task_args: None,
         }
+    }
+
+    /// Whether a listing is on its way, so the list can say so instead of
+    /// showing an empty pane.
+    pub fn fetching(&self) -> bool {
+        self.fetching
     }
 
     /// Whether a log is still being read, so the pane can say so.
@@ -222,7 +251,8 @@ impl JobsView {
 use super::{App, Mode};
 
 impl App {
-    /// Open the job browser, asking Slurm what it knows.
+    /// Open the job browser. The overlay is up before Slurm has answered;
+    /// asking it is the slow part and happens on a thread.
     pub fn open_jobs(&mut self) {
         if self.jobs.is_none() {
             self.jobs = Some(JobsView::new());
@@ -231,40 +261,33 @@ impl App {
         self.refresh_jobs();
     }
 
-    /// Re-ask `squeue` and `sacct`, keeping the cursor on the same job.
+    /// Ask for a full listing — `squeue` and `sacct`. On a busy controller
+    /// `sacct` over ninety days takes seconds, which is why nothing waits.
     pub fn refresh_jobs(&mut self) {
-        let Some(view) = self.jobs.as_ref() else {
-            return;
-        };
-        let (days, keep) = (view.days(), view.selected().map(|job| job.id.clone()));
-
-        let list = slurm::fetch_jobs(days);
         self.history.reload();
-
         let Some(view) = self.jobs.as_mut() else {
             return;
         };
-        view.list = list;
-        view.refilter();
-        if let Some(id) = keep
-            && let Some(position) = view
-                .visible
-                .iter()
-                .position(|&index| view.list.jobs[index].id == id)
-        {
-            view.cursor = position;
+        if view.fetching {
+            return;
         }
-        view.usage.clear();
+        view.keep = view.selected().map(|job| job.id.clone());
+        view.fetching = true;
         view.fetched = Instant::now();
-        view.loaded = None;
-        self.refresh_usage();
-        self.request_job_log();
+
+        let (days, sender) = (view.days(), view.sender.clone());
+        std::thread::spawn(move || {
+            let _ = sender.send(Fetched::Listing(slurm::fetch_jobs(days)));
+        });
     }
 
     /// How long the event loop may wait for a key before the overlay wants
     /// redrawing. `None` means there is nothing to animate, so it can block.
     pub fn tick_interval(&self) -> Option<Duration> {
-        let spinning = self.jobs.as_ref().is_some_and(JobsView::loading);
+        let spinning = self
+            .jobs
+            .as_ref()
+            .is_some_and(|view| view.loading() || view.fetching());
         match self.mode {
             // A second is enough for a ticking clock; a spinner needs more.
             Mode::Jobs | Mode::ConfirmJob => Some(match spinning {
@@ -276,10 +299,10 @@ impl App {
     }
 
     /// Called when no key arrived: the clock is redrawn from the local one,
-    /// and every so often the queue itself is re-asked.
+    /// and every so often the queue is asked for again — on a thread.
     pub fn tick(&mut self) {
         if let Some(view) = self.jobs.as_mut()
-            && view.loading()
+            && (view.loading() || view.fetching())
         {
             view.frame = view.frame.wrapping_add(1);
         }
@@ -292,46 +315,25 @@ impl App {
         }
     }
 
-    /// Re-ask `squeue` and `sstat` only. Finished jobs cannot change, so
-    /// `sacct` is left alone until the user asks for it with `r`.
+    /// Re-ask `squeue` only. Finished jobs cannot change, so `sacct` is left
+    /// alone until the user asks for it with `r`.
     pub fn refresh_queue(&mut self) {
-        let Some(fresh) = slurm::refresh_queue() else {
-            if let Some(view) = self.jobs.as_mut() {
-                view.fetched = Instant::now();
-            }
-            return;
-        };
-        let keep = self
-            .jobs
-            .as_ref()
-            .and_then(|view| view.selected().map(|job| job.id.clone()));
-
         let Some(view) = self.jobs.as_mut() else {
             return;
         };
-        // Anything that has left the queue since the last look keeps the row
-        // sacct gave it, but stops being live.
-        let mut jobs = fresh;
-        for old in &view.list.jobs {
-            if !jobs.iter().any(|job| job.id == old.id) {
-                let mut old = old.clone();
-                old.live = false;
-                jobs.push(old);
-            }
+        if view.fetching {
+            return;
         }
-        jobs.sort_by_key(|job| std::cmp::Reverse(job.order()));
-        view.list.jobs = jobs;
+        view.keep = view.selected().map(|job| job.id.clone());
+        view.fetching = true;
+        // Counted from the moment it was asked for, not the moment it came
+        // back, or a slow controller would be asked again immediately.
         view.fetched = Instant::now();
-        view.refilter();
-        if let Some(id) = keep
-            && let Some(position) = view
-                .visible
-                .iter()
-                .position(|&index| view.list.jobs[index].id == id)
-        {
-            view.cursor = position;
-        }
-        self.refresh_usage();
+
+        let sender = view.sender.clone();
+        std::thread::spawn(move || {
+            let _ = sender.send(Fetched::Queue(slurm::refresh_queue()));
+        });
     }
 
     /// Ask `sstat` what the running jobs are using.
@@ -339,9 +341,29 @@ impl App {
         let Some(view) = self.jobs.as_ref() else {
             return;
         };
-        let usage = slurm::fetch_usage(&view.running());
-        if let Some(view) = self.jobs.as_mut() {
-            view.usage = usage;
+        let (ids, sender) = (view.running(), view.sender.clone());
+        if ids.is_empty() {
+            return;
+        }
+        std::thread::spawn(move || {
+            let _ = sender.send(Fetched::Usage(slurm::fetch_usage(&ids)));
+        });
+    }
+
+    /// Put the cursor back on the job it was on, after a listing replaced the
+    /// rows underneath it.
+    fn restore_cursor(&mut self) {
+        let Some(view) = self.jobs.as_mut() else {
+            return;
+        };
+        view.refilter();
+        if let Some(id) = view.keep.take()
+            && let Some(position) = view
+                .visible
+                .iter()
+                .position(|&index| view.list.jobs[index].id == id)
+        {
+            view.cursor = position;
         }
     }
 
@@ -407,19 +429,89 @@ impl App {
                     false,
                 ),
             };
-            let _ = sender.send(LoadedLog {
+            let _ = sender.send(Fetched::Log(LoadedLog {
                 want,
                 shown,
                 logs,
                 lines,
                 truncated,
-            });
+            }));
         });
     }
 
-    /// Take delivery of anything the loader has finished, dropping results
-    /// for a job the cursor has already left. Never blocks.
+    /// Take delivery of whatever the background threads have finished, and
+    /// act on it. Never blocks: this runs before every frame.
     pub fn poll_background(&mut self) {
+        let mut landed = Vec::new();
+        if let Some(view) = self.jobs.as_mut() {
+            while let Ok(fetched) = view.inbox.try_recv() {
+                landed.push(fetched);
+            }
+        }
+        if landed.is_empty() {
+            return;
+        }
+
+        let mut listed = false;
+        for fetched in landed {
+            match fetched {
+                Fetched::Listing(list) => {
+                    if let Some(view) = self.jobs.as_mut() {
+                        view.list = list;
+                        view.usage.clear();
+                        view.fetching = false;
+                        view.loaded = None;
+                    }
+                    listed = true;
+                }
+                Fetched::Queue(fresh) => {
+                    self.merge_queue(fresh);
+                    listed = true;
+                }
+                Fetched::Usage(usage) => {
+                    if let Some(view) = self.jobs.as_mut() {
+                        view.usage = usage;
+                    }
+                }
+                Fetched::Log(loaded) => self.take_log(loaded),
+            }
+        }
+
+        if listed {
+            self.restore_cursor();
+            self.refresh_usage();
+        }
+        self.clamp_job_scroll();
+        self.note_task_args();
+        // The cursor has usually moved on by the time an answer arrives.
+        self.request_job_log();
+    }
+
+    /// Fold a fresh `squeue` into the rows already on screen.
+    fn merge_queue(&mut self, fresh: Option<Vec<Job>>) {
+        let Some(view) = self.jobs.as_mut() else {
+            return;
+        };
+        view.fetching = false;
+        let Some(mut jobs) = fresh else {
+            return;
+        };
+        // Anything that has left the queue since the last look keeps the row
+        // sacct gave it, but stops being live.
+        for old in &view.list.jobs {
+            if !jobs.iter().any(|job| job.id == old.id) {
+                let mut old = old.clone();
+                old.live = false;
+                jobs.push(old);
+            }
+        }
+        jobs.sort_by_key(|job| std::cmp::Reverse(job.order()));
+        view.list.jobs = jobs;
+    }
+
+    /// Apply a log that has been read, unless the cursor has left the job it
+    /// belongs to.
+    fn take_log(&mut self, loaded: LoadedLog) {
         let selected = self
             .jobs
             .as_ref()
@@ -427,27 +519,40 @@ impl App {
         let Some(view) = self.jobs.as_mut() else {
             return;
         };
-
-        while let Ok(loaded) = view.inbox.try_recv() {
-            // The loader is free again whatever the answer was worth.
-            if view.pending.as_ref() == Some(&loaded.want) {
-                view.pending = None;
-            }
-            let current = (selected.as_deref() == Some(loaded.want.0.as_str()))
-                && loaded.want.1 == view.which;
-            if !current {
-                continue;
-            }
-            view.logs = loaded.logs;
-            view.which = loaded.shown;
-            view.lines = loaded.lines;
-            view.truncated = loaded.truncated;
-            view.loaded = Some((loaded.want.0, loaded.shown));
-            view.scroll = u16::MAX; // start at the end, where the failure is
+        // The loader is free again whatever the answer was worth.
+        if view.pending.as_ref() == Some(&loaded.want) {
+            view.pending = None;
         }
-        self.clamp_job_scroll();
-        // The cursor has usually moved on by the time an answer arrives.
-        self.request_job_log();
+        if selected.as_deref() != Some(loaded.want.0.as_str()) || loaded.want.1 != view.which {
+            return;
+        }
+        view.logs = loaded.logs;
+        view.which = loaded.shown;
+        view.lines = loaded.lines;
+        view.truncated = loaded.truncated;
+        view.loaded = Some((loaded.want.0, loaded.shown));
+        view.scroll = u16::MAX; // start at the end, where the failure is
+    }
+
+    /// Read the selected array task's line of the manifest, once, when the
+    /// selection changes — not once a frame, which on a shared filesystem is
+    /// a stat and a read eleven times a second.
+    pub fn note_task_args(&mut self) {
+        let args = self.job_record().and_then(|record| {
+            let job = self.jobs.as_ref()?.selected()?;
+            let task = job.id.split_once('_')?.1.parse::<usize>().ok()?;
+            if record.manifest.is_empty() {
+                return None;
+            }
+            crate::batch::line(
+                PathBuf::from(&record.base).as_path(),
+                &record.manifest,
+                task,
+            )
+        });
+        if let Some(view) = self.jobs.as_mut() {
+            view.task_args = args;
+        }
     }
 
     pub fn move_job(&mut self, delta: isize) {
@@ -459,6 +564,7 @@ impl App {
         }
         let count = view.visible.len() as isize;
         view.cursor = (view.cursor as isize + delta).rem_euclid(count) as usize;
+        self.note_task_args();
         self.request_job_log();
     }
 

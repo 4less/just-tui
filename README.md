@@ -281,6 +281,13 @@ Colours read as strain: memory is red near its limit, and **CPU is the other way
 red means allocated cores are idling, green means they are busy. Say the word if you want
 CPU coloured like memory instead.
 
+**Nothing that talks to Slurm runs on the drawing thread.** `squeue`, `sacct`, `sstat`,
+`scontrol` and the cluster detection behind the submit form are all asked for on threads and
+delivered through a channel the event loop drains before each frame. The browser opens on
+`⠋ asking squeue and sacct…` rather than on a pause, the submit form opens on free text and
+fills its pick lists in when the controller answers, and the five-second refresh never lands
+in the middle of a keystroke.
+
 Finding a log can mean waiting on `scontrol` and walking a large `logs/` tree, so it happens
 on a background thread. The pane spins while it works and the list stays live — arrow keys,
 filters and the clock all keep going. One loader runs at a time: holding a cursor key down

@@ -35,7 +35,16 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
     let mut lines: Vec<Line> = slurm::FIELDS
         .iter()
         .enumerate()
-        .map(|(index, field)| field_row(form, cluster, *field, index == form.field, inner))
+        .map(|(index, field)| {
+            field_row(
+                form,
+                cluster,
+                *field,
+                index == form.field,
+                inner,
+                app.detecting.is_some(),
+            )
+        })
         .collect();
 
     lines.push(Line::default());
@@ -60,6 +69,7 @@ fn field_row(
     field: Field,
     selected: bool,
     width: usize,
+    detecting: bool,
 ) -> Line<'static> {
     let value = form.settings.get(field);
     let mut spans = vec![
@@ -92,7 +102,7 @@ fn field_row(
     let used: usize = spans.iter().map(|s| s.content.chars().count()).sum();
     spans.push(Span::styled(
         truncate(
-            &note(form, cluster, field, value),
+            &note(form, cluster, field, value, detecting),
             width.saturating_sub(used),
         ),
         theme::label(),
@@ -107,7 +117,13 @@ fn field_row(
 }
 
 /// What to show to the right of a field: detected choices, or its hint.
-fn note(form: &SubmitForm, cluster: &Cluster, field: Field, value: &str) -> String {
+fn note(
+    form: &SubmitForm,
+    cluster: &Cluster,
+    field: Field,
+    value: &str,
+    detecting: bool,
+) -> String {
     // `each` takes over the range, leaving this field good only for a
     // throttle. Saying so beats a hint that is no longer true.
     if field == Field::Array && form.plan.is_some() {
@@ -121,6 +137,7 @@ fn note(form: &SubmitForm, cluster: &Cluster, field: Field, value: &str) -> Stri
     let choices = cluster.choices(field);
     if choices.is_empty() {
         return match field {
+            Field::Partition if detecting => "asking the cluster…".to_owned(),
             Field::Partition => "no partitions detected".to_owned(),
             Field::Name if value.is_empty() => "auto: recipe + args".to_owned(),
             other => other.hint().to_owned(),

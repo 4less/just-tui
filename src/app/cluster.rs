@@ -8,6 +8,17 @@ use crate::slurm::{self, Cluster};
 use crate::submit::{SaveScope, SubmitForm};
 
 impl App {
+    /// Take delivery of the cluster description, if it has arrived.
+    pub fn poll_cluster(&mut self) {
+        let Some(receiver) = self.detecting.as_ref() else {
+            return;
+        };
+        if let Ok(cluster) = receiver.try_recv() {
+            self.cluster = Some(cluster);
+            self.detecting = None;
+        }
+    }
+
     /// Open the submit form for the selected recipe, detecting the cluster
     /// the first time it is needed.
     pub fn open_submit(&mut self) {
@@ -17,8 +28,14 @@ impl App {
         };
         let Some(id) = self.selected_id else { return };
 
-        if self.cluster.is_none() {
-            self.cluster = Some(Cluster::detect());
+        // Detection is four calls to the controller. The form opens on free
+        // text and the pick lists fill in when they answer.
+        if self.cluster.is_none() && self.detecting.is_none() {
+            let (sender, receiver) = std::sync::mpsc::channel();
+            self.detecting = Some(receiver);
+            std::thread::spawn(move || {
+                let _ = sender.send(Cluster::detect());
+            });
         }
 
         let base = self.selected_source().working_dir.clone();

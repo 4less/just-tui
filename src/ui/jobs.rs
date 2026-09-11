@@ -37,7 +37,11 @@ pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
         view.visible.len(),
         view.list.jobs.len(),
         view.days(),
-        if view.auto { "live" } else { "paused" },
+        match (view.fetching(), view.auto) {
+            (true, _) => "refreshing",
+            (false, true) => "live",
+            (false, false) => "paused",
+        },
     );
 
     frame.render_widget(Clear, area);
@@ -66,15 +70,26 @@ fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
     let width = area.width as usize;
 
     if view.visible.is_empty() {
-        let note = view
-            .list
-            .note
-            .clone()
-            .unwrap_or_else(|| format!("no {} jobs", view.filter.label()));
+        let (note, color) = match view.fetching() {
+            true => (
+                format!(
+                    "{} asking squeue and sacct…",
+                    SPINNER[view.frame % SPINNER.len()]
+                ),
+                theme::DIM,
+            ),
+            false => (
+                view.list
+                    .note
+                    .clone()
+                    .unwrap_or_else(|| format!("no {} jobs", view.filter.label())),
+                theme::MATCH,
+            ),
+        };
         frame.render_widget(
             Paragraph::new(Line::from(Span::styled(
                 format!("  {note}"),
-                Style::default().fg(theme::MATCH),
+                Style::default().fg(color),
             ))),
             area,
         );
@@ -428,23 +443,11 @@ pub fn draw_confirm(frame: &mut Frame, app: &App, area: Rect) {
 
 /// What the selected job was doing. For one task of an expansion that is its
 /// own line of the manifest, not the whole recipe's arguments, which are the
-/// same for every task and so tell you nothing.
+/// same for every task and so tell you nothing. The line is read when the
+/// selection changes, not here.
 fn task_label(app: &App, record: &crate::history::Record) -> String {
-    let Some(job) = app.jobs.as_ref().and_then(|view| view.selected()) else {
-        return record.label();
-    };
-    let task = job
-        .id
-        .split_once('_')
-        .and_then(|(_, index)| index.parse::<usize>().ok());
-
-    match (task, record.manifest.is_empty()) {
-        (Some(task), false) => {
-            match crate::batch::line(std::path::Path::new(&record.base), &record.manifest, task) {
-                Some(args) => format!("{} {args}", record.namepath),
-                None => format!("{} task {task}", record.namepath),
-            }
-        }
-        _ => record.label(),
+    match app.jobs.as_ref().and_then(|view| view.task_args.as_ref()) {
+        Some(args) => format!("{} {args}", record.namepath),
+        None => record.label(),
     }
 }

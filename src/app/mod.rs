@@ -123,6 +123,8 @@ pub struct App {
     pub configs: Configs,
     /// Detected lazily, the first time the submit form is opened.
     pub cluster: Option<Cluster>,
+    /// Detection in flight, so the form need not wait for it.
+    pub detecting: Option<std::sync::mpsc::Receiver<Cluster>>,
     pub form: Option<SubmitForm>,
     /// Every job submitted from this project, with the settings it used.
     pub history: History,
@@ -165,6 +167,7 @@ impl App {
             panes: Panes::default(),
             configs,
             cluster: None,
+            detecting: None,
             form: None,
             history,
             jobs: None,
