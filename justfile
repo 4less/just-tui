@@ -77,6 +77,15 @@ bump level="patch":
 version:
     @cargo run --quiet -- --version
 
+# Regenerate the documentation site into docs/
+docs:
+    cd docs && python3 _content.py
+
+# Serve the documentation site locally
+docs-serve port="8000":
+    @echo "http://localhost:{{port}}"
+    python3 -m http.server -d docs {{port}}
+
 # Install the binary into ~/.cargo/bin
 install:
     cargo install --path .

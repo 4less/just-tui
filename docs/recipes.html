@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The explorer — just-tui</title>
+<meta name="description" content="just-tui: a terminal explorer for just recipes, with first-class Slurm submission and job monitoring.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html"><span class="just">just</span><span class="tui">tui</span></a>
+  <nav class="topnav"><a href="index.html">Overview</a><a href="recipes.html" aria-current="page">Recipes</a><a href="slurm.html">Slurm</a><a href="jobs.html">Jobs</a><a href="keys.html">Keys</a></nav>
+  <span class="spacer"></span>
+  <span class="pill">v0.2.0</span>
+  <a class="pill" href="https://github.com/4less/just-tui">GitHub ★</a>
+</header>
+
+<div class="shell">
+  <aside class="sidebar"><h2>Getting started</h2>
+<ul>
+<li><a href="index.html">What just-tui is</a></li>
+<li><a href="index.html#install">Installing</a></li>
+<li><a href="index.html#quickstart">Quickstart</a></li>
+</ul><h2>Browsing</h2>
+<ul>
+<li><a href="recipes.html" aria-current="page">The explorer</a></li>
+<li><a href="recipes.html#groups">Groups</a></li>
+<li><a href="recipes.html#search">Search</a></li>
+<li><a href="recipes.html#global">Global recipes</a></li>
+</ul><h2>Slurm</h2>
+<ul>
+<li><a href="slurm.html">Submitting a recipe</a></li>
+<li><a href="slurm.html#config">Config files</a></li>
+<li><a href="slurm.html#logs">Where logs go</a></li>
+<li><a href="slurm.html#batch">One recipe, many inputs</a></li>
+</ul><h2>Jobs</h2>
+<ul>
+<li><a href="jobs.html">The job browser</a></li>
+<li><a href="jobs.html#usage">Live memory and CPU</a></li>
+<li><a href="jobs.html#actions">Kill and rerun</a></li>
+<li><a href="jobs.html#history">Past submissions</a></li>
+</ul><h2>Reference</h2>
+<ul>
+<li><a href="keys.html">Every key</a></li>
+<li><a href="keys.html#files">Files it writes</a></li>
+</ul></aside>
+  <main>
+    <p class="crumbs"><a href="index.html">Docs</a> / Browsing</p>
+    
+<h1>The explorer</h1>
+
+<p class="lead">Three panes: the tree on the left, documentation top right, source below it.
+<kbd>Tab</kbd> cycles focus, <kbd>f</kbd> zooms whichever has it, <kbd>v</kbd> puts the doc beside
+the source rather than above it.</p>
+
+<h3>What each pane shows</h3>
+
+<table>
+<tr><th>Pane</th><th>Contents</th></tr>
+<tr><td>Explorer</td><td>The root, its <code>mod</code>s, recipes and aliases, plus a <code>⌂</code>
+root per global recipe file. The default recipe is starred; private ones are hidden until
+<kbd>p</kbd>.</td></tr>
+<tr><td>Documentation</td><td>The whole comment block above the recipe, parameters with defaults
+and whether they are variadic, dependencies split into those that run before and after the body,
+attributes, and the exact <code>just …</code> line to invoke it.</td></tr>
+<tr><td>Source</td><td>The recipe as written, with line numbers matching the file and highlighting
+for interpolations, strings, shell variables and comments. A recipe that cannot be located in its
+file is rebuilt from just's own dump and marked <code>reconstructed</code>.</td></tr>
+</table>
+
+<h2 id="groups">Groups</h2>
+
+<p>A recipe carrying <code>[group('x')]</code> is filed under a collapsible folder inside its
+module — beside the modules, never instead of them, which is what <code>just --list</code> does
+too.</p>
+
+<div class="term"><div class="chrome"><span class="dot" style="background:#f7768e"></span><span class="dot" style="background:#e0af68"></span><span class="dot" style="background:#9ece6a"></span><span>just-tui — groups</span></div><pre><code>
+│▾ project/                     ← the module
+││ ▸ tools/                     ← a real `mod`, untouched
+││ • default ★  Show every rec… ← ungrouped recipes stay put, above the folders
+││ ▾ build  2 recipes           ← [group(&#x27;build&#x27;)]
+││ │ • compile  Build the binary
+││ │ • release  Optimised build
+││ ▾ data  2 recipes            ← [group(&#x27;data&#x27;)]
+││ │ • fetch  Download the inputs
+││ │ • clean  Drop the cache
+</code></pre></div>
+
+<p>The layer appears only where it divides something: a module whose recipes fall into two or more
+buckets, counting ungrouped as one. A module with a single group, or none, is left alone.
+<kbd>m</kbd> folds the layer away and back.</p>
+
+<div class="note">
+Groups are display only. A namepath never contains one, so running, submitting and config scopes
+are unaffected.
+</div>
+
+<h2 id="search">Search</h2>
+
+<p><kbd>/</kbd> matches recipe names as a fuzzy subsequence and documentation literally, and
+highlights the characters it matched. It matches the file name too, so <code>/git</code> narrows
+to a global <code>git.just</code> library and <code>/gitlog</code> finds one recipe inside it.</p>
+
+<p><kbd>q</kbd> clears the search first and quits second.</p>
+
+<h2 id="global">Global recipes</h2>
+
+<p>Every <code>.just</code> file in <code>~/.justx/</code> becomes its own root, marked
+<code>⌂</code>, below the project. <code>just --global-justfile</code>'s file is picked up too if
+you have one.</p>
+
+<div class="note warn">
+<strong>Global recipes run in your current directory</strong>, not in <code>~/.justx</code>:
+just-tui passes <code>--working-directory</code>, so <code>git::log</code> acts on the repo you
+are standing in.
+</div>
+
+    <nav class="pager"><a href="index.html"><span>Previous</span>← Overview</a><a class="next" href="slurm.html"><span>Next</span>Submitting a recipe →</a></nav>
+  </main>
+</div>
+
+<footer>
+  <span>just-tui — a terminal explorer for <a href="https://github.com/casey/just">just</a> recipes</span>
+  <span><a href="https://github.com/4less/just-tui">Repository</a> · <a href="https://github.com/4less/just-tui/issues">Issues</a> · <a href="https://github.com/casey/just">just</a> · <a href="https://slurm.schedmd.com/">Slurm</a></span>
+</footer>
+</body>
+</html>

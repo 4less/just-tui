@@ -33,6 +33,8 @@ above its real source.
  ↑↓ move →← open/close ⏎ run s slurm a args n dry-run / search ⇥ pane ? help
 ```
 
+**Documentation:** <https://4less.github.io/just-tui/>
+
 ## Install
 
 ```sh
@@ -473,6 +475,12 @@ just run ../any # browse another project's justfile
 `--snapshot WxH` renders one frame as plain text and exits; `--keys` replays keystrokes
 first (named keys in brackets: `--keys "s[right][down]12G"`). The README screenshot above is
 generated that way.
+
+### The documentation site
+
+`docs/` is plain HTML served by GitHub Pages from `main` — no CI, no build step, so it cannot
+break in a workflow. `just docs` regenerates the pages from `docs/_content.py`; `just docs-serve`
+previews them. See [`docs/README.md`](docs/README.md).
 
 ### Layout
 

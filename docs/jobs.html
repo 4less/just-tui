@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The job browser — just-tui</title>
+<meta name="description" content="just-tui: a terminal explorer for just recipes, with first-class Slurm submission and job monitoring.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html"><span class="just">just</span><span class="tui">tui</span></a>
+  <nav class="topnav"><a href="index.html">Overview</a><a href="recipes.html">Recipes</a><a href="slurm.html">Slurm</a><a href="jobs.html" aria-current="page">Jobs</a><a href="keys.html">Keys</a></nav>
+  <span class="spacer"></span>
+  <span class="pill">v0.2.0</span>
+  <a class="pill" href="https://github.com/4less/just-tui">GitHub ★</a>
+</header>
+
+<div class="shell">
+  <aside class="sidebar"><h2>Getting started</h2>
+<ul>
+<li><a href="index.html">What just-tui is</a></li>
+<li><a href="index.html#install">Installing</a></li>
+<li><a href="index.html#quickstart">Quickstart</a></li>
+</ul><h2>Browsing</h2>
+<ul>
+<li><a href="recipes.html">The explorer</a></li>
+<li><a href="recipes.html#groups">Groups</a></li>
+<li><a href="recipes.html#search">Search</a></li>
+<li><a href="recipes.html#global">Global recipes</a></li>
+</ul><h2>Slurm</h2>
+<ul>
+<li><a href="slurm.html">Submitting a recipe</a></li>
+<li><a href="slurm.html#config">Config files</a></li>
+<li><a href="slurm.html#logs">Where logs go</a></li>
+<li><a href="slurm.html#batch">One recipe, many inputs</a></li>
+</ul><h2>Jobs</h2>
+<ul>
+<li><a href="jobs.html" aria-current="page">The job browser</a></li>
+<li><a href="jobs.html#usage">Live memory and CPU</a></li>
+<li><a href="jobs.html#actions">Kill and rerun</a></li>
+<li><a href="jobs.html#history">Past submissions</a></li>
+</ul><h2>Reference</h2>
+<ul>
+<li><a href="keys.html">Every key</a></li>
+<li><a href="keys.html#files">Files it writes</a></li>
+</ul></aside>
+  <main>
+    <p class="crumbs"><a href="index.html">Docs</a> / Jobs</p>
+    
+<h1>The job browser</h1>
+
+<p class="lead"><kbd>S</kbd> merges <code>squeue</code> for what is queued or running with
+<code>sacct</code> for what has finished, newest first, and puts the tail of the selected job's log
+underneath.</p>
+
+<div class="term"><div class="chrome"><span class="dot" style="background:#f7768e"></span><span class="dot" style="background:#e0af68"></span><span class="dot" style="background:#9ece6a"></span><span>just-tui — Slurm jobs</span></div><pre><code>
+╭ Slurm jobs — 5 of 5 in the last 7 days — live — all ──────────────────────────────────╮
+│ ▸ 23474919   RUNNING    level3-run-s01_msa-nonfocal_tgt…  00:01:32   233G/1280G  18%  │
+│   23474878   RUNNING    level3-run-s01_msa-nonfocal_cong… 06:39:02  1240G/1280G  97%  │
+│   23474876   FAILED     level3-run-s01_msa-nonfocal_tgt…  00:00:00   exit 1           │
+│   23473080   COMPLETED  level3-run-align-index            03:52:17   ok               │
+│   23473075   OOM        level3-run-align-index            00:06:21   signal 125       │
+│                                                                                        │
+│   submitted 2026-09-08T22:00  ·  level3::run::s01_msa tgt_filt_peel  ·  qib-compute     │
+│╭ stderr — logs/level3/run/s01_msa-tgt_filt_peel-23474876.err ─────────────────────────╮│
+││ loading 4.2M rows                                                                    ││
+││ slurmstepd: error: Exceeded job memory limit                                         ││
+│╰──────────────────────────────────────────────────────────────────────────────────────╯│
+╰ ↑↓ · v hide log · f filter · ⏎ log · u reuse · s rerun · x kill · X kill+rerun · esc ─╯
+</code></pre></div>
+
+<p>Anything that looks like an error is picked out in red. The log file is found by asking
+<code>scontrol</code> while the controller still knows the job, and otherwise by looking for a file
+ending in <code>-&lt;job id&gt;</code> under the job's working directory — so jobs submitted
+outside just-tui are readable too.</p>
+
+<h3>Keys</h3>
+
+<table>
+<tr><th>Key</th><th>Does</th></tr>
+<tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>move between jobs; the log follows</td></tr>
+<tr><td><kbd>v</kbd></td><td>hide the log pane — the queue takes the whole window</td></tr>
+<tr><td><kbd>f</kbd></td><td>filter window: pick which states to show</td></tr>
+<tr><td><kbd>Tab</kbd></td><td>switch between <code>stderr</code> and <code>stdout</code></td></tr>
+<tr><td><kbd>Enter</kbd> <kbd>o</kbd></td><td>open the whole log in <code>$PAGER</code></td></tr>
+<tr><td><kbd>d</kbd></td><td>how far back to look: 1 / 7 / 30 / 90 days</td></tr>
+<tr><td><kbd>p</kbd></td><td>pause or resume the five-second refresh</td></tr>
+<tr><td><kbd>r</kbd></td><td>reload · <kbd>y</kbd> copy the log path · <kbd>PgUp</kbd>/<kbd>PgDn</kbd>/<kbd>g</kbd>/<kbd>G</kbd> scroll</td></tr>
+</table>
+
+<p><kbd>f</kbd> lists every state this cluster has reported alongside the usual ones —
+<span class="state run">RUNNING</span> <span class="state pend">PENDING</span>
+<span class="state fail">FAILED</span> and the rest — each with how many jobs hold it.
+<kbd>Space</kbd> turns one on or off and the list behind follows at once; <kbd>a</kbd> goes back to
+everything.</p>
+
+<h2 id="usage">Live memory and CPU</h2>
+
+<p>A running job shows what it is <strong>actually using</strong> against what it reserved:</p>
+
+<pre><code>23474919  RUNNING   level3-run-s01_msa-nonfocal_tgt…  00:01:32   233G/1280G  18%   64c  93%
+23474878  RUNNING   level3-run-s01_msa-nonfocal_cong…  06:39:02  1240G/1280G  97%   64c  98%</code></pre>
+
+<p><code>MaxRSS</code> and <code>AveCPU</code> come from one <code>sstat</code> call covering every
+running job at once, not one per job. CPU % is CPU time consumed against CPU time reserved —
+<code>AveCPU / (elapsed × cpus)</code> — so 100% means every allocated core was busy throughout.</p>
+
+<p>Colours read as strain: memory is red near its limit, and <strong>CPU is the other way
+round</strong> — red means allocated cores are idling, green means they are busy.</p>
+
+<p>The clock on a running job ticks every second, carried forward locally from the elapsed time
+<code>squeue</code> reported; the queue itself is re-asked every five seconds. Nothing that talks
+to Slurm runs on the drawing thread, so none of it interrupts a keystroke.</p>
+
+<h2 id="actions">Kill and rerun</h2>
+
+<table>
+<tr><th>Key</th><th>Does</th></tr>
+<tr><td><kbd>s</kbd></td><td>submit the same job again — for one that has <strong>stopped</strong></td></tr>
+<tr><td><kbd>x</kbd></td><td>cancel the job (<code>scancel</code>)</td></tr>
+<tr><td><kbd>X</kbd></td><td>cancel it <strong>and</strong> submit the same job again</td></tr>
+</table>
+
+<p>All three read the settings back from the history record, so a job that needs another attempt
+does not have to be retyped, and all three ask first — taking nothing but <kbd>y</kbd>, since
+<kbd>Enter</kbd> is the key most likely to be leaned on:</p>
+
+<pre><code>╭ Kill this job and run it again? ─────────────────────────────╮
+│  scancel 23474919   level3-run-s02_refilter-tgt_filt_rank    │
+│                                                              │
+│  then submit the same job again:                             │
+│  $ sbatch --partition=qib-compute --cpus-per-task=64 --mem…  │
+╰ y do it · any other key leaves the job alone ────────────────╯</code></pre>
+
+<p><kbd>s</kbd> is refused while a job is still queued or running — two copies is almost never what
+was meant, and <kbd>X</kbd> is the key for replacing one. <kbd>s</kbd> and <kbd>X</kbd> need a
+history record, so they only offer themselves for jobs just-tui submitted; <kbd>x</kbd> works on
+anything Slurm lets you cancel.</p>
+
+<h2 id="history">Past submissions</h2>
+
+<p>Every submission is appended to <code>.just-tui-cluster-history</code> beside the justfile — the
+job id, the time, the exact <code>sbatch</code> line, and every field the form held. Unlike
+<code>.just-tui-cluster-state</code>, which keeps only the last run of each recipe and is overridden
+by any config file, this one forgets nothing.</p>
+
+<ul class="prose">
+<li><kbd>H</kbd> lists every past submission; <kbd>Enter</kbd> loads one back into the form.</li>
+<li><kbd>F6</kbd> in the form lists only that recipe's past runs — and since the title already names
+the recipe, those rows show the <strong>arguments</strong>, which is what tells two runs apart.</li>
+<li><kbd>u</kbd> in the job browser jumps from a job to the settings it ran with.</li>
+</ul>
+
+<p>So a job that failed three weeks ago can be found, read, and resubmitted with one field changed.
+The file is machine-written and gitignored; it is trimmed to the last 500 entries.</p>
+
+    <nav class="pager"><a href="slurm.html"><span>Previous</span>← Submitting a recipe</a><a class="next" href="keys.html"><span>Next</span>Every key →</a></nav>
+  </main>
+</div>
+
+<footer>
+  <span>just-tui — a terminal explorer for <a href="https://github.com/casey/just">just</a> recipes</span>
+  <span><a href="https://github.com/4less/just-tui">Repository</a> · <a href="https://github.com/4less/just-tui/issues">Issues</a> · <a href="https://github.com/casey/just">just</a> · <a href="https://slurm.schedmd.com/">Slurm</a></span>
+</footer>
+</body>
+</html>
