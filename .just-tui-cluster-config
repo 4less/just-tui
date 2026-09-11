@@ -1,0 +1,13 @@
+# just-tui Slurm defaults for this project.
+#
+# Keys before any [section] apply to every recipe here. A .just-tui-cluster-config
+# inside a module directory overrides this one; a [recipe] section overrides both.
+
+partition = local
+time      = 00:30:00
+cpus      = 2
+mem       = 4G
+
+[demo::report]
+cpus = 4
+mem  = 8G

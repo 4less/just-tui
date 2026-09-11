@@ -262,6 +262,15 @@ finished, merged into one list, newest first.
 ╰ ↑↓ job · ⇥ stdout · ⏎ open log · u reuse settings · f all · d 7d · r reload · esc back ─╯
 ```
 
+`f` opens a window of states — `RUNNING`, `PENDING`, `COMPLETED`, `FAILED`, `CANCELLED`,
+`TIMEOUT`, `OUT_OF_MEMORY`, `NODE_FAIL`, plus anything else this cluster has reported — each
+with how many jobs hold it. `space` turns one on or off and the list behind the window
+follows at once, so there is nothing to apply; `a` goes back to showing everything. Choosing
+none means all of them.
+
+`v` hides the log pane, giving the whole window to the queue — and nothing is read while it
+is hidden.
+
 While the browser is open it **refreshes itself**: the clock on a running job ticks every
 second, and every five seconds `squeue` and `sstat` are re-asked for states and usage. `p`
 pauses that; `r` reloads everything including `sacct`.
@@ -306,7 +315,8 @@ under the job's working directory — so jobs submitted outside just-tui are rea
 | `Tab` | switch between `stderr` and `stdout` |
 | `Enter` `o` | open the whole log in `$PAGER` |
 | `u` | load the settings this job ran with back into the submit form |
-| `f` | filter: all / running / failed |
+| `v` | hide the log pane — the queue takes the whole window |
+| `f` | filter window: pick which states to show |
 | `d` | how far back to look: 1 / 7 / 30 / 90 days |
 | `s` | submit the same job again (only once it has stopped) |
 | `x` | kill the job (`scancel`), after confirming |
@@ -426,6 +436,30 @@ settings and variables for modules, and the exact `just …` command to invoke i
 highlighting for interpolations, strings, shell variables and comments. When a recipe cannot
 be located in its file the body is rebuilt from just's own dump and marked
 `reconstructed`.
+
+## Versions
+
+```sh
+just bump          # 0.2.0 -> 0.2.1, committed and tagged
+just bump minor    # 0.2.0 -> 0.3.0
+git push --follow-tags
+```
+
+`bump` edits `Cargo.toml`, refreshes `Cargo.lock`, commits and tags — and refuses on a dirty
+tree or off `main`, since the tag is meant to name a state you could go back to. Nothing is
+pushed; look at the tag first.
+
+The binary stamps itself with the commit it was built from, which is what tells two installs
+apart:
+
+```
+$ just-tui --version
+just-tui 0.2.0 (v0.2.0-4-g8a9c685, 2026-09-11)
+```
+
+That reads: release `0.2.0`, four commits past the tag, at `8a9c685`. On a cluster after a
+`git pull` it says exactly what is installed there. A build with no git around says
+`unknown` rather than failing.
 
 ## Development
 

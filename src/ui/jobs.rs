@@ -26,17 +26,21 @@ pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
     };
 
     let footer = format!(
-        " ↑↓ · ⇥ {} · ⏎ log · u reuse · s rerun · x kill · X kill+rerun · f {} · d {}d · p {} · esc ",
-        view.which.other().label(),
-        view.filter.label(),
+        " ↑↓ · v {} · f filter · ⏎ log · u reuse · s rerun · x kill · X kill+rerun · d {}d · p {} · esc ",
+        if view.show_log {
+            "hide log"
+        } else {
+            "show log"
+        },
         view.days(),
         if view.auto { "pause" } else { "resume" },
     );
     let title = format!(
-        " Slurm jobs — {} shown of {} in the last {} days — {} ",
+        " Slurm jobs — {} of {} in the last {} days — {} — {} ",
         view.visible.len(),
         view.list.jobs.len(),
         view.days(),
+        view.filter.label(),
         match (view.fetching(), view.auto) {
             (true, _) => "refreshing",
             (false, true) => "live",
@@ -49,17 +53,24 @@ pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
-    let rows = LIST_ROWS.min(inner.height.saturating_sub(6)).max(3);
+    // With the log hidden the queue takes everything but the two lines that
+    // say what the selected job is.
+    let rows = match view.show_log {
+        true => LIST_ROWS.min(inner.height.saturating_sub(6)).max(3),
+        false => inner.height.saturating_sub(2),
+    };
     let [list_area, detail_area, log_area] = Layout::vertical([
         Constraint::Length(rows),
         Constraint::Length(2),
-        Constraint::Min(3),
+        Constraint::Min(0),
     ])
     .areas(inner);
 
     draw_list(frame, app, list_area);
     draw_detail(frame, app, detail_area);
-    draw_log(frame, app, log_area);
+    if app.jobs.as_ref().is_some_and(|view| view.show_log) {
+        draw_log(frame, app, log_area);
+    }
 }
 
 /// One row per job, scrolled to keep the cursor in view.
@@ -82,7 +93,7 @@ fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
                 view.list
                     .note
                     .clone()
-                    .unwrap_or_else(|| format!("no {} jobs", view.filter.label())),
+                    .unwrap_or_else(|| format!("no jobs match the {} filter", view.filter.label())),
                 theme::MATCH,
             ),
         };
@@ -450,4 +461,74 @@ fn task_label(app: &App, record: &crate::history::Record) -> String {
         Some(args) => format!("{} {args}", record.namepath),
         None => record.label(),
     }
+}
+
+/// Which states the list shows. Toggling one takes effect behind the window
+/// straight away, so there is nothing to confirm.
+pub fn draw_filter(frame: &mut Frame, app: &App, area: Rect) {
+    let Some(view) = app.jobs.as_ref() else {
+        return;
+    };
+    let options = app.job_filter_options();
+    let width = 52.min(area.width.saturating_sub(2));
+
+    let lines: Vec<Line> = options
+        .iter()
+        .enumerate()
+        .map(|(index, (state, count))| {
+            let chosen = view.filter.holds(state);
+            let mut spans = vec![
+                Span::styled(
+                    if index == view.filter_cursor {
+                        " ▸ "
+                    } else {
+                        "   "
+                    },
+                    Style::default().fg(theme::ACCENT),
+                ),
+                Span::styled(
+                    if chosen { "[x] " } else { "[ ] " },
+                    Style::default().fg(match chosen {
+                        true => theme::RECIPE,
+                        false => theme::DIM,
+                    }),
+                ),
+                Span::styled(
+                    format!("{state:<16}"),
+                    Style::default().fg(match *count {
+                        0 => theme::DIM,
+                        _ => theme::FG,
+                    }),
+                ),
+                Span::styled(
+                    match count {
+                        0 => "—".to_owned(),
+                        n => n.to_string(),
+                    },
+                    theme::label(),
+                ),
+            ];
+            pad(&mut spans, width.saturating_sub(2) as usize);
+            let line = Line::from(spans);
+            match index == view.filter_cursor {
+                true => line.style(Style::default().bg(theme::SELECTION_BG)),
+                false => line,
+            }
+        })
+        .collect();
+
+    let title = match view.filter.is_all() {
+        true => " Show which states?  (all) ".to_owned(),
+        false => format!(" Show which states?  ({}) ", view.filter.label()),
+    };
+    let popup = centered(area, width, lines.len() as u16 + 2);
+    frame.render_widget(Clear, popup);
+    frame.render_widget(
+        Paragraph::new(lines).block(overlay_block(
+            &title,
+            " space toggle · a all · esc close ",
+            theme::MATCH,
+        )),
+        popup,
+    );
 }

@@ -30,10 +30,21 @@ use crate::app::{Action, App};
 use crate::just::Loaded;
 use crate::source::SourceCache;
 
+/// `0.2.0 (v0.2.0-4-g8a9c685, 2026-09-11)` — the release, then the commit it
+/// was actually built from, which is what tells two installs apart.
+const VERSION: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    " (",
+    env!("JUST_TUI_COMMIT"),
+    ", ",
+    env!("JUST_TUI_DATE"),
+    ")"
+);
+
 #[derive(Parser, Debug)]
 #[command(
     name = "just-tui",
-    version,
+    version = VERSION,
     about = "Browse just recipes and modules with their source and documentation"
 )]
 struct Cli {
