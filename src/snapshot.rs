@@ -67,6 +67,8 @@ fn named_key(chars: &mut impl Iterator<Item = char>) -> Option<KeyCode> {
         "tab" => KeyCode::Tab,
         "backspace" => KeyCode::Backspace,
         "delete" => KeyCode::Delete,
+        "home" => KeyCode::Home,
+        "end" => KeyCode::End,
         other => KeyCode::F(other.strip_prefix('f')?.parse().ok()?),
     })
 }

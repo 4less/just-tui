@@ -41,6 +41,9 @@ pub struct SubmitForm {
     pub resolved: Resolved,
     /// Index into [`slurm::FIELDS`].
     pub field: usize,
+    /// Where the caret sits in the current field, counted in characters.
+    /// Always within the field: moving between fields puts it at the end.
+    pub cursor: usize,
     /// Directory of the module this recipe lives in.
     pub scope_dir: PathBuf,
     /// Directory the job runs in, and under which `logs/` is written.
@@ -69,6 +72,7 @@ impl SubmitForm {
             settings: resolved.settings.clone(),
             resolved,
             field: 0,
+            cursor: 0,
             scope_dir,
             base,
             scopes,
@@ -110,12 +114,14 @@ impl SubmitForm {
     pub fn reset_to(&mut self, resolved: Resolved) {
         self.settings = resolved.settings.clone();
         self.resolved = resolved;
+        self.clamp_cursor();
         self.refresh_plan();
     }
 
     /// Adopt settings from somewhere else — a past submission, say.
     pub fn adopt(&mut self, settings: Settings) {
         self.settings = settings;
+        self.clamp_cursor();
         self.refresh_plan();
     }
 
@@ -137,10 +143,45 @@ impl SubmitForm {
         }
     }
 
-    /// Move the cursor, wrapping at both ends.
+    /// Move between fields, wrapping at both ends. The caret lands at the end
+    /// of whatever it arrives in, which is where typing continues from.
     pub fn move_field(&mut self, delta: isize) {
         let count = slurm::FIELDS.len() as isize;
         self.field = (self.field as isize + delta).rem_euclid(count) as usize;
+        self.cursor = self.width();
+    }
+
+    /// Characters in the field the caret is in.
+    fn width(&self) -> usize {
+        self.settings.get(self.current()).chars().count()
+    }
+
+    /// Byte offset of the caret, for splitting the string around it.
+    fn offset(&self) -> usize {
+        let value = self.settings.get(self.current());
+        value
+            .char_indices()
+            .nth(self.cursor)
+            .map_or(value.len(), |(at, _)| at)
+    }
+
+    /// Move the caret within the field, stopping at either end.
+    pub fn move_cursor(&mut self, delta: isize) {
+        let limit = self.width() as isize;
+        self.cursor = (self.cursor as isize + delta).clamp(0, limit) as usize;
+    }
+
+    pub fn cursor_home(&mut self) {
+        self.cursor = 0;
+    }
+
+    pub fn cursor_end(&mut self) {
+        self.cursor = self.width();
+    }
+
+    /// Keep the caret inside a value that changed underneath it.
+    fn clamp_cursor(&mut self) {
+        self.cursor = self.cursor.min(self.width());
     }
 
     /// Move within the config-scope chooser, wrapping at both ends.
@@ -154,21 +195,39 @@ impl SubmitForm {
         self.scopes[self.scope_index].1.clone()
     }
 
+    /// Type a character in at the caret.
     pub fn push_char(&mut self, c: char) {
-        let field = self.current();
-        self.settings.get_mut(field).push(c);
+        let (field, at) = (self.current(), self.offset());
+        self.settings.get_mut(field).insert(at, c);
+        self.cursor += 1;
         self.refresh_plan();
     }
 
+    /// Backspace: remove the character before the caret.
     pub fn pop_char(&mut self) {
-        let field = self.current();
-        self.settings.get_mut(field).pop();
+        if self.cursor == 0 {
+            return;
+        }
+        self.cursor -= 1;
+        let (field, at) = (self.current(), self.offset());
+        self.settings.get_mut(field).remove(at);
+        self.refresh_plan();
+    }
+
+    /// Delete: remove the character the caret is on.
+    pub fn delete_char(&mut self) {
+        if self.cursor >= self.width() {
+            return;
+        }
+        let (field, at) = (self.current(), self.offset());
+        self.settings.get_mut(field).remove(at);
         self.refresh_plan();
     }
 
     pub fn clear_field(&mut self) {
         let field = self.current();
         self.settings.get_mut(field).clear();
+        self.cursor = 0;
         self.refresh_plan();
     }
 
@@ -189,6 +248,7 @@ impl SubmitForm {
         let position = options.iter().position(|c| c == current).unwrap_or(0) as isize;
         let next = (position + delta).rem_euclid(options.len() as isize) as usize;
         *self.settings.get_mut(field) = options[next].clone();
+        self.cursor_end();
         self.refresh_plan();
     }
 

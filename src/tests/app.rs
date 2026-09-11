@@ -434,3 +434,74 @@ fn the_submit_form_opens_before_the_cluster_answers() {
         "the pick lists say they are still filling in"
     );
 }
+
+#[test]
+fn fields_can_be_edited_anywhere_not_just_at_the_end() {
+    let mut app = fixture_app();
+    app.cluster = Some(test_cluster());
+    app.open_submit();
+
+    let form = app.form.as_mut().expect("form is open");
+    // Move to `args` and type something in.
+    while form.current() != Field::Args {
+        form.move_field(1);
+    }
+    for c in "tgt_filt_rank".chars() {
+        form.push_char(c);
+    }
+    assert_eq!(form.settings.args, "tgt_filt_rank");
+    assert_eq!(
+        form.cursor, 13,
+        "typing leaves the caret after what was typed"
+    );
+
+    // Home, then a prefix — the thing that needed the whole string deleting.
+    form.cursor_home();
+    for c in "new_".chars() {
+        form.push_char(c);
+    }
+    assert_eq!(form.settings.args, "new_tgt_filt_rank");
+
+    // Delete takes the character under the caret, backspace the one before.
+    form.cursor_home();
+    form.delete_char();
+    assert_eq!(form.settings.args, "ew_tgt_filt_rank");
+    form.pop_char();
+    assert_eq!(
+        form.settings.args, "ew_tgt_filt_rank",
+        "nothing before the start"
+    );
+
+    form.cursor_end();
+    form.pop_char();
+    assert_eq!(form.settings.args, "ew_tgt_filt_ran");
+    form.delete_char();
+    assert_eq!(
+        form.settings.args, "ew_tgt_filt_ran",
+        "nothing past the end"
+    );
+
+    // The caret stops at both ends rather than wrapping into the next field.
+    form.cursor_home();
+    form.move_cursor(-5);
+    assert_eq!(form.cursor, 0);
+    form.move_cursor(999);
+    assert_eq!(form.cursor, 15);
+
+    // Moving field puts it where typing continues from.
+    form.move_field(-1);
+    assert_eq!(
+        form.cursor,
+        form.settings.get(form.current()).chars().count()
+    );
+
+    // And a value replaced underneath it does not leave it dangling.
+    let mut long = form.settings.clone();
+    long.args = "x".to_owned();
+    while form.current() != Field::Args {
+        form.move_field(1);
+    }
+    form.cursor_end();
+    form.adopt(long);
+    assert!(form.cursor <= 1, "caret clamped to the shorter value");
+}
