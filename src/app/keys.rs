@@ -256,6 +256,19 @@ impl App {
 
     fn handle_submit_key(&mut self, key: KeyEvent) -> Action {
         if key.modifiers.contains(KeyModifiers::CONTROL) {
+            let Some(form) = self.form.as_mut() else {
+                return Action::None;
+            };
+            match key.code {
+                // Readline's habits, and a way to reach the caret on a field
+                // whose ←→ are busy cycling through what the cluster offers.
+                KeyCode::Left => form.move_cursor(-1),
+                KeyCode::Right => form.move_cursor(1),
+                KeyCode::Char('a') => form.cursor_home(),
+                KeyCode::Char('e') => form.cursor_end(),
+                KeyCode::Char('u') => form.clear_field(),
+                _ => {}
+            }
             return Action::None;
         }
         // Keys that need the app, not just the form.
@@ -283,8 +296,17 @@ impl App {
             }
             KeyCode::Left | KeyCode::Right => {
                 let delta = if key.code == KeyCode::Left { -1 } else { 1 };
-                if let (Some(form), Some(cluster)) = (self.form.as_mut(), self.cluster.as_ref()) {
-                    form.cycle(cluster, delta);
+                // A field the cluster offers choices for steps through them;
+                // anywhere else ←→ is what it is everywhere else, a caret.
+                let picks = match (self.form.as_ref(), self.cluster.as_ref()) {
+                    (Some(form), Some(cluster)) => !cluster.choices(form.current()).is_empty(),
+                    _ => false,
+                };
+                if let Some(form) = self.form.as_mut() {
+                    match (picks, self.cluster.as_ref()) {
+                        (true, Some(cluster)) => form.cycle(cluster, delta),
+                        _ => form.move_cursor(delta),
+                    }
                 }
                 return Action::None;
             }
@@ -297,7 +319,9 @@ impl App {
         match key.code {
             KeyCode::Up | KeyCode::BackTab => form.move_field(-1),
             KeyCode::Down | KeyCode::Tab => form.move_field(1),
-            KeyCode::Delete => form.clear_field(),
+            KeyCode::Home => form.cursor_home(),
+            KeyCode::End => form.cursor_end(),
+            KeyCode::Delete => form.delete_char(),
             KeyCode::Backspace => form.pop_char(),
             KeyCode::Char(c) => form.push_char(c),
             _ => {}

@@ -394,11 +394,15 @@ selected field's value came from, next to it.
 
 | in the form | |
 | --- | --- |
+| `←` `→` | move the caret — or step a pick list, on the fields the cluster fills in |
+| `Ctrl-←` `Ctrl-→` | move the caret on those fields too |
+| `Home` `End` · `Ctrl-a` `Ctrl-e` | start and end of the field |
+| `Del` `Backspace` | delete forwards, delete backwards |
+| `Ctrl-u` | clear the field |
 | `F2` | write the current values as **module** defaults |
 | `F3` | write them as **project** defaults |
 | `F4` | write them as a `[recipe]` section, for this recipe only |
 | `F5` | pick a scope and open its config in `$EDITOR` (created from a template if absent) |
-| `Del` | clear the selected field |
 
 Saving or editing re-reads the files at once, so the form updates in place.
 
