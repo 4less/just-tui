@@ -17,6 +17,7 @@ impl App {
             Mode::ConfigPick => return self.handle_config_pick_key(key),
             Mode::Jobs => return self.handle_jobs_key(key),
             Mode::ConfirmJob => return self.handle_confirm_key(key),
+            Mode::JobFilter => return self.handle_job_filter_key(key),
             Mode::History => return self.handle_history_key(key),
             Mode::Help => {
                 self.mode = Mode::Normal;
@@ -401,7 +402,8 @@ impl App {
             KeyCode::Char('g') | KeyCode::Home => self.scroll_job_log(i32::MIN / 4),
             KeyCode::Char('G') | KeyCode::End => self.scroll_job_log(i32::MAX / 4),
             KeyCode::Tab | KeyCode::Char('t') => self.toggle_job_log(),
-            KeyCode::Char('f') => self.cycle_job_filter(),
+            KeyCode::Char('f') => self.open_job_filter(),
+            KeyCode::Char('v') => self.toggle_job_log_pane(),
             KeyCode::Char('d') => self.cycle_job_range(),
             KeyCode::Char('r') => self.refresh_jobs(),
             KeyCode::Char('p') => self.toggle_job_auto(),
@@ -449,6 +451,22 @@ impl App {
             form.adopt(record.settings.clone());
         }
         self.info(format!("settings from job {}", record.job_id));
+        Action::None
+    }
+
+    /// The filter window. Toggling a state shows its effect behind the
+    /// window at once, so there is nothing to apply and nothing to cancel.
+    fn handle_job_filter_key(&mut self, key: KeyEvent) -> Action {
+        match key.code {
+            KeyCode::Esc | KeyCode::Enter | KeyCode::Char('f') | KeyCode::Char('q') => {
+                self.mode = Mode::Jobs;
+            }
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Tab => self.move_job_filter(1),
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::BackTab => self.move_job_filter(-1),
+            KeyCode::Char(' ') => self.toggle_job_filter(),
+            KeyCode::Char('a') => self.clear_job_filter(),
+            _ => {}
+        }
         Action::None
     }
 

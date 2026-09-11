@@ -62,6 +62,8 @@ pub enum Mode {
     Jobs,
     /// Confirming something that touches the queue: a kill, a rerun, or both.
     ConfirmJob,
+    /// Choosing which job states the list shows.
+    JobFilter,
     /// Browsing past submissions, to load one back into the form.
     History,
 }

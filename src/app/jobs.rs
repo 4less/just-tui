@@ -1,7 +1,7 @@
 //! The Slurm job browser: what is queued, what has finished, and the log a
 //! failed job left behind.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::{Duration, Instant};
@@ -9,37 +9,74 @@ use std::time::{Duration, Instant};
 use crate::history::Record;
 use crate::slurm::{self, Job, JobList, Logs, Usage};
 
-/// Which jobs the list shows.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum JobFilter {
-    All,
-    Active,
-    Failed,
+/// Which states the list shows. Empty means all of them, which is both the
+/// obvious reading and the one that survives a cluster reporting a state this
+/// never thought of.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateFilter {
+    chosen: BTreeSet<String>,
 }
 
-impl JobFilter {
-    pub fn label(self) -> &'static str {
-        match self {
-            JobFilter::All => "all",
-            JobFilter::Active => "running",
-            JobFilter::Failed => "failed",
+/// Offered in the filter window whether or not the queue happens to hold one
+/// right now, so the list does not move about as jobs come and go.
+const COMMON_STATES: [&str; 8] = [
+    "RUNNING",
+    "PENDING",
+    "COMPLETED",
+    "FAILED",
+    "CANCELLED",
+    "TIMEOUT",
+    "OUT_OF_MEMORY",
+    "NODE_FAIL",
+];
+
+impl StateFilter {
+    pub fn is_all(&self) -> bool {
+        self.chosen.is_empty()
+    }
+
+    pub fn holds(&self, state: &str) -> bool {
+        self.chosen.contains(state)
+    }
+
+    pub fn toggle(&mut self, state: &str) {
+        if !self.chosen.remove(state) {
+            self.chosen.insert(state.to_owned());
         }
     }
 
-    fn next(self) -> Self {
-        match self {
-            JobFilter::All => JobFilter::Active,
-            JobFilter::Active => JobFilter::Failed,
-            JobFilter::Failed => JobFilter::All,
+    pub fn clear(&mut self) {
+        self.chosen.clear();
+    }
+
+    fn keeps(&self, job: &Job) -> bool {
+        self.is_all() || self.chosen.contains(job.state_word())
+    }
+
+    /// How the filter reads in the title: `all`, a state, or a count.
+    pub fn label(&self) -> String {
+        let mut names = self.chosen.iter();
+        match (names.next(), self.chosen.len()) {
+            (None, _) => "all".to_owned(),
+            (Some(only), 1) => only.to_lowercase(),
+            (_, count) => format!("{count} states"),
         }
     }
 
-    fn keeps(self, job: &Job) -> bool {
-        match self {
-            JobFilter::All => true,
-            JobFilter::Active => job.active(),
-            JobFilter::Failed => job.failed(),
+    /// The states worth offering: the usual ones, plus anything this cluster
+    /// has actually reported, plus whatever is already chosen.
+    pub fn options(&self, jobs: &[Job]) -> Vec<String> {
+        let mut out: Vec<String> = COMMON_STATES.iter().map(|s| (*s).to_owned()).collect();
+        for state in jobs
+            .iter()
+            .map(|job| job.state_word().to_owned())
+            .chain(self.chosen.iter().cloned())
+        {
+            if !state.is_empty() && !out.contains(&state) {
+                out.push(state);
+            }
         }
+        out
     }
 }
 
@@ -112,7 +149,12 @@ pub struct JobsView {
     /// Indices into `list.jobs` passing the filter.
     pub visible: Vec<usize>,
     pub cursor: usize,
-    pub filter: JobFilter,
+    pub filter: StateFilter,
+    /// Where the cursor sits in the filter window.
+    pub filter_cursor: usize,
+    /// Whether the log pane is shown at all; without it the queue has the
+    /// whole screen.
+    pub show_log: bool,
     pub range: usize,
     pub logs: Logs,
     pub which: LogKind,
@@ -161,7 +203,9 @@ impl JobsView {
             list: JobList::default(),
             visible: Vec::new(),
             cursor: 0,
-            filter: JobFilter::All,
+            filter: StateFilter::default(),
+            filter_cursor: 0,
+            show_log: true,
             range: 1,
             logs: Logs::default(),
             which: LogKind::Err,
@@ -235,7 +279,7 @@ impl JobsView {
     }
 
     fn refilter(&mut self) {
-        let keep = self.filter;
+        let keep = self.filter.clone();
         self.visible = self
             .list
             .jobs
@@ -290,7 +334,7 @@ impl App {
             .is_some_and(|view| view.loading() || view.fetching());
         match self.mode {
             // A second is enough for a ticking clock; a spinner needs more.
-            Mode::Jobs | Mode::ConfirmJob => Some(match spinning {
+            Mode::Jobs | Mode::ConfirmJob | Mode::JobFilter => Some(match spinning {
                 true => SPIN,
                 false => Duration::from_secs(1),
             }),
@@ -388,6 +432,9 @@ impl App {
         let Some(view) = self.jobs.as_mut() else {
             return;
         };
+        if !view.show_log {
+            return;
+        }
         let Some(job) = view.selected().cloned() else {
             view.logs = Logs::default();
             view.lines.clear();
@@ -593,13 +640,83 @@ impl App {
         self.request_job_log();
     }
 
-    pub fn cycle_job_filter(&mut self) {
+    /// Open the filter window, with the cursor on the first state.
+    pub fn open_job_filter(&mut self) {
         if let Some(view) = self.jobs.as_mut() {
-            view.filter = view.filter.next();
+            view.filter_cursor = 0;
+        }
+        self.mode = Mode::JobFilter;
+    }
+
+    /// The states the filter window lists, with how many jobs each holds.
+    pub fn job_filter_options(&self) -> Vec<(String, usize)> {
+        let Some(view) = self.jobs.as_ref() else {
+            return Vec::new();
+        };
+        view.filter
+            .options(&view.list.jobs)
+            .into_iter()
+            .map(|state| {
+                let count = view
+                    .list
+                    .jobs
+                    .iter()
+                    .filter(|job| job.state_word() == state)
+                    .count();
+                (state, count)
+            })
+            .collect()
+    }
+
+    pub fn move_job_filter(&mut self, delta: isize) {
+        let count = self.job_filter_options().len() as isize;
+        if count == 0 {
+            return;
+        }
+        if let Some(view) = self.jobs.as_mut() {
+            view.filter_cursor = (view.filter_cursor as isize + delta).rem_euclid(count) as usize;
+        }
+    }
+
+    /// Turn the highlighted state on or off. The list behind the window
+    /// follows at once, so the effect is visible while choosing.
+    pub fn toggle_job_filter(&mut self) {
+        let options = self.job_filter_options();
+        let Some(view) = self.jobs.as_mut() else {
+            return;
+        };
+        let Some((state, _)) = options.get(view.filter_cursor) else {
+            return;
+        };
+        view.filter.toggle(state);
+        view.cursor = 0;
+        view.refilter();
+        self.request_job_log();
+    }
+
+    /// Back to showing everything.
+    pub fn clear_job_filter(&mut self) {
+        if let Some(view) = self.jobs.as_mut() {
+            view.filter.clear();
             view.cursor = 0;
             view.refilter();
         }
         self.request_job_log();
+    }
+
+    /// Show or hide the log pane. Hidden, the queue has the whole window and
+    /// no log is read at all.
+    pub fn toggle_job_log_pane(&mut self) {
+        let showing = match self.jobs.as_mut() {
+            Some(view) => {
+                view.show_log = !view.show_log;
+                view.show_log
+            }
+            None => return,
+        };
+        if showing {
+            self.request_job_log();
+        }
     }
 
     pub fn cycle_job_range(&mut self) {

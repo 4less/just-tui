@@ -116,9 +116,13 @@ fn the_job_browser_shows_the_queue_and_a_log() {
         "the log pane shows the tail"
     );
 
-    // `f` steps all → running → failed, which is the point of the view.
-    app.cycle_job_filter();
-    app.cycle_job_filter();
+    // Narrowing to the failures is the point of the view.
+    app.open_job_filter();
+    while app.job_filter_options()[app.jobs.as_ref().unwrap().filter_cursor].0 != "FAILED" {
+        app.move_job_filter(1);
+    }
+    app.toggle_job_filter();
+    app.mode = Mode::Jobs;
     let text = rendered(&mut app, 110, 30);
     assert!(text.contains("4190"));
     assert!(!text.contains("4180"), "the completed job is filtered out");
@@ -504,4 +508,102 @@ fn fields_can_be_edited_anywhere_not_just_at_the_end() {
     form.cursor_end();
     form.adopt(long);
     assert!(form.cursor <= 1, "caret clamped to the shorter value");
+}
+
+/// A listing with one job in each of several states.
+fn mixed_jobs() -> crate::slurm::JobList {
+    crate::slurm::merge_jobs(
+        Some("4210|nightly|RUNNING|qib|s|s|00:12:33|node07|/work|64|128G"),
+        Some(
+            "4190|tree|FAILED|qib|s|s|e|00:00:35|1:0|node03|/work|8|64G\n\
+             4180|build|COMPLETED|qib|s|s|e|00:03:50|0:0|node02|/work|4|16G\n\
+             4170|old|CANCELLED|qib|s|s|e|00:01:00|0:0|node01|/work|4|16G",
+        ),
+        7,
+    )
+}
+
+#[test]
+fn the_filter_window_picks_states_to_show() {
+    let mut app = fixture_app();
+    app.jobs = Some(JobsView::with(mixed_jobs()));
+    app.mode = Mode::Jobs;
+
+    assert_eq!(
+        app.jobs.as_ref().unwrap().visible.len(),
+        4,
+        "all to begin with"
+    );
+
+    app.open_job_filter();
+    assert_eq!(app.mode, Mode::JobFilter);
+
+    // Every state the cluster reported is offered, counted.
+    let options = app.job_filter_options();
+    let running = options
+        .iter()
+        .find(|(state, _)| state == "RUNNING")
+        .unwrap();
+    assert_eq!(running.1, 1);
+    assert!(options.iter().any(|(state, _)| state == "OUT_OF_MEMORY"));
+
+    let text = rendered(&mut app, 110, 24);
+    assert!(text.contains("Show which states?"));
+    assert!(text.contains("[ ] FAILED"));
+
+    // Choosing one narrows the list behind the window straight away.
+    while app.job_filter_options()[app.jobs.as_ref().unwrap().filter_cursor].0 != "FAILED" {
+        app.move_job_filter(1);
+    }
+    app.toggle_job_filter();
+
+    let view = app.jobs.as_ref().unwrap();
+    assert_eq!(view.visible.len(), 1);
+    assert_eq!(view.list.jobs[view.visible[0]].id, "4190");
+    assert_eq!(view.filter.label(), "failed");
+
+    // A second state adds to it rather than replacing it.
+    while app.job_filter_options()[app.jobs.as_ref().unwrap().filter_cursor].0 != "COMPLETED" {
+        app.move_job_filter(1);
+    }
+    app.toggle_job_filter();
+    assert_eq!(app.jobs.as_ref().unwrap().visible.len(), 2);
+    assert_eq!(app.jobs.as_ref().unwrap().filter.label(), "2 states");
+
+    // And `a` puts everything back.
+    app.clear_job_filter();
+    assert_eq!(app.jobs.as_ref().unwrap().visible.len(), 4);
+    assert!(app.jobs.as_ref().unwrap().filter.is_all());
+}
+
+#[test]
+fn hiding_the_log_gives_the_queue_the_window() {
+    let mut app = fixture_app();
+    app.jobs = Some(JobsView::with(mixed_jobs()));
+    app.mode = Mode::Jobs;
+
+    let text = rendered(&mut app, 110, 24);
+    assert!(
+        text.contains("stderr"),
+        "the log pane is there to begin with"
+    );
+
+    app.toggle_job_log_pane();
+    assert!(!app.jobs.as_ref().unwrap().show_log);
+
+    let text = rendered(&mut app, 110, 24);
+    assert!(!text.contains("stderr"), "and gone when hidden");
+    assert!(text.contains("show log"), "the footer offers it back");
+    assert!(
+        text.contains("4210") && text.contains("4170"),
+        "the queue still lists everything"
+    );
+
+    // Nothing is read while it is hidden.
+    app.request_job_log();
+    assert!(!app.jobs.as_ref().unwrap().loading());
+
+    app.toggle_job_log_pane();
+    let text = rendered(&mut app, 110, 24);
+    assert!(text.contains("stderr"), "and back again");
 }
