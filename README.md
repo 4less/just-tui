@@ -427,6 +427,30 @@ highlighting for interpolations, strings, shell variables and comments. When a r
 be located in its file the body is rebuilt from just's own dump and marked
 `reconstructed`.
 
+## Versions
+
+```sh
+just bump          # 0.2.0 -> 0.2.1, committed and tagged
+just bump minor    # 0.2.0 -> 0.3.0
+git push --follow-tags
+```
+
+`bump` edits `Cargo.toml`, refreshes `Cargo.lock`, commits and tags — and refuses on a dirty
+tree or off `main`, since the tag is meant to name a state you could go back to. Nothing is
+pushed; look at the tag first.
+
+The binary stamps itself with the commit it was built from, which is what tells two installs
+apart:
+
+```
+$ just-tui --version
+just-tui 0.2.0 (v0.2.0-4-g8a9c685, 2026-09-11)
+```
+
+That reads: release `0.2.0`, four commits past the tag, at `8a9c685`. On a cluster after a
+`git pull` it says exactly what is installed there. A build with no git around says
+`unknown` rather than failing.
+
 ## Development
 
 ```sh
