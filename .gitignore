@@ -2,3 +2,4 @@
 .just-tui-cluster-state
 .just-tui-cluster-history
 logs/
+__pycache__/

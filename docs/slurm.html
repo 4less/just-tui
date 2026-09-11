@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Submitting a recipe — just-tui</title>
+<meta name="description" content="just-tui: a terminal explorer for just recipes, with first-class Slurm submission and job monitoring.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html"><span class="just">just</span><span class="tui">tui</span></a>
+  <nav class="topnav"><a href="index.html">Overview</a><a href="recipes.html">Recipes</a><a href="slurm.html" aria-current="page">Slurm</a><a href="jobs.html">Jobs</a><a href="keys.html">Keys</a></nav>
+  <span class="spacer"></span>
+  <span class="pill">v0.2.0</span>
+  <a class="pill" href="https://github.com/4less/just-tui">GitHub ★</a>
+</header>
+
+<div class="shell">
+  <aside class="sidebar"><h2>Getting started</h2>
+<ul>
+<li><a href="index.html">What just-tui is</a></li>
+<li><a href="index.html#install">Installing</a></li>
+<li><a href="index.html#quickstart">Quickstart</a></li>
+</ul><h2>Browsing</h2>
+<ul>
+<li><a href="recipes.html">The explorer</a></li>
+<li><a href="recipes.html#groups">Groups</a></li>
+<li><a href="recipes.html#search">Search</a></li>
+<li><a href="recipes.html#global">Global recipes</a></li>
+</ul><h2>Slurm</h2>
+<ul>
+<li><a href="slurm.html" aria-current="page">Submitting a recipe</a></li>
+<li><a href="slurm.html#config">Config files</a></li>
+<li><a href="slurm.html#logs">Where logs go</a></li>
+<li><a href="slurm.html#batch">One recipe, many inputs</a></li>
+</ul><h2>Jobs</h2>
+<ul>
+<li><a href="jobs.html">The job browser</a></li>
+<li><a href="jobs.html#usage">Live memory and CPU</a></li>
+<li><a href="jobs.html#actions">Kill and rerun</a></li>
+<li><a href="jobs.html#history">Past submissions</a></li>
+</ul><h2>Reference</h2>
+<ul>
+<li><a href="keys.html">Every key</a></li>
+<li><a href="keys.html#files">Files it writes</a></li>
+</ul></aside>
+  <main>
+    <p class="crumbs"><a href="index.html">Docs</a> / Slurm</p>
+    
+<h1>Submitting a recipe</h1>
+
+<p class="lead"><kbd>s</kbd> opens a form for the selected recipe. It submits the <em>recipe</em>,
+not a generated script — nothing is inferred from the justfile, and fields start empty unless a
+config file or a previous run filled them in.</p>
+
+<pre><code>sbatch --chdir=&lt;justfile dir&gt; --job-name=… --output=… &lt;your flags&gt; --wrap &quot;just demo::greet&quot;</code></pre>
+
+<p><strong>Partitions, accounts and QoS are read off the cluster.</strong> On opening the form
+just-tui asks <code>scontrol show partition</code>, <code>sinfo</code> and <code>sacctmgr</code>,
+so <kbd>←</kbd><kbd>→</kbd> on those fields step through what actually exists, each partition's
+limits beside it (<code>24 cpu/node · 89.8G /node · max 02:00:00</code>). A request that exceeds
+the selected partition is flagged before you submit. On a machine without Slurm the fields stay
+free text.</p>
+
+<h3>Editing a field</h3>
+
+<table>
+<tr><th>Key</th><th>Does</th></tr>
+<tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>move the caret — or step a pick list, on the fields the cluster fills in</td></tr>
+<tr><td><kbd>Ctrl-←</kbd> <kbd>Ctrl-→</kbd></td><td>move the caret on those fields too</td></tr>
+<tr><td><kbd>Home</kbd> <kbd>End</kbd>, <kbd>Ctrl-a</kbd> <kbd>Ctrl-e</kbd></td><td>either end of the field</td></tr>
+<tr><td><kbd>Backspace</kbd> <kbd>Del</kbd></td><td>delete before, delete under</td></tr>
+<tr><td><kbd>Ctrl-u</kbd></td><td>clear the field</td></tr>
+</table>
+
+<h3>Job names</h3>
+
+<p>The name is built from the recipe <em>and its arguments</em>, so two runs of one recipe stay
+apart in <code>squeue</code> and in <code>logs/</code>:</p>
+
+<table>
+<tr><th>Recipe</th><th>Args</th><th>Job name</th><th>Log file</th></tr>
+<tr><td><code>build</code></td><td></td><td><code>build</code></td><td><code>logs/build-%j.out</code></td></tr>
+<tr><td><code>demo::greet</code></td><td><code>ada</code></td><td><code>demo-greet-ada</code></td><td><code>logs/demo/greet-ada-%j.out</code></td></tr>
+</table>
+
+<p>The <code>name</code> field at the top overrides it. Leave it empty and the name is generated;
+type one and it is used verbatim, tidied into a safe file name.</p>
+
+<h2 id="config">Config files</h2>
+
+<p><code>.just-tui-cluster-config</code>, an INI-ish file read from several places:</p>
+
+<pre><code># defaults for every recipe in this scope
+partition = qib-compute
+time      = 48:00:00
+cpus      = 32
+mem       = 64G
+
+[level3::db::tree]   # one recipe, by its full path
+mem  = 128G
+time = 96:00:00</code></pre>
+
+<p>Keys: <code>partition</code> (or <code>queue</code>), <code>account</code>, <code>qos</code>,
+<code>cpus</code>, <code>mem</code>, <code>time</code>, <code>nodes</code>, <code>gpus</code> (or
+<code>gres</code>), <code>array</code>, <code>extra</code>, <code>args</code>, <code>each</code>
+(or <code>glob</code>, <code>inputs</code>). An empty or absent key means the flag is not passed.</p>
+
+<h3>Precedence, weakest first</h3>
+
+<ol class="prose">
+<li>what that recipe was last submitted with (<code>.just-tui-cluster-state</code>)</li>
+<li><code>~/.just-tui-cluster-config</code></li>
+<li><code>&lt;justfile dir&gt;/.just-tui-cluster-config</code></li>
+<li>each module directory's config, outermost first</li>
+<li>a <code>[recipe::path]</code> section in any of the above</li>
+<li>whatever you type in the form</li>
+</ol>
+
+<p><strong>The nearer config always wins</strong>, and every config beats the automatically
+recorded state. The form shows where the selected field's value came from, beside it.</p>
+
+<h3>Writing one from the form</h3>
+
+<table>
+<tr><th>Key</th><th>Writes</th></tr>
+<tr><td><kbd>F2</kbd></td><td>the current values as <strong>module</strong> defaults</td></tr>
+<tr><td><kbd>F3</kbd></td><td>as <strong>project</strong> defaults</td></tr>
+<tr><td><kbd>F4</kbd></td><td>as a <code>[recipe]</code> section, this recipe only</td></tr>
+<tr><td><kbd>F5</kbd></td><td>pick a scope and open its config in <code>$EDITOR</code></td></tr>
+<tr><td><kbd>F6</kbd></td><td>past submissions of this recipe, to load one back</td></tr>
+</table>
+
+<h2 id="logs">Where logs go</h2>
+
+<p>Always under <code>logs/</code> in the justfile's base directory, mirroring the module
+structure. Array jobs use <code>-%A_%a</code> instead of <code>-%j</code>. The directory is created
+before submitting.</p>
+
+<table>
+<tr><th>Recipe</th><th>Log file</th></tr>
+<tr><td><code>build</code></td><td><code>logs/build-%j.out</code></td></tr>
+<tr><td><code>demo::greet</code></td><td><code>logs/demo/greet-%j.out</code></td></tr>
+<tr><td><code>level3::db::tree</code></td><td><code>logs/level3/db/tree-%j.out</code></td></tr>
+</table>
+
+<h2 id="batch">One recipe, many inputs</h2>
+
+<p><code>each</code> expands a recipe into one Slurm array task per input:</p>
+
+<pre><code>[level3::run::s01_msa]
+each = data/level3/*.fna     # a glob…
+args = {}                    # …and where each match lands
+
+[level3::run::s02_refilter]
+each = @arms.txt             # …or one line of arguments per row</code></pre>
+
+<p><code>{}</code> works like <code>xargs -I{}</code>, and is replaced everywhere it appears.
+Without it the value is appended, which is how <code>just</code> takes a positional parameter.
+With <code>@file</code>, blank lines and <code>#</code> comments are skipped.</p>
+
+<div class="note snag">
+<strong><code>just</code> takes recipe parameters positionally.</strong> Write
+<code>args = {}</code>, not <code>args = input={}</code> — the latter passes the literal string
+<code>input=data/x.fna</code> as the first parameter.
+</div>
+
+<h3>The manifest</h3>
+
+<p>On submit the expansion is written beside the logs — one line of arguments per task — and a
+single array is submitted that reads it:</p>
+
+<pre><code>logs/level3/run/s01_msa-245df667.args
+  data/level3/focal_target.fna      ← task 0
+  data/level3/nonfocal_cong.fna     ← task 1
+  …
+
+sbatch --array=0-36 --wrap &#x27;just level3::run::s01_msa $(sed -n &quot;$((SLURM_ARRAY_TASK_ID+1))p&quot; logs/…/s01_msa-245df667.args)&#x27;</code></pre>
+
+<p>The manifest is named after <em>its own contents</em>, so resubmitting an unchanged expansion
+writes the same file, and a changed one takes a new name rather than overwriting a manifest an
+array is still reading its way through. Task order is sorted, so a task number means the same
+thing every time.</p>
+
+<p>The form says what it will do before you commit — <code>expands 37 jobs · first:
+data/level3/focal_target.fna</code> — and names the manifest it would write.</p>
+
+<h3><code>each</code> and <code>array</code></h3>
+
+<p>Both make a job array, from opposite ends:</p>
+
+<table>
+<tr><th></th><th><code>array</code></th><th><code>each</code></th></tr>
+<tr><td>you write</td><td>the range: <code>0-31%4</code></td><td>the inputs: <code>data/*.fna</code></td></tr>
+<tr><td>range comes from</td><td>you</td><td>the number of matches</td></tr>
+<tr><td>the recipe</td><td>reads <code>$SLURM_ARRAY_TASK_ID</code> itself</td><td>takes ordinary arguments</td></tr>
+<tr><td>a manifest is written</td><td>no</td><td>yes</td></tr>
+</table>
+
+<p>Set both and <code>each</code> wins the range, keeping only a <code>%n</code> throttle from
+<code>array</code>. The form says so on the field.</p>
+
+<div class="note warn">
+Every task of an array gets the <strong>same</strong> <code>--mem</code>, <code>--cpus</code> and
+<code>--time</code>, so this suits work that is uniform across inputs. Rerunning a few failed tasks
+means resubmitting with <code>--array=3,7,19</code> rather than pressing <kbd>s</kbd>.
+</div>
+
+    <nav class="pager"><a href="recipes.html"><span>Previous</span>← The explorer</a><a class="next" href="jobs.html"><span>Next</span>The job browser →</a></nav>
+  </main>
+</div>
+
+<footer>
+  <span>just-tui — a terminal explorer for <a href="https://github.com/casey/just">just</a> recipes</span>
+  <span><a href="https://github.com/4less/just-tui">Repository</a> · <a href="https://github.com/4less/just-tui/issues">Issues</a> · <a href="https://github.com/casey/just">just</a> · <a href="https://slurm.schedmd.com/">Slurm</a></span>
+</footer>
+</body>
+</html>
