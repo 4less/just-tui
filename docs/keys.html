@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Every key — just-tui</title>
-<meta name="description" content="just-tui: a terminal explorer for just recipes, with first-class Slurm submission and job monitoring.">
+<meta name="description" content="Every key">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -13,47 +13,27 @@
 <body>
 <header class="topbar">
   <a class="brand" href="index.html"><span class="just">just</span><span class="tui">tui</span></a>
-  <nav class="topnav"><a href="index.html">Overview</a><a href="recipes.html">Recipes</a><a href="slurm.html">Slurm</a><a href="jobs.html">Jobs</a><a href="keys.html" aria-current="page">Keys</a></nav>
+  <nav class="topnav"><a href="index.html">Overview</a><a href="docs.html">Docs</a><a href="slurm.html">Slurm</a><a href="jobs.html">Jobs</a><a href="keys.html" aria-current="page">Keys</a></nav>
   <span class="spacer"></span>
-  <span class="pill">v0.2.0</span>
-  <a class="pill" href="https://github.com/4less/just-tui">GitHub ★</a>
+  <span class="searchbox">search<span class="k">Ctrl K</span></span>
+  <a class="btn" href="docs.html#install">cargo install --path .</a>
+  <a class="btn" href="https://github.com/4less/just-tui">★ Star on GitHub</a>
 </header>
 
+<div class="crumbbar">
+  <a href="index.html">just-tui</a> / <a href="docs.html">Docs</a> / Reference
+  <span class="spacer"></span>
+  <span>v0.2.0</span>
+</div>
+
 <div class="shell">
-  <aside class="sidebar"><h2>Getting started</h2>
-<ul>
-<li><a href="index.html">What just-tui is</a></li>
-<li><a href="index.html#install">Installing</a></li>
-<li><a href="index.html#quickstart">Quickstart</a></li>
-</ul><h2>Browsing</h2>
-<ul>
-<li><a href="recipes.html">The explorer</a></li>
-<li><a href="recipes.html#groups">Groups</a></li>
-<li><a href="recipes.html#search">Search</a></li>
-<li><a href="recipes.html#global">Global recipes</a></li>
-</ul><h2>Slurm</h2>
-<ul>
-<li><a href="slurm.html">Submitting a recipe</a></li>
-<li><a href="slurm.html#config">Config files</a></li>
-<li><a href="slurm.html#logs">Where logs go</a></li>
-<li><a href="slurm.html#batch">One recipe, many inputs</a></li>
-</ul><h2>Jobs</h2>
-<ul>
-<li><a href="jobs.html">The job browser</a></li>
-<li><a href="jobs.html#usage">Live memory and CPU</a></li>
-<li><a href="jobs.html#actions">Kill and rerun</a></li>
-<li><a href="jobs.html#history">Past submissions</a></li>
-</ul><h2>Reference</h2>
-<ul>
-<li><a href="keys.html" aria-current="page">Every key</a></li>
-<li><a href="keys.html#files">Files it writes</a></li>
-</ul></aside>
+  <aside class="sidebar"><h2>Getting started</h2><ul><li><a href="docs.html">Introduction</a></li><li><a href="docs.html#install">Installing</a></li><li><a href="docs.html#quickstart">Quickstart</a></li><li><a href="docs.html#panes">What the panes show</a></li></ul><h2>Browsing recipes</h2><ul><li><a href="recipes.html">The explorer</a></li><li><a href="recipes.html#groups">Groups</a></li><li><a href="recipes.html#search">Search</a></li><li><a href="recipes.html#global">Global recipes</a></li></ul><h2>Slurm</h2><ul><li><a href="slurm.html">Submitting a recipe</a></li><li><a href="slurm.html#config">Config files</a></li><li><a href="slurm.html#logs">Where logs go</a></li><li><a href="slurm.html#batch">One recipe, many inputs</a></li></ul><h2>Jobs</h2><ul><li><a href="jobs.html">The job browser</a></li><li><a href="jobs.html#usage">Live memory and CPU</a></li><li><a href="jobs.html#actions">Kill and rerun</a></li><li><a href="jobs.html#history">Past submissions</a></li></ul><h2>Reference</h2><ul><li><a href="keys.html" aria-current="page">Every key</a></li><li><a href="keys.html#files">Files it writes</a></li></ul></aside>
   <main>
-    <p class="crumbs"><a href="index.html">Docs</a> / Reference</p>
+    <p class="badge">Reference</p>
     
 <h1>Every key</h1>
 
-<h2>The explorer</h2>
+<h2 id="explorer">The explorer</h2>
 <table>
 <tr><th>Key</th><th>Action</th></tr>
 <tr><td><kbd>j</kbd> <kbd>k</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td>move in the focused pane</td></tr>
@@ -69,7 +49,7 @@
 <tr><td><kbd>e</kbd> <kbd>c</kbd></td><td>expand / collapse every module</td></tr>
 <tr><td><kbd>p</kbd></td><td>show or hide private recipes</td></tr>
 <tr><td><kbd>m</kbd></td><td>fold the <code>[group(…)]</code> layer in or out</td></tr>
-<tr><td><kbd>v</kbd></td><td>doc above code, or beside it</td></tr>
+<tr><td><kbd>v</kbd></td><td>documentation above the source, or beside it</td></tr>
 <tr><td><kbd>w</kbd></td><td>wrap long source lines</td></tr>
 <tr><td><kbd>f</kbd></td><td>zoom the focused pane</td></tr>
 <tr><td><kbd>y</kbd></td><td>copy the recipe source (OSC 52, works over ssh)</td></tr>
@@ -82,7 +62,7 @@
 <tr><td><kbd>q</kbd></td><td>clear the search, then quit · <kbd>Ctrl-c</kbd> quits at once</td></tr>
 </table>
 
-<h2>The submit form</h2>
+<h2 id="form">The submit form</h2>
 <table>
 <tr><th>Key</th><th>Action</th></tr>
 <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>Tab</kbd></td><td>move between fields</td></tr>
@@ -98,7 +78,7 @@
 <tr><td><kbd>Esc</kbd></td><td>close without submitting</td></tr>
 </table>
 
-<h2>The job browser</h2>
+<h2 id="browser">The job browser</h2>
 <table>
 <tr><th>Key</th><th>Action</th></tr>
 <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>move between jobs</td></tr>
@@ -118,7 +98,7 @@
 <h2 id="files">Files it writes</h2>
 <table>
 <tr><th>File</th><th>Written by</th><th>What it holds</th></tr>
-<tr><td><code>.just-tui-cluster-config</code></td><td>you, or <kbd>F2</kbd>–<kbd>F4</kbd></td><td>Slurm defaults for a scope or a recipe. Commit it.</td></tr>
+<tr><td><code>.just-tui-cluster-config</code></td><td>you, or <kbd>F2</kbd>–<kbd>F4</kbd></td><td>Slurm defaults for a scope or a recipe. Worth committing.</td></tr>
 <tr><td><code>.just-tui-cluster-state</code></td><td>just-tui</td><td>What each recipe was last submitted with. Gitignored.</td></tr>
 <tr><td><code>.just-tui-cluster-history</code></td><td>just-tui</td><td>Every submission ever made, one JSON line each. Gitignored, trimmed to 500.</td></tr>
 <tr><td><code>logs/…</code></td><td>Slurm</td><td>Job output, mirroring the module tree. Gitignored.</td></tr>
@@ -127,11 +107,19 @@
 
     <nav class="pager"><a href="jobs.html"><span>Previous</span>← The job browser</a></nav>
   </main>
+  <aside class="rail">
+    <div class="box"><h2>On this page</h2><ul><li><a href="#explorer">The explorer</a></li><li><a href="#form">The submit form</a></li><li><a href="#browser">The job browser</a></li><li><a href="#files">Files it writes</a></li></ul></div>
+    <div class="box"><h2>Repository</h2><ul>
+      <li><a href="https://github.com/4less/just-tui">Browse the source</a></li>
+      <li><a href="https://github.com/4less/just-tui/issues">Report an issue</a></li>
+      <li><a href="https://github.com/4less/just-tui/blob/main/README.md">README</a></li>
+    </ul></div>
+  </aside>
 </div>
 
-<footer>
-  <span>just-tui — a terminal explorer for <a href="https://github.com/casey/just">just</a> recipes</span>
-  <span><a href="https://github.com/4less/just-tui">Repository</a> · <a href="https://github.com/4less/just-tui/issues">Issues</a> · <a href="https://github.com/casey/just">just</a> · <a href="https://slurm.schedmd.com/">Slurm</a></span>
-</footer>
+<footer><div class="inner">
+  <span>just-tui · v0.2.0 · a terminal explorer for <a href="https://github.com/casey/just">just</a> recipes</span>
+  <span class="links"><a href="https://github.com/4less/just-tui">Repository</a><a href="https://github.com/4less/just-tui/issues">Issues</a><a href="https://github.com/casey/just">just</a><a href="https://slurm.schedmd.com/">Slurm</a></span>
+</div></footer>
 </body>
 </html>

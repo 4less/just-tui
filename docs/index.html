@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Overview — just-tui</title>
-<meta name="description" content="just-tui: a terminal explorer for just recipes, with first-class Slurm submission and job monitoring.">
+<title>just-tui — a terminal explorer for just recipes, with Slurm</title>
+<meta name="description" content="just-tui lays a justfile out like a file explorer, submits recipes to Slurm, and watches the jobs that result.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -13,53 +13,30 @@
 <body>
 <header class="topbar">
   <a class="brand" href="index.html"><span class="just">just</span><span class="tui">tui</span></a>
-  <nav class="topnav"><a href="index.html" aria-current="page">Overview</a><a href="recipes.html">Recipes</a><a href="slurm.html">Slurm</a><a href="jobs.html">Jobs</a><a href="keys.html">Keys</a></nav>
+  <nav class="topnav"><a href="index.html" aria-current="page">Overview</a><a href="docs.html">Docs</a><a href="slurm.html">Slurm</a><a href="jobs.html">Jobs</a><a href="keys.html">Keys</a></nav>
   <span class="spacer"></span>
-  <span class="pill">v0.2.0</span>
-  <a class="pill" href="https://github.com/4less/just-tui">GitHub ★</a>
+  <span class="searchbox">search<span class="k">Ctrl K</span></span>
+  <a class="btn" href="docs.html#install">cargo install --path .</a>
+  <a class="btn" href="https://github.com/4less/just-tui">★ Star on GitHub</a>
 </header>
 
-<div class="shell">
-  <aside class="sidebar"><h2>Getting started</h2>
-<ul>
-<li><a href="index.html" aria-current="page">What just-tui is</a></li>
-<li><a href="index.html#install">Installing</a></li>
-<li><a href="index.html#quickstart">Quickstart</a></li>
-</ul><h2>Browsing</h2>
-<ul>
-<li><a href="recipes.html">The explorer</a></li>
-<li><a href="recipes.html#groups">Groups</a></li>
-<li><a href="recipes.html#search">Search</a></li>
-<li><a href="recipes.html#global">Global recipes</a></li>
-</ul><h2>Slurm</h2>
-<ul>
-<li><a href="slurm.html">Submitting a recipe</a></li>
-<li><a href="slurm.html#config">Config files</a></li>
-<li><a href="slurm.html#logs">Where logs go</a></li>
-<li><a href="slurm.html#batch">One recipe, many inputs</a></li>
-</ul><h2>Jobs</h2>
-<ul>
-<li><a href="jobs.html">The job browser</a></li>
-<li><a href="jobs.html#usage">Live memory and CPU</a></li>
-<li><a href="jobs.html#actions">Kill and rerun</a></li>
-<li><a href="jobs.html#history">Past submissions</a></li>
-</ul><h2>Reference</h2>
-<ul>
-<li><a href="keys.html">Every key</a></li>
-<li><a href="keys.html#files">Files it writes</a></li>
-</ul></aside>
-  <main>
-    <p class="crumbs">Docs</p>
-    
-<h1>A file explorer for <code>just</code> recipes — and the jobs they become</h1>
+<section class="hero">
+  <p class="badge">Terminal task runner · Slurm HPC</p>
+  <h1>Your justfile, as a <em>file explorer</em>. Your recipes, as <em>cluster jobs</em>.</h1>
+  <p>just-tui reads <code>just --dump</code> and lays a justfile out the way a file manager lays
+  out a disk — modules are directories, recipes are files, and the right-hand split shows each
+  recipe's documentation above its real source. Then it submits them to Slurm and watches what
+  happens.</p>
+  <div class="actions">
+    <a class="btn solid" href="docs.html#install">Get started</a>
+    <a class="btn" href="https://github.com/4less/just-tui">★ Star on GitHub</a>
+  </div>
+</section>
 
-<p class="lead">just-tui reads <code>just --dump</code> and lays a justfile out the way a file
-manager lays out a disk: modules are directories, recipes are files, and the right-hand split
-shows each recipe's documentation above its real source. Then it submits them to Slurm and
-watches what happens.</p>
+<div class="wrap">
 
-<div class="term"><div class="chrome"><span class="dot" style="background:#f7768e"></span><span class="dot" style="background:#e0af68"></span><span class="dot" style="background:#9ece6a"></span><span>just-tui — the explorer</span></div><pre><code>
- just  ~/git/4less/just-tui/justfile                16 recipes  1 module  2 global  ? help
+<section class="section tight">
+  <div class="term"><div class="chrome"><span class="dot" style="background:#f7768e"></span><span class="dot" style="background:#e0af68"></span><span class="dot" style="background:#9ece6a"></span><span>just-tui — the explorer</span><span class="right">15 recipes</span></div><pre><code>just  ~/git/4less/just-tui/justfile                16 recipes  1 module  2 global  ? help
 ╭ Explorer (15) ────────────────╮╭ Documentation ───────────────────────────────────────╮
 │▾ just-tui/                    ││ log n=&quot;15&quot;                                           │
 ││ ▸ demo/                      ││                                                      │
@@ -71,67 +48,67 @@ watches what happens.</p>
 ││ • log ★  Show a compact log… │╭ git.just:3 ──────────────────────────────────────────╮
 ││ • st  Show what changed, st… ││  3 │ # Show a compact log of the last commits        │
 │                               ││  4 │ log n=&quot;15&quot;:                                     │
-│                               ││  5 │     git log --oneline --graph -n {{n}}            │
+│                               ││  5 │     git log --oneline --graph -n {{n}}          │
 ╰───────────────────────────────╯╰──────────────────────────────────────────────────────╯
- ↑↓ move →← open/close ⏎ run s slurm S jobs / search ⇥ pane ? help
-</code></pre></div>
+ ↑↓ move →← open/close ⏎ run s slurm S jobs / search ⇥ pane ? help</code></pre></div>
+</section>
 
-<div class="cards">
-  <div class="card"><h3>Read a justfile properly</h3>
-  <p>The full comment block above a recipe, its parameters and defaults, its dependencies split
-  into before and after, its attributes — not the one line <code>just --list</code> gives you.</p></div>
-  <div class="card"><h3>Submit to Slurm</h3>
-  <p>A form that submits the <em>recipe</em>, not a generated script. Partitions, accounts and QoS
-  are read off the cluster; limits are checked before you commit.</p></div>
-  <div class="card"><h3>Watch the queue</h3>
-  <p>Running and finished jobs in one list, with live memory and CPU against what they reserved,
-  and the tail of the log that says why one failed.</p></div>
-</div>
+<section class="section">
+  <h2>What it does</h2>
+  <p class="sub">Three things a task runner in a terminal ought to do, and one it usually
+  does not.</p>
+  <div class="cards">
+    <div class="card"><span class="num">01</span><h3>Reads a justfile properly</h3>
+    <p>The whole comment block above a recipe, its parameters and defaults, dependencies split
+    into those that run before and after the body, attributes and settings — not the one line
+    <code>just --list</code> gives you.</p></div>
+    <div class="card"><span class="num">02</span><h3>Submits the recipe itself</h3>
+    <p>Not a generated script. Partitions, accounts and QoS are read off the cluster, each
+    partition's limits shown beside it, and a request that exceeds them is flagged before you
+    commit to it.</p></div>
+    <div class="card"><span class="num">03</span><h3>Watches the queue</h3>
+    <p>Running and finished jobs in one list, live memory and CPU against what they reserved, and
+    the tail of the log that says why one failed — with the errors picked out.</p></div>
+    <div class="card"><span class="num">04</span><h3>Remembers what it ran</h3>
+    <p>Every submission is recorded with the exact settings it used, so a job that failed three
+    weeks ago can be found, read, and sent again with one field changed.</p></div>
+  </div>
+</section>
 
-<h2 id="install">Installing</h2>
+<section class="section">
+  <h2>The job browser</h2>
+  <p class="sub">One key from the explorer. <code>squeue</code> for what is queued,
+  <code>sacct</code> for what has finished, merged newest first.</p>
+  <div class="term"><div class="chrome"><span class="dot" style="background:#f7768e"></span><span class="dot" style="background:#e0af68"></span><span class="dot" style="background:#9ece6a"></span><span>just-tui — Slurm jobs</span><span class="right">live</span></div><pre><code>╭ Slurm jobs — 5 of 5 in the last 7 days — live — all ──────────────────────────────────╮
+│ ▸ 23474919   RUNNING    level3-run-s01_msa-nonfocal_tgt…  00:01:32   233G/1280G  18%  │
+│   23474878   RUNNING    level3-run-s01_msa-nonfocal_cong… 06:39:02  1240G/1280G  97%  │
+│   23474876   FAILED     level3-run-s01_msa-nonfocal_tgt…  00:00:00   exit 1           │
+│   23473080   COMPLETED  level3-run-align-index            03:52:17   ok               │
+│   23473075   OOM        level3-run-align-index            00:06:21   signal 125       │
+│                                                                                       │
+│   submitted 2026-09-08T22:00 · level3::run::s01_msa tgt_filt_peel · qib-compute        │
+│╭ stderr — logs/level3/run/s01_msa-tgt_filt_peel-23474876.err ────────────────────────╮│
+││ loading 4.2M rows                                                                   ││
+││ slurmstepd: error: Exceeded job memory limit                                        ││
+│╰─────────────────────────────────────────────────────────────────────────────────────╯│
+╰ ↑↓ · v hide log · f filter · ⏎ log · u reuse · s rerun · x kill · X kill+rerun · esc ─╯</code></pre></div>
+</section>
 
-<p>just-tui is not on crates.io yet, so install it from a clone:</p>
-
-<pre><code>git clone https://github.com/4less/just-tui
+<section class="section">
+  <h2>Get it</h2>
+  <p class="sub">Not on crates.io yet, so install it from a clone. It needs
+  <code>just</code> on your <code>PATH</code>.</p>
+  <pre><code>git clone https://github.com/4less/just-tui
 cd just-tui
 cargo install --path .</code></pre>
+  <p style="text-align:center"><a class="btn solid" href="docs.html">Read the documentation →</a></p>
+</section>
 
-<p>It needs <a href="https://github.com/casey/just">just</a> on <code>PATH</code> — it reads
-<code>just --dump --dump-format json</code> and the justfiles that dump points at. Slurm's
-client tools (<code>squeue</code>, <code>sbatch</code>, <code>sacct</code>, <code>sstat</code>,
-<code>scontrol</code>) are needed only for the cluster features; without them the rest works and
-the Slurm form falls back to free text.</p>
-
-<p>Check what you have installed — the build stamps itself with the commit it came from, which
-is what tells two installs of one release apart:</p>
-
-<pre><code>$ just-tui --version
-just-tui 0.2.0 (v0.2.0-4-g8a9c685, 2026-09-11)</code></pre>
-
-<h2 id="quickstart">Quickstart</h2>
-
-<pre><code>just-tui                 # browse the justfile found from here
-just-tui ../other        # browse another project
-just-tui -f build.just   # a particular file
-just-tui --list          # plain listing, no TUI
-just-tui --no-global     # project recipes only</code></pre>
-
-<p>Then: <kbd>↑</kbd><kbd>↓</kbd> to move, <kbd>→</kbd> to open a module, <kbd>Enter</kbd> to run
-a recipe, <kbd>s</kbd> to submit it to Slurm, <kbd>S</kbd> to watch the queue, <kbd>?</kbd> for
-every key.</p>
-
-<div class="note">
-<strong>Running a recipe leaves the TUI</strong>, streams the output to the normal terminal, and
-comes back on any key — so interactive recipes keep working.
 </div>
 
-    <nav class="pager"><a class="next" href="recipes.html"><span>Next</span>The explorer →</a></nav>
-  </main>
-</div>
-
-<footer>
-  <span>just-tui — a terminal explorer for <a href="https://github.com/casey/just">just</a> recipes</span>
-  <span><a href="https://github.com/4less/just-tui">Repository</a> · <a href="https://github.com/4less/just-tui/issues">Issues</a> · <a href="https://github.com/casey/just">just</a> · <a href="https://slurm.schedmd.com/">Slurm</a></span>
-</footer>
+<footer><div class="inner">
+  <span>just-tui · v0.2.0 · a terminal explorer for <a href="https://github.com/casey/just">just</a> recipes</span>
+  <span class="links"><a href="https://github.com/4less/just-tui">Repository</a><a href="https://github.com/4less/just-tui/issues">Issues</a><a href="https://github.com/casey/just">just</a><a href="https://slurm.schedmd.com/">Slurm</a></span>
+</div></footer>
 </body>
 </html>

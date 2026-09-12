@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Submitting a recipe — just-tui</title>
-<meta name="description" content="just-tui: a terminal explorer for just recipes, with first-class Slurm submission and job monitoring.">
+<meta name="description" content="Submitting a recipe">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -13,43 +13,23 @@
 <body>
 <header class="topbar">
   <a class="brand" href="index.html"><span class="just">just</span><span class="tui">tui</span></a>
-  <nav class="topnav"><a href="index.html">Overview</a><a href="recipes.html">Recipes</a><a href="slurm.html" aria-current="page">Slurm</a><a href="jobs.html">Jobs</a><a href="keys.html">Keys</a></nav>
+  <nav class="topnav"><a href="index.html">Overview</a><a href="docs.html">Docs</a><a href="slurm.html" aria-current="page">Slurm</a><a href="jobs.html">Jobs</a><a href="keys.html">Keys</a></nav>
   <span class="spacer"></span>
-  <span class="pill">v0.2.0</span>
-  <a class="pill" href="https://github.com/4less/just-tui">GitHub ★</a>
+  <span class="searchbox">search<span class="k">Ctrl K</span></span>
+  <a class="btn" href="docs.html#install">cargo install --path .</a>
+  <a class="btn" href="https://github.com/4less/just-tui">★ Star on GitHub</a>
 </header>
 
+<div class="crumbbar">
+  <a href="index.html">just-tui</a> / <a href="docs.html">Docs</a> / Slurm
+  <span class="spacer"></span>
+  <span>v0.2.0</span>
+</div>
+
 <div class="shell">
-  <aside class="sidebar"><h2>Getting started</h2>
-<ul>
-<li><a href="index.html">What just-tui is</a></li>
-<li><a href="index.html#install">Installing</a></li>
-<li><a href="index.html#quickstart">Quickstart</a></li>
-</ul><h2>Browsing</h2>
-<ul>
-<li><a href="recipes.html">The explorer</a></li>
-<li><a href="recipes.html#groups">Groups</a></li>
-<li><a href="recipes.html#search">Search</a></li>
-<li><a href="recipes.html#global">Global recipes</a></li>
-</ul><h2>Slurm</h2>
-<ul>
-<li><a href="slurm.html" aria-current="page">Submitting a recipe</a></li>
-<li><a href="slurm.html#config">Config files</a></li>
-<li><a href="slurm.html#logs">Where logs go</a></li>
-<li><a href="slurm.html#batch">One recipe, many inputs</a></li>
-</ul><h2>Jobs</h2>
-<ul>
-<li><a href="jobs.html">The job browser</a></li>
-<li><a href="jobs.html#usage">Live memory and CPU</a></li>
-<li><a href="jobs.html#actions">Kill and rerun</a></li>
-<li><a href="jobs.html#history">Past submissions</a></li>
-</ul><h2>Reference</h2>
-<ul>
-<li><a href="keys.html">Every key</a></li>
-<li><a href="keys.html#files">Files it writes</a></li>
-</ul></aside>
+  <aside class="sidebar"><h2>Getting started</h2><ul><li><a href="docs.html">Introduction</a></li><li><a href="docs.html#install">Installing</a></li><li><a href="docs.html#quickstart">Quickstart</a></li><li><a href="docs.html#panes">What the panes show</a></li></ul><h2>Browsing recipes</h2><ul><li><a href="recipes.html">The explorer</a></li><li><a href="recipes.html#groups">Groups</a></li><li><a href="recipes.html#search">Search</a></li><li><a href="recipes.html#global">Global recipes</a></li></ul><h2>Slurm</h2><ul><li><a href="slurm.html" aria-current="page">Submitting a recipe</a></li><li><a href="slurm.html#config">Config files</a></li><li><a href="slurm.html#logs">Where logs go</a></li><li><a href="slurm.html#batch">One recipe, many inputs</a></li></ul><h2>Jobs</h2><ul><li><a href="jobs.html">The job browser</a></li><li><a href="jobs.html#usage">Live memory and CPU</a></li><li><a href="jobs.html#actions">Kill and rerun</a></li><li><a href="jobs.html#history">Past submissions</a></li></ul><h2>Reference</h2><ul><li><a href="keys.html">Every key</a></li><li><a href="keys.html#files">Files it writes</a></li></ul></aside>
   <main>
-    <p class="crumbs"><a href="index.html">Docs</a> / Slurm</p>
+    <p class="badge">Slurm integration</p>
     
 <h1>Submitting a recipe</h1>
 
@@ -59,12 +39,14 @@ config file or a previous run filled them in.</p>
 
 <pre><code>sbatch --chdir=&lt;justfile dir&gt; --job-name=… --output=… &lt;your flags&gt; --wrap &quot;just demo::greet&quot;</code></pre>
 
-<p><strong>Partitions, accounts and QoS are read off the cluster.</strong> On opening the form
-just-tui asks <code>scontrol show partition</code>, <code>sinfo</code> and <code>sacctmgr</code>,
-so <kbd>←</kbd><kbd>→</kbd> on those fields step through what actually exists, each partition's
-limits beside it (<code>24 cpu/node · 89.8G /node · max 02:00:00</code>). A request that exceeds
-the selected partition is flagged before you submit. On a machine without Slurm the fields stay
-free text.</p>
+<div class="panel"><header><b>Partitions are read off the cluster</b><span class="tag">auto-detected</span></header><div class="body">
+<p>On opening the form just-tui asks <code>scontrol show partition</code>, <code>sinfo</code> and
+<code>sacctmgr</code>, so <kbd>←</kbd><kbd>→</kbd> on the partition, account and QoS fields step
+through what actually exists — each partition's limits beside it
+(<code>24 cpu/node · 89.8G /node · max 02:00:00</code>). A request that exceeds the selected
+partition is flagged before you submit. Detection runs on a thread, so the form opens at once and
+the pick lists fill in when the controller answers.</p>
+</div></div>
 
 <h3>Editing a field</h3>
 
@@ -73,7 +55,7 @@ free text.</p>
 <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>move the caret — or step a pick list, on the fields the cluster fills in</td></tr>
 <tr><td><kbd>Ctrl-←</kbd> <kbd>Ctrl-→</kbd></td><td>move the caret on those fields too</td></tr>
 <tr><td><kbd>Home</kbd> <kbd>End</kbd>, <kbd>Ctrl-a</kbd> <kbd>Ctrl-e</kbd></td><td>either end of the field</td></tr>
-<tr><td><kbd>Backspace</kbd> <kbd>Del</kbd></td><td>delete before, delete under</td></tr>
+<tr><td><kbd>Backspace</kbd> <kbd>Del</kbd></td><td>delete before the caret, delete under it</td></tr>
 <tr><td><kbd>Ctrl-u</kbd></td><td>clear the field</td></tr>
 </table>
 
@@ -88,12 +70,12 @@ apart in <code>squeue</code> and in <code>logs/</code>:</p>
 <tr><td><code>demo::greet</code></td><td><code>ada</code></td><td><code>demo-greet-ada</code></td><td><code>logs/demo/greet-ada-%j.out</code></td></tr>
 </table>
 
-<p>The <code>name</code> field at the top overrides it. Leave it empty and the name is generated;
+<p>The <code>name</code> field at the top overrides it: leave it empty and the name is generated,
 type one and it is used verbatim, tidied into a safe file name.</p>
 
 <h2 id="config">Config files</h2>
 
-<p><code>.just-tui-cluster-config</code>, an INI-ish file read from several places:</p>
+<p><code>.just-tui-cluster-config</code> holds Slurm defaults, and is read from several places:</p>
 
 <pre><code># defaults for every recipe in this scope
 partition = qib-compute
@@ -137,9 +119,9 @@ recorded state. The form shows where the selected field's value came from, besid
 
 <h2 id="logs">Where logs go</h2>
 
-<p>Always under <code>logs/</code> in the justfile's base directory, mirroring the module
-structure. Array jobs use <code>-%A_%a</code> instead of <code>-%j</code>. The directory is created
-before submitting.</p>
+<p>Always under <code>logs/</code> in the justfile's base directory, mirroring the module structure.
+Array jobs use <code>-%A_%a</code> instead of <code>-%j</code>. The directory is created before
+submitting.</p>
 
 <table>
 <tr><th>Recipe</th><th>Log file</th></tr>
@@ -160,8 +142,9 @@ args = {}                    # …and where each match lands
 each = @arms.txt             # …or one line of arguments per row</code></pre>
 
 <p><code>{}</code> works like <code>xargs -I{}</code>, and is replaced everywhere it appears.
-Without it the value is appended, which is how <code>just</code> takes a positional parameter.
-With <code>@file</code>, blank lines and <code>#</code> comments are skipped.</p>
+Without it the value is appended, which is how <code>just</code> takes a positional parameter. With
+<code>@file</code>, blank lines and <code>#</code> comments are skipped, so a run list can be kept
+under version control and commented.</p>
 
 <div class="note snag">
 <strong><code>just</code> takes recipe parameters positionally.</strong> Write
@@ -182,11 +165,9 @@ single array is submitted that reads it:</p>
 sbatch --array=0-36 --wrap &#x27;just level3::run::s01_msa $(sed -n &quot;$((SLURM_ARRAY_TASK_ID+1))p&quot; logs/…/s01_msa-245df667.args)&#x27;</code></pre>
 
 <p>The manifest is named after <em>its own contents</em>, so resubmitting an unchanged expansion
-writes the same file, and a changed one takes a new name rather than overwriting a manifest an
-array is still reading its way through. Task order is sorted, so a task number means the same
-thing every time.</p>
-
-<p>The form says what it will do before you commit — <code>expands 37 jobs · first:
+writes the same file, and a changed one takes a new name rather than overwriting a manifest an array
+is still reading its way through. Task order is sorted, so a task number means the same thing every
+time. The form says what it will do before you commit — <code>expands 37 jobs · first:
 data/level3/focal_target.fna</code> — and names the manifest it would write.</p>
 
 <h3><code>each</code> and <code>array</code></h3>
@@ -202,7 +183,8 @@ data/level3/focal_target.fna</code> — and names the manifest it would write.</
 </table>
 
 <p>Set both and <code>each</code> wins the range, keeping only a <code>%n</code> throttle from
-<code>array</code>. The form says so on the field.</p>
+<code>array</code>. The form says so on the field, and warns if a range typed there is being
+dropped.</p>
 
 <div class="note warn">
 Every task of an array gets the <strong>same</strong> <code>--mem</code>, <code>--cpus</code> and
@@ -212,11 +194,19 @@ means resubmitting with <code>--array=3,7,19</code> rather than pressing <kbd>s<
 
     <nav class="pager"><a href="recipes.html"><span>Previous</span>← The explorer</a><a class="next" href="jobs.html"><span>Next</span>The job browser →</a></nav>
   </main>
+  <aside class="rail">
+    <div class="box"><h2>On this page</h2><ul><li><a href="#config">Config files</a></li><li><a href="#logs">Where logs go</a></li><li><a href="#batch">One recipe, many inputs</a></li></ul></div>
+    <div class="box"><h2>Repository</h2><ul>
+      <li><a href="https://github.com/4less/just-tui">Browse the source</a></li>
+      <li><a href="https://github.com/4less/just-tui/issues">Report an issue</a></li>
+      <li><a href="https://github.com/4less/just-tui/blob/main/README.md">README</a></li>
+    </ul></div>
+  </aside>
 </div>
 
-<footer>
-  <span>just-tui — a terminal explorer for <a href="https://github.com/casey/just">just</a> recipes</span>
-  <span><a href="https://github.com/4less/just-tui">Repository</a> · <a href="https://github.com/4less/just-tui/issues">Issues</a> · <a href="https://github.com/casey/just">just</a> · <a href="https://slurm.schedmd.com/">Slurm</a></span>
-</footer>
+<footer><div class="inner">
+  <span>just-tui · v0.2.0 · a terminal explorer for <a href="https://github.com/casey/just">just</a> recipes</span>
+  <span class="links"><a href="https://github.com/4less/just-tui">Repository</a><a href="https://github.com/4less/just-tui/issues">Issues</a><a href="https://github.com/casey/just">just</a><a href="https://slurm.schedmd.com/">Slurm</a></span>
+</div></footer>
 </body>
 </html>
