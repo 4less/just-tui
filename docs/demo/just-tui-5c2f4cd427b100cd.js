@@ -299,6 +299,9 @@ function __wbg_get_imports() {
         __wbg_set_innerHTML_7d84b81d6f2a9fdf: function(arg0, arg1, arg2) {
             arg0.innerHTML = getStringFromWasm0(arg1, arg2);
         },
+        __wbg_set_textContent_e027901c7bc836b5: function(arg0, arg1, arg2) {
+            arg0.textContent = arg1 === 0 ? undefined : getStringFromWasm0(arg1, arg2);
+        },
         __wbg_shiftKey_8eca009f693152b4: function(arg0) {
             const ret = arg0.shiftKey;
             return ret;
@@ -342,17 +345,17 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [NamedExternref("Event")], shim_idx: 147, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [NamedExternref("Event")], shim_idx: 150, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_25f5f3994a95aeac___convert__closures_____invoke___web_sys_4d541730b1c1313a___features__gen_Event__Event______true_);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [NamedExternref("KeyboardEvent")], shim_idx: 114, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [NamedExternref("KeyboardEvent")], shim_idx: 98, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_25f5f3994a95aeac___convert__closures_____invoke___web_sys_4d541730b1c1313a___features__gen_KeyboardEvent__KeyboardEvent______true_);
             return ret;
         },
         __wbindgen_cast_0000000000000003: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 116, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 100, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_25f5f3994a95aeac___convert__closures_____invoke_______true_);
             return ret;
         },

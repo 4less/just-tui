@@ -6,8 +6,8 @@
 <title>just-tui — browser demo</title>
 
 <script type="module">
-import init, * as bindings from '/just-tui/demo/just-tui-f7f585f86215429e.js';
-const wasm = await init({ module_or_path: '/just-tui/demo/just-tui-f7f585f86215429e_bg.wasm' });
+import init, * as bindings from '/just-tui/demo/just-tui-5c2f4cd427b100cd.js';
+const wasm = await init({ module_or_path: '/just-tui/demo/just-tui-5c2f4cd427b100cd_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -24,6 +24,8 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
     --canvas: #0a1422; --fg: #dae3f7; --dim: #8d909d;
     --outline: #3a4150; --primary: #7aa2f7;
     --bar: 42px;
+    /* One character cell. The font below is chosen to match it. */
+    --cell: 20px;
   }
   * { box-sizing: border-box; }
 
@@ -56,6 +58,10 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
   header .brand { font-weight: 700; }
   header .brand .just { background: var(--primary); color: #002e6b; padding: 0.15rem 0.35rem; border-radius: 4px; }
   header .hint { color: var(--dim); overflow: hidden; text-overflow: ellipsis; }
+  header .stamp {
+    color: var(--dim); font-family: ui-monospace, monospace; font-size: 11px;
+    border: 1px solid var(--outline); border-radius: 3px; padding: 0 0.35rem;
+  }
   header .spacer { flex: 1; }
   header a { color: var(--primary); text-decoration: none; }
   header a:hover { text-decoration: underline; }
@@ -85,7 +91,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
   #terminal pre { margin: 0; padding: 0; }
   #terminal:focus, #terminal :focus { outline: none; }
 </style>
-<link rel="modulepreload" href="/just-tui/demo/just-tui-f7f585f86215429e.js" crossorigin="anonymous" integrity="sha384-a9q7bUERxtau1ubejdhUWWHRzr2hn9PJ7yKXfbVrtxE8HpcTNgal+LkwkgjP5VIM"><link rel="preload" href="/just-tui/demo/just-tui-f7f585f86215429e_bg.wasm" crossorigin="anonymous" integrity="sha384-bKb9r+NZMo7j7jUVXReDws1UTDu0XHx5y/QAarYHYqlyS3V+8XXOKqqfLcC2+G9M" as="fetch" type="application/wasm"></head>
+<link rel="modulepreload" href="/just-tui/demo/just-tui-5c2f4cd427b100cd.js" crossorigin="anonymous" integrity="sha384-zpUIFvdaPkOPiB5Iz59uRivYQQu2Ao/OahydUXqOoo8Ka+RZJYRLrb7PtqhM8zqL"><link rel="preload" href="/just-tui/demo/just-tui-5c2f4cd427b100cd_bg.wasm" crossorigin="anonymous" integrity="sha384-BAJqIEKZmOfLZva6i6lmOo7kfMvmQMPOmh7ezlL514J/wOOB2aKbi6Ac5hbbTGpO" as="fetch" type="application/wasm"></head>
 <body>
 <header>
   <span class="brand"><span class="just">just</span> tui</span>
@@ -95,6 +101,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
     canned cluster, nothing is really submitted
   </span>
   <span class="spacer"></span>
+  <span id="stamp" class="stamp">loading…</span>
   <a href="../">Docs</a>
   <a href="https://github.com/4less/just-tui">GitHub</a>
 </header>

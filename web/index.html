@@ -13,6 +13,8 @@
     --canvas: #0a1422; --fg: #dae3f7; --dim: #8d909d;
     --outline: #3a4150; --primary: #7aa2f7;
     --bar: 42px;
+    /* One character cell. The font below is chosen to match it. */
+    --cell: 20px;
   }
   * { box-sizing: border-box; }
 
@@ -45,6 +47,10 @@
   header .brand { font-weight: 700; }
   header .brand .just { background: var(--primary); color: #002e6b; padding: 0.15rem 0.35rem; border-radius: 4px; }
   header .hint { color: var(--dim); overflow: hidden; text-overflow: ellipsis; }
+  header .stamp {
+    color: var(--dim); font-family: ui-monospace, monospace; font-size: 11px;
+    border: 1px solid var(--outline); border-radius: 3px; padding: 0 0.35rem;
+  }
   header .spacer { flex: 1; }
   header a { color: var(--primary); text-decoration: none; }
   header a:hover { text-decoration: underline; }
@@ -84,6 +90,7 @@
     canned cluster, nothing is really submitted
   </span>
   <span class="spacer"></span>
+  <span id="stamp" class="stamp">loading…</span>
   <a href="../">Docs</a>
   <a href="https://github.com/4less/just-tui">GitHub</a>
 </header>

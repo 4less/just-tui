@@ -27,6 +27,20 @@ pub fn start() -> Result<(), wasm_bindgen::JsValue> {
 /// The element the interface is drawn into.
 const TERMINAL: &str = "terminal";
 
+/// Where the build stamp, and then the last key, is written.
+const STAMP: &str = "stamp";
+
+/// Which build this is — the same string `--version` prints natively. Shown
+/// in the page so a stale bundle is obvious rather than baffling.
+fn show(text: &str) {
+    let element = ratzilla::web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.get_element_by_id(STAMP));
+    if let Some(element) = element {
+        element.set_text_content(Some(text));
+    }
+}
+
 /// Listen for keys on the document itself.
 ///
 /// The backend offers this, but binds to the grid element — which has to be
@@ -92,8 +106,16 @@ fn run() -> Result<(), String> {
         DomBackend::new_by_id(TERMINAL).map_err(|err| format!("no terminal in the page: {err}"))?;
     let mut terminal = Terminal::new(backend).map_err(|err| err.to_string())?;
 
+    show(&format!(
+        "{} ({})",
+        env!("CARGO_PKG_VERSION"),
+        env!("JUST_TUI_COMMIT")
+    ));
+
     let handler = app.clone();
     listen_for_keys(move |event| {
+        // Proof that the key arrived, which is otherwise invisible.
+        show(&format!("key {:?}", event.code));
         let mut app = handler.borrow_mut();
         let action = app.handle_key(event);
         // The two actions that hand the screen to another program have no
