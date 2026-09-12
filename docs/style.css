@@ -32,8 +32,9 @@
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --sans: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
 
-  --r: 6px;
-  --r-sm: 4px;
+  --r: 4px;
+  --r-sm: 2px;
+  --r-lg: 8px;
 }
 
 * { box-sizing: border-box; }
@@ -43,7 +44,7 @@ body {
   margin: 0;
   background: var(--canvas);
   color: var(--fg-body);
-  font: 400 15px/1.7 var(--sans);
+  font: 400 14.5px/1.62 var(--sans);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -114,7 +115,7 @@ code, kbd, pre, .mono { font-family: var(--mono); }
 }
 .hero .badge { margin: 0 auto 1.5rem; }
 .hero h1 {
-  font: 700 clamp(28px, 4.6vw, 46px)/1.18 var(--mono);
+  font: 700 clamp(26px, 4.2vw, 42px)/1.2 var(--mono);
   letter-spacing: -0.02em; color: var(--fg);
   margin: 0 auto 1.25rem; max-width: 20ch;
 }
@@ -126,19 +127,24 @@ code, kbd, pre, .mono { font-family: var(--mono); }
 .hero .actions { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
 
 .wrap { max-width: 1160px; margin: 0 auto; padding: 0 1.25rem; }
-.section { padding: 3.5rem 0; border-bottom: 1px solid var(--outline-soft); }
-.section > h2 { text-align: center; margin-top: 0; border: 0; padding: 0; }
+.section { padding: 3rem 0; border-bottom: 1px solid var(--outline-soft); }
+.section.tight { padding: 2rem 0; }
+.section > h2 { display: block; text-align: center; margin-top: 0; border: 0; padding: 0; font-size: 22px; }
+.section > h2::before { content: none; }
 .section > .sub { text-align: center; color: var(--fg-dim); margin: -0.5rem auto 2.25rem; max-width: 60ch; }
 
 /* ================================================================= shell == */
 
 .shell {
   display: grid;
-  grid-template-columns: 236px minmax(0, 1fr) 232px;
-  gap: 2.5rem;
-  max-width: 1400px; margin: 0 auto;
-  padding: 1.5rem 1.25rem 4rem;
+  grid-template-columns: 232px minmax(0, 1fr) 272px;
+  gap: 2rem;
+  max-width: 1280px; margin: 0 auto;
+  padding: 1.25rem 1.25rem 4rem;
 }
+/* Prose stops being readable long before the column runs out. */
+main > * { max-width: 640px; }
+main > .term, main > table, main > pre { max-width: 640px; }
 
 .crumbbar {
   display: flex; align-items: center; gap: 0.75rem;
@@ -155,21 +161,21 @@ code, kbd, pre, .mono { font-family: var(--mono); }
 .sidebar { max-height: calc(100vh - 6rem); overflow-y: auto; }
 
 .sidebar h2, .rail h2 {
-  display: flex; align-items: center; gap: 0.4rem;
+  display: flex; align-items: center; gap: 0.35rem;
   font: 600 10.5px/1.4 var(--sans);
   letter-spacing: 0.09em; text-transform: uppercase;
   color: var(--fg-faint);
-  margin: 1.6rem 0 0.6rem; padding: 0; border: 0;
+  margin: 1.4rem 0 0.5rem; padding: 0; border: 0;
 }
 .sidebar h2::before, .rail h2::before {
-  content: ""; width: 10px; height: 1px; background: var(--outline);
+  content: "⌐"; font-family: var(--mono); font-weight: 400; color: var(--outline);
 }
 .sidebar h2:first-child { margin-top: 0; }
 
 .sidebar ul { list-style: none; margin: 0; padding-left: 0.45rem; border-left: 1px solid var(--outline-soft); }
 .sidebar a {
-  display: block; padding: 0.3rem 0.6rem; margin-left: -1px;
-  color: var(--fg-dim); font-size: 13.5px; border-radius: var(--r-sm);
+  display: block; padding: 0.22rem 0.55rem; margin-left: -1px;
+  color: var(--fg-dim); font-size: 13px; border-radius: var(--r-sm);
 }
 .sidebar a:hover { color: var(--fg); background: var(--surface); text-decoration: none; }
 .sidebar a[aria-current] {
@@ -183,8 +189,8 @@ code, kbd, pre, .mono { font-family: var(--mono); }
 }
 .rail .box h2 { margin: 0 0 0.6rem; }
 .rail ul { list-style: none; margin: 0; padding: 0; }
-.rail li { margin: 0.3rem 0; }
-.rail a { color: var(--fg-dim); font-size: 13px; }
+.rail li { margin: 0.22rem 0; }
+.rail a { color: var(--fg-dim); font-size: 12.5px; }
 .rail a:hover { color: var(--primary); text-decoration: none; }
 
 /* ================================================================= prose == */
@@ -202,19 +208,25 @@ main { min-width: 0; }
 .badge::before { content: "●"; font-size: 8px; }
 
 h1 {
-  font: 700 32px/1.25 var(--mono); letter-spacing: -0.02em;
-  color: var(--fg); margin: 0 0 1.1rem;
+  font: 700 27px/1.28 var(--sans); letter-spacing: -0.02em;
+  color: var(--fg); margin: 0 0 0.85rem;
 }
 h2 {
-  display: flex; align-items: baseline; gap: 0.6rem;
-  font: 700 18px/1.4 var(--mono); color: var(--fg);
-  margin: 3rem 0 0.9rem; padding-top: 1.25rem;
+  display: flex; align-items: baseline; gap: 0.55rem;
+  font: 700 17px/1.4 var(--sans); letter-spacing: -0.01em; color: var(--fg);
+  margin: 2.2rem 0 0.7rem; padding-top: 1rem;
   border-top: 1px solid var(--outline-soft);
 }
-h3 { font: 700 15px/1.5 var(--mono); color: var(--sky); margin: 1.9rem 0 0.5rem; }
+/* The design marks a section with a box-drawing corner rather than a rule. */
+h2::before { content: "⌐"; color: var(--outline); font-weight: 400; font-family: var(--mono); }
+h2 .tag {
+  margin-left: auto; font: 600 10.5px/1.6 var(--sans);
+  letter-spacing: 0.09em; text-transform: uppercase; color: var(--fg-faint);
+}
+h3 { font: 700 14.5px/1.5 var(--sans); color: var(--sky); margin: 1.5rem 0 0.4rem; }
 
-p { margin: 0.9rem 0; }
-p.lead { font-size: 16.5px; color: var(--fg-dim); }
+p { margin: 0.7rem 0; }
+p.lead { font-size: 15.5px; color: var(--fg-dim); }
 
 ul.prose, ol.prose { padding-left: 1.3rem; margin: 0.9rem 0; }
 ul.prose li, ol.prose li { margin: 0.4rem 0; }
@@ -225,9 +237,9 @@ strong { color: var(--fg); font-weight: 600; }
 
 pre {
   background: #050e1d; border: 1px solid var(--outline-soft);
-  border-radius: var(--r); padding: 0.9rem 1.05rem;
-  overflow-x: auto; margin: 1.1rem 0;
-  font-size: 12.5px; line-height: 1.7;
+  border-radius: var(--r); padding: 0.75rem 0.95rem;
+  overflow-x: auto; margin: 0.9rem 0;
+  font-size: 12px; line-height: 1.6;
 }
 pre code { color: var(--fg-body); }
 
@@ -243,11 +255,11 @@ kbd {
 }
 
 table {
-  width: 100%; border-collapse: collapse; margin: 1.1rem 0;
-  font-size: 13.5px; font-variant-numeric: tabular-nums;
+  width: 100%; border-collapse: collapse; margin: 0.9rem 0;
+  font-size: 13px; font-variant-numeric: tabular-nums;
   border: 1px solid var(--outline-soft); border-radius: var(--r); overflow: hidden;
 }
-th, td { text-align: left; padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--outline-soft); vertical-align: top; }
+th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--outline-soft); vertical-align: top; }
 th {
   font: 600 10.5px/1.5 var(--sans); letter-spacing: 0.09em; text-transform: uppercase;
   color: var(--fg-faint); background: var(--surface-high);
@@ -259,14 +271,14 @@ td:first-child { white-space: nowrap; }
 /* A bordered block with a header strip, as the design uses for asides. */
 .panel {
   border: 1px solid var(--outline-soft); border-radius: var(--r);
-  background: var(--surface); margin: 1.4rem 0; overflow: hidden;
+  background: var(--surface); margin: 1.1rem 0; overflow: hidden;
 }
 .panel > header {
   display: flex; align-items: center; gap: 0.5rem;
   padding: 0.55rem 0.95rem; background: var(--surface-high);
   border-bottom: 1px solid var(--outline-soft);
 }
-.panel > header b { font: 700 13.5px/1.5 var(--mono); color: var(--fg); }
+.panel > header b { font: 700 13px/1.5 var(--sans); color: var(--fg); }
 .panel > header .tag {
   margin-left: auto; font: 600 10.5px/1.4 var(--sans);
   letter-spacing: 0.09em; text-transform: uppercase; color: var(--fg-faint);
@@ -278,7 +290,7 @@ td:first-child { white-space: nowrap; }
 .note {
   border: 1px solid var(--outline-soft); border-left: 3px solid var(--primary);
   background: var(--surface); border-radius: var(--r);
-  padding: 0.8rem 1rem; margin: 1.4rem 0;
+  padding: 0.7rem 0.9rem; margin: 1.1rem 0;
 }
 .note.warn { border-left-color: var(--amber); }
 .note.snag { border-left-color: var(--coral); }
@@ -299,8 +311,8 @@ td:first-child { white-space: nowrap; }
   border-radius: var(--r); padding: 1.1rem 1.15rem;
 }
 .card:hover { border-color: var(--outline); }
-.card h3 { margin: 0 0 0.4rem; color: var(--fg); }
-.card p { margin: 0; color: var(--fg-dim); font-size: 14px; }
+.card h3 { margin: 0 0 0.35rem; color: var(--fg); font-size: 14px; }
+.card p { margin: 0; color: var(--fg-dim); font-size: 13.5px; }
 .card .num {
   display: inline-block; margin-bottom: 0.6rem;
   font: 700 11px/1.6 var(--mono); color: var(--primary);

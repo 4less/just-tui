@@ -55,7 +55,7 @@ LANDING = f"""
 
 <div class="wrap">
 
-<section class="section">
+<section class="section tight">
   {term("just-tui — the explorer", EXPLORER, "15 recipes")}
 </section>
 
