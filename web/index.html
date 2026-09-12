@@ -58,9 +58,10 @@
      how many rows and columns it has. Sized from the body it would grow to
      fit its own output, and then grow again. */
   #terminal {
-    /* A couple of pixels spare so the last row — the key hints — cannot be
-       clipped by a rounding difference. */
-    height: calc(100vh - var(--bar) - 3px);
+    /* A whole row spare. The backend rounds the row count up against this
+       box, and the row it gains is clipped by the overflow — which costs the
+       bottom line of the interface, the one with the keys on it. */
+    height: calc(100vh - var(--bar) - 20px);
     overflow: hidden;
     /* No padding: the backend measures this box to count rows and columns,
        and padding is inside it — every pixel of it costs a row off the

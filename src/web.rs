@@ -27,18 +27,41 @@ pub fn start() -> Result<(), wasm_bindgen::JsValue> {
 /// The element the interface is drawn into.
 const TERMINAL: &str = "terminal";
 
-/// Put the keyboard focus on the grid, so the demo answers without being
-/// clicked first. The grid is whatever ratzilla made focusable.
-fn focus_grid() {
+/// Listen for keys on the document itself.
+///
+/// The backend offers this, but binds to the grid element — which has to be
+/// focused to receive anything, and is replaced whenever the grid is rebuilt,
+/// taking the listener with it. On the document there is nothing to focus and
+/// nothing to lose. It also leaves us free to stop the page acting on a key
+/// itself: an arrow would otherwise move the cursor and scroll the window.
+fn listen_for_keys<F>(mut handler: F) -> Result<(), String>
+where
+    F: FnMut(input::KeyEvent) + 'static,
+{
     use ratzilla::web_sys::wasm_bindgen::JsCast;
+    use ratzilla::web_sys::wasm_bindgen::prelude::Closure;
 
-    let focusable = ratzilla::web_sys::window()
+    let document = ratzilla::web_sys::window()
         .and_then(|window| window.document())
-        .and_then(|document| document.query_selector("[tabindex]").ok().flatten())
-        .and_then(|element| element.dyn_into::<ratzilla::web_sys::HtmlElement>().ok());
-    if let Some(element) = focusable {
-        let _ = element.focus();
-    }
+        .ok_or_else(|| "no document".to_owned())?;
+
+    let closure = Closure::wrap(Box::new(move |event: ratzilla::web_sys::KeyboardEvent| {
+        let key = input::from_web(&event);
+        if key.code == input::KeyCode::Other {
+            return;
+        }
+        if !input::is_the_page_s_business(key.code) {
+            event.prevent_default();
+        }
+        handler(key);
+    }) as Box<dyn FnMut(_)>);
+
+    document
+        .add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref())
+        .map_err(|_| "could not listen for keys".to_owned())?;
+    // The listener outlives this function, so the closure must too.
+    closure.forget();
+    Ok(())
 }
 
 /// The part of the URL after `#`, lowercased.
@@ -70,9 +93,9 @@ fn run() -> Result<(), String> {
     let mut terminal = Terminal::new(backend).map_err(|err| err.to_string())?;
 
     let handler = app.clone();
-    let listening = terminal.on_key_event(move |event| {
+    listen_for_keys(move |event| {
         let mut app = handler.borrow_mut();
-        let action = app.handle_key(input::from_web(&event));
+        let action = app.handle_key(event);
         // The two actions that hand the screen to another program have no
         // meaning in a page; the rest happen inside the application.
         match action {
@@ -82,10 +105,7 @@ fn run() -> Result<(), String> {
             Action::Copy(_) => app.info("copied"),
             Action::Quit | Action::None => {}
         }
-    });
-    listening.map_err(|err| format!("could not listen for keys: {err}"))?;
-    // Keys are delivered to the grid, which has to have focus to get them.
-    focus_grid();
+    })?;
 
     terminal.draw_web(move |frame| {
         let mut app = app.borrow_mut();

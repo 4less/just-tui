@@ -64,44 +64,75 @@ mod browser {
         }
     }
 
-    /// Translate what the browser reports into what the handlers expect.
-    pub fn from_web(event: &ratzilla::event::KeyEvent) -> KeyEvent {
-        use ratzilla::event::KeyCode as Web;
+    /// Translate a browser `keydown` into what the handlers expect.
+    ///
+    /// Taken straight from the DOM event rather than through the backend: the
+    /// backend binds its listener to the grid element, which is replaced when
+    /// the grid is rebuilt, and the listener goes with it.
+    pub fn from_web(event: &ratzilla::web_sys::KeyboardEvent) -> KeyEvent {
+        let key = event.key();
+        let mut chars = key.chars();
 
-        let code = match event.code {
-            Web::Char(c) => KeyCode::Char(c),
-            Web::Enter => KeyCode::Enter,
-            Web::Esc => KeyCode::Esc,
-            // The browser has no BackTab; shift-tab arrives as a shifted tab.
-            Web::Tab if event.shift => KeyCode::BackTab,
-            Web::Tab => KeyCode::Tab,
-            Web::Backspace => KeyCode::Backspace,
-            Web::Delete => KeyCode::Delete,
-            Web::Home => KeyCode::Home,
-            Web::End => KeyCode::End,
-            Web::Left => KeyCode::Left,
-            Web::Right => KeyCode::Right,
-            Web::Up => KeyCode::Up,
-            Web::Down => KeyCode::Down,
-            Web::PageUp => KeyCode::PageUp,
-            Web::PageDown => KeyCode::PageDown,
-            Web::F(n) => KeyCode::F(n),
-            _ => KeyCode::Other,
+        let code = match (chars.next(), chars.next()) {
+            // A printable key reports itself as a one-character string.
+            (Some(c), None) => KeyCode::Char(c),
+            _ => match key.as_str() {
+                "Enter" => KeyCode::Enter,
+                "Escape" => KeyCode::Esc,
+                // The browser has no BackTab; shift-tab is a shifted tab.
+                "Tab" if event.shift_key() => KeyCode::BackTab,
+                "Tab" => KeyCode::Tab,
+                "Backspace" => KeyCode::Backspace,
+                "Delete" => KeyCode::Delete,
+                "Home" => KeyCode::Home,
+                "End" => KeyCode::End,
+                "ArrowLeft" => KeyCode::Left,
+                "ArrowRight" => KeyCode::Right,
+                "ArrowUp" => KeyCode::Up,
+                "ArrowDown" => KeyCode::Down,
+                "PageUp" => KeyCode::PageUp,
+                "PageDown" => KeyCode::PageDown,
+                other => match other.strip_prefix('F').and_then(|n| n.parse().ok()) {
+                    Some(n) => KeyCode::F(n),
+                    None => KeyCode::Other,
+                },
+            },
         };
 
         let mut modifiers = KeyModifiers::NONE;
-        if event.ctrl {
+        if event.ctrl_key() {
             modifiers = KeyModifiers(modifiers.0 | KeyModifiers::CONTROL.0);
         }
-        if event.shift {
+        if event.shift_key() {
             modifiers = KeyModifiers(modifiers.0 | KeyModifiers::SHIFT.0);
         }
-        if event.alt {
+        if event.alt_key() {
             modifiers = KeyModifiers(modifiers.0 | KeyModifiers::ALT.0);
         }
         KeyEvent::new(code, modifiers)
     }
+
+    /// Keys the page would otherwise act on itself — scrolling, mostly.
+    pub fn is_the_page_s_business(code: KeyCode) -> bool {
+        !matches!(
+            code,
+            KeyCode::Up
+                | KeyCode::Down
+                | KeyCode::Left
+                | KeyCode::Right
+                | KeyCode::PageUp
+                | KeyCode::PageDown
+                | KeyCode::Home
+                | KeyCode::End
+                | KeyCode::Tab
+                | KeyCode::BackTab
+                | KeyCode::Enter
+                | KeyCode::Backspace
+                | KeyCode::Char(' ')
+                | KeyCode::F(_)
+        )
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
-pub use browser::from_web;
+pub use browser::{from_web, is_the_page_s_business};
