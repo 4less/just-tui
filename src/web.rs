@@ -24,6 +24,23 @@ pub fn start() -> Result<(), wasm_bindgen::JsValue> {
     run().map_err(|err| wasm_bindgen::JsValue::from_str(&err))
 }
 
+/// The element the interface is drawn into.
+const TERMINAL: &str = "terminal";
+
+/// Put the keyboard focus on the grid, so the demo answers without being
+/// clicked first. The grid is whatever ratzilla made focusable.
+fn focus_grid() {
+    use ratzilla::web_sys::wasm_bindgen::JsCast;
+
+    let focusable = ratzilla::web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.query_selector("[tabindex]").ok().flatten())
+        .and_then(|element| element.dyn_into::<ratzilla::web_sys::HtmlElement>().ok());
+    if let Some(element) = focusable {
+        let _ = element.focus();
+    }
+}
+
 /// The part of the URL after `#`, lowercased.
 fn fragment() -> Option<String> {
     let hash = ratzilla::web_sys::window()?.location().hash().ok()?;
@@ -45,9 +62,11 @@ fn run() -> Result<(), String> {
     }
 
     let app = Rc::new(RefCell::new(app));
-    // The backend appends its grid to the page; CSS puts it between the
-    // header and the footer.
-    let backend = DomBackend::new().map_err(|err| format!("no terminal in the page: {err}"))?;
+    // Into the page's own element, which has a fixed height: the backend
+    // measures its parent to decide how many rows and columns there are, and
+    // measuring the body would grow the grid to fit its own output.
+    let backend =
+        DomBackend::new_by_id(TERMINAL).map_err(|err| format!("no terminal in the page: {err}"))?;
     let mut terminal = Terminal::new(backend).map_err(|err| err.to_string())?;
 
     let handler = app.clone();
@@ -65,6 +84,8 @@ fn run() -> Result<(), String> {
         }
     });
     listening.map_err(|err| format!("could not listen for keys: {err}"))?;
+    // Keys are delivered to the grid, which has to have focus to get them.
+    focus_grid();
 
     terminal.draw_web(move |frame| {
         let mut app = app.borrow_mut();
