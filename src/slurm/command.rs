@@ -1,7 +1,6 @@
 //! Turning settings into an `sbatch` invocation, and checking them first.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use super::{Cluster, FIELDS, Field, Settings, format_mem, format_time, parse_mem, parse_time};
 
@@ -249,37 +248,20 @@ pub fn submit(
     }
 
     let args = build_command(base, namepath, settings, batch);
-    match Command::new("sbatch")
-        .args(&args)
-        .current_dir(base)
-        .output()
-    {
-        Ok(output) if output.status.success() => {
-            let text = String::from_utf8_lossy(&output.stdout);
-            // `--parsable` prints `jobid` or `jobid;cluster`.
-            let job_id = text
+    let borrowed: Vec<&str> = args.iter().map(String::as_str).collect();
+
+    match super::cluster::capture_in("sbatch", &borrowed, base) {
+        // `--parsable` prints `jobid` or `jobid;cluster`.
+        Ok(text) => Submission::Ok {
+            job_id: text
                 .trim()
                 .split(';')
                 .next()
                 .unwrap_or("")
                 .trim()
-                .to_owned();
-            Submission::Ok { job_id }
-        }
-        Ok(output) => {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            Submission::Failed {
-                message: stderr
-                    .trim()
-                    .lines()
-                    .next()
-                    .unwrap_or("sbatch failed")
-                    .to_owned(),
-            }
-        }
-        Err(err) => Submission::Failed {
-            message: format!("could not run sbatch: {err}"),
+                .to_owned(),
         },
+        Err(message) => Submission::Failed { message },
     }
 }
 

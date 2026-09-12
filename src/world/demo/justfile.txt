@@ -1,0 +1,30 @@
+# rg-msa — a small benchmark pipeline
+#
+# Run `just` with no arguments to see every recipe.
+
+set dotenv-load := false
+
+results := "results"
+
+# Show every recipe in this justfile
+default:
+    @just --list --unsorted
+
+# Build the index every later step reads
+[group('1. setup')]
+align-index ref="refs/all.fna":
+    minimap2 -d {{results}}/index.mmi {{ref}}
+
+# Fetch the simulated read sets
+[group('1. setup')]
+fetch-reads:
+    aws s3 sync s3://rg-msa/sim data/sim
+
+# Check every tool this pipeline shells out to is present
+[private]
+_check-tools:
+    @for t in minimap2 mafft iqtree2; do command -v $t >/dev/null || echo "missing $t"; done
+
+alias idx := align-index
+
+mod run

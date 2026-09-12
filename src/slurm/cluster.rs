@@ -1,8 +1,6 @@
 //! Asking Slurm what partitions, accounts and QoS exist.
 
 use std::collections::BTreeMap;
-use std::process::Command;
-use std::sync::mpsc;
 use std::time::Duration;
 
 use super::{Field, format_mem, format_time, parse_mem, parse_time};
@@ -162,7 +160,7 @@ impl Cluster {
 }
 
 fn detect_accounts() -> Vec<String> {
-    let user = std::env::var("USER").unwrap_or_default();
+    let user = crate::world::user();
     if user.is_empty() {
         return Vec::new();
     }
@@ -239,43 +237,20 @@ fn list_field(value: Option<&str>) -> Vec<String> {
 /// complained about. Same timeout as [`capture`]: a wedged controller must
 /// not take the interface down with it.
 pub(super) fn run(program: &str, args: &[&str]) -> Result<(), String> {
-    let owned_program = program.to_owned();
-    let owned_args: Vec<String> = args.iter().map(|a| (*a).to_owned()).collect();
-    let (tx, rx) = mpsc::channel();
+    crate::world::run(program, args, QUERY_TIMEOUT)
+}
 
-    std::thread::spawn(move || {
-        let result = Command::new(&owned_program).args(&owned_args).output();
-        let _ = tx.send(result);
-    });
-
-    match rx.recv_timeout(QUERY_TIMEOUT) {
-        Ok(Ok(output)) if output.status.success() => Ok(()),
-        Ok(Ok(output)) => Err(String::from_utf8_lossy(&output.stderr)
-            .trim()
-            .lines()
-            .next()
-            .unwrap_or("it failed without saying why")
-            .to_owned()),
-        Ok(Err(err)) => Err(format!("could not run {program}: {err}")),
-        Err(_) => Err(format!("{program} did not answer")),
-    }
+/// Submitting needs the output *and* the complaint, and needs to run in the
+/// job's directory, which nothing else does.
+pub(super) fn capture_in(
+    program: &str,
+    args: &[&str],
+    dir: &std::path::Path,
+) -> Result<String, String> {
+    crate::world::capture_in(program, args, dir, QUERY_TIMEOUT)
 }
 
 /// Run a command, giving up rather than hanging when the controller is down.
 pub(super) fn capture(program: &str, args: &[&str]) -> Option<String> {
-    let program = program.to_owned();
-    let args: Vec<String> = args.iter().map(|a| (*a).to_owned()).collect();
-    let (tx, rx) = mpsc::channel();
-
-    std::thread::spawn(move || {
-        let result = Command::new(&program).args(&args).output();
-        let _ = tx.send(result);
-    });
-
-    match rx.recv_timeout(QUERY_TIMEOUT) {
-        Ok(Ok(output)) if output.status.success() => {
-            Some(String::from_utf8_lossy(&output.stdout).into_owned())
-        }
-        _ => None,
-    }
+    crate::world::capture(program, args, QUERY_TIMEOUT)
 }

@@ -33,7 +33,7 @@ impl App {
         if self.cluster.is_none() && self.detecting.is_none() {
             let (sender, receiver) = std::sync::mpsc::channel();
             self.detecting = Some(receiver);
-            std::thread::spawn(move || {
+            crate::world::spawn(move || {
                 let _ = sender.send(Cluster::detect());
             });
         }

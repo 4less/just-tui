@@ -6,10 +6,7 @@
 //! queue can be traced back to what asked for it, and an old configuration can
 //! be loaded back into the form.
 
-use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
@@ -90,7 +87,7 @@ impl History {
     /// The file lives beside the root justfile, like the state file.
     pub fn load(base: &Path) -> Self {
         let path = base.join(HISTORY_NAME);
-        let records = std::fs::read_to_string(&path)
+        let records = crate::world::read(&path)
             .map(|text| parse(&text))
             .unwrap_or_default();
         Self { path, records }
@@ -121,15 +118,7 @@ impl History {
             self.records.drain(..self.records.len() - KEEP);
             return self.rewrite();
         }
-        let line = match serde_json::to_string(self.records.last().expect("just pushed")) {
-            Ok(line) => line,
-            Err(err) => return Err(std::io::Error::other(err)),
-        };
-        let mut file = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&self.path)?;
-        writeln!(file, "{line}")
+        self.rewrite()
     }
 
     fn rewrite(&self) -> std::io::Result<()> {
@@ -140,7 +129,7 @@ impl History {
                 text.push('\n');
             }
         }
-        std::fs::write(&self.path, text)
+        crate::world::write(&self.path, &text)
     }
 
     /// Add a record without touching the disk, for tests.
@@ -151,7 +140,7 @@ impl History {
 
     /// Re-read the file, so a run from another window shows up.
     pub fn reload(&mut self) {
-        self.records = std::fs::read_to_string(&self.path)
+        self.records = crate::world::read(&self.path)
             .map(|text| parse(&text))
             .unwrap_or_default();
     }
@@ -167,21 +156,11 @@ fn parse(text: &str) -> Vec<Record> {
 
 /// Seconds since the epoch, for ordering records.
 pub fn now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
+    crate::world::unix_seconds()
 }
 
 /// The current local time, spelled the way `sacct` spells its timestamps.
 /// `date` knows the timezone; working it out here would need a dependency.
 pub fn timestamp() -> String {
-    Command::new("date")
-        .arg("+%Y-%m-%dT%H:%M:%S")
-        .output()
-        .ok()
-        .filter(|output| output.status.success())
-        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
-        .filter(|stamp| !stamp.is_empty())
-        .unwrap_or_else(|| format!("@{}", now()))
+    crate::world::timestamp().unwrap_or_else(|| format!("@{}", now()))
 }

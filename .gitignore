@@ -3,3 +3,4 @@
 .just-tui-cluster-history
 logs/
 __pycache__/
+/.demo-serve

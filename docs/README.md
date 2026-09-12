@@ -37,6 +37,25 @@ serves it without running anything, which is why the site cannot break in CI.
 `.nojekyll` turns off Jekyll, which would otherwise try to process the site and
 ignore files beginning with an underscore.
 
+## The browser demo
+
+`docs/demo/` is just-tui itself, compiled to WebAssembly. It is built from the same source as
+the binary: the Slurm calls, the filesystem and the threads are answered from
+`src/world/demo/` instead of an operating system, and ratzilla draws the interface into the
+page. `#jobs` in the URL opens the job browser directly.
+
+```sh
+rustup target add wasm32-unknown-unknown
+cargo install trunk
+
+just demo-build     # writes docs/demo/
+just demo-serve     # http://localhost:8000/just-tui/demo/
+```
+
+The built files are committed, like the rest of the site: GitHub Pages serves them without
+running anything. `just demo-serve` copies the site under a `just-tui/` prefix because the
+bundle is built with that public path, which is where Pages will serve it from.
+
 ## Checking it before pushing
 
 ```sh

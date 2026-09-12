@@ -3,10 +3,10 @@
 
 use std::io::{self, Write};
 
+use crate::input::{KeyCode, KeyEvent, KeyModifiers};
 use anyhow::Result;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::app::App;
 use crate::ui;

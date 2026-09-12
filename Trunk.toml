@@ -1,0 +1,5 @@
+# The demo is served from the documentation site, under /demo/.
+[build]
+target = "web/index.html"
+dist = "docs/demo"
+public_url = "/just-tui/demo/"

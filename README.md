@@ -33,7 +33,8 @@ above its real source.
  ↑↓ move →← open/close ⏎ run s slurm a args n dry-run / search ⇥ pane ? help
 ```
 
-**Documentation:** <https://4less.github.io/just-tui/>
+**Documentation:** <https://4less.github.io/just-tui/> · **Try it in your browser:**
+<https://4less.github.io/just-tui/demo/>
 
 ## Install
 
@@ -475,6 +476,18 @@ just run ../any # browse another project's justfile
 `--snapshot WxH` renders one frame as plain text and exits; `--keys` replays keystrokes
 first (named keys in brackets: `--keys "s[right][down]12G"`). The README screenshot above is
 generated that way.
+
+### The browser demo
+
+`docs/demo/` is this application compiled to WebAssembly — the same tree, submit form and job
+browser, with the cluster canned. Everything that would reach the operating system goes
+through `src/world.rs`, which answers from `src/world/demo/` under `wasm32`: `squeue` and
+`sacct` output, a justfile, two logs. `ratzilla` draws the interface into the page.
+
+```sh
+rustup target add wasm32-unknown-unknown && cargo install trunk
+just demo-build && just demo-serve
+```
 
 ### The documentation site
 

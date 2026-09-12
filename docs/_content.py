@@ -48,7 +48,8 @@ LANDING = f"""
   recipe's documentation above its real source. Then it submits them to Slurm and watches what
   happens.</p>
   <div class="actions">
-    <a class="btn solid" href="docs.html#install">Get started</a>
+    <a class="btn solid" href="demo/">Try it in the browser</a>
+    <a class="btn" href="docs.html#install">Get started</a>
     <a class="btn" href="{REPO}">★ Star on GitHub</a>
   </div>
 </section>
@@ -57,6 +58,9 @@ LANDING = f"""
 
 <section class="section tight">
   {term("just-tui — the explorer", EXPLORER, "15 recipes")}
+  <p style="text-align:center;margin-top:1.25rem">
+    <a class="btn solid" href="demo/">Run this in your browser →</a>
+  </p>
 </section>
 
 <section class="section">
@@ -113,6 +117,13 @@ recipes. It runs them, submits them to Slurm, and watches the jobs that result �
 the terminal or learning a second set of names for things.</p>
 
 <h2 id="install">Installing</h2>
+
+{panel("Before you install anything", "browser demo", '''
+<p>The whole interface runs in a page: <a href="demo/">open the demo</a>. It is this
+application compiled to WebAssembly, with the cluster canned — the same tree, the same submit
+form, the same job browser, reading fixed output instead of a real <code>squeue</code>.
+<a href="demo/#jobs">Straight to the job browser</a>.</p>
+''')}
 
 <p>just-tui is not published on crates.io yet, so install it from a clone:</p>
 
@@ -416,6 +427,9 @@ JOBS = f"""
 underneath.</p>
 
 {term("just-tui — Slurm jobs", QUEUE, "live")}
+
+<p><a href="demo/#jobs">Open this in your browser</a> — the demo runs the real job browser
+against canned <code>squeue</code> and <code>sacct</code> output.</p>
 
 <p>Anything that looks like an error is picked out in red. The log file is found by asking
 <code>scontrol</code> while the controller still knows the job, and otherwise by looking for a file

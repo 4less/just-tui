@@ -1,0 +1,4 @@
+23474919|level3-run-s01_msa-tgt_filt_peel|RUNNING|qib-compute|2026-09-12T07:41:10|2026-09-12T07:42:02|01:32:01|q512n11|/data/git/4less/rg-msa_benchmark|64|1280G
+23474878|level3-run-s01_msa-cong_filt_peel|RUNNING|qib-compute|2026-09-12T02:31:44|2026-09-12T02:35:11|06:39:02|q512n07|/data/git/4less/rg-msa_benchmark|64|1280G
+23475141|level3-run-s02_refilter-cong_filt_rank|PENDING|qib-compute|2026-09-12T09:05:01|N/A|0:00|(Priority)|/data/git/4less/rg-msa_benchmark|64|128G
+23475143|level3-run-s02_refilter-tgt_filt_rank|PENDING|qib-compute|2026-09-12T09:05:21|N/A|0:00|(Priority)|/data/git/4less/rg-msa_benchmark|64|128G

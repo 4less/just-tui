@@ -24,7 +24,7 @@ impl SourceCache {
     /// Read a file once and keep it, since every recipe in a module needs it.
     pub fn lines(&mut self, path: &Path) -> Option<&Vec<String>> {
         if !self.files.contains_key(path) {
-            let text = std::fs::read_to_string(path).ok()?;
+            let text = crate::world::read(path).ok()?;
             let lines = text.lines().map(str::to_owned).collect();
             self.files.insert(path.to_path_buf(), lines);
         }

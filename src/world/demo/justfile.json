@@ -1,0 +1,426 @@
+{
+ "aliases": {
+  "idx": {
+   "attributes": [],
+   "name": "idx",
+   "target": "align-index"
+  }
+ },
+ "assignments": {
+  "results": {
+   "export": false,
+   "name": "results",
+   "private": false,
+   "value": "results"
+  }
+ },
+ "first": "default",
+ "doc": null,
+ "groups": [],
+ "modules": {
+  "run": {
+   "aliases": {},
+   "assignments": {
+    "results": {
+     "export": false,
+     "name": "results",
+     "private": false,
+     "value": "results"
+    },
+    "rgmsa": {
+     "export": false,
+     "name": "rgmsa",
+     "private": false,
+     "value": "../rg-msa/target/release/rg-msa"
+    }
+   },
+   "first": "s01_msa",
+   "doc": null,
+   "groups": [],
+   "modules": {},
+   "recipes": {
+    "collect": {
+     "attributes": [
+      {
+       "group": "4. report"
+      }
+     ],
+     "body": [
+      [
+       "rg-msa collect ",
+       [
+        [
+         "variable",
+         "results"
+        ]
+       ],
+       "/rgmsa -o ",
+       [
+        [
+         "variable",
+         "results"
+        ]
+       ],
+       "/metrics.tsv"
+      ]
+     ],
+     "dependencies": [],
+     "doc": "Collect the per-arm metrics into one table",
+     "name": "collect",
+     "namepath": "run::collect",
+     "parameters": [],
+     "priors": 0,
+     "private": false,
+     "quiet": false,
+     "shebang": false
+    },
+    "s01_msa": {
+     "attributes": [
+      {
+       "doc": "rg-msa over one arm's reads \u2014 the variable-sites MSA"
+      },
+      {
+       "group": "2. rg-msa"
+      }
+     ],
+     "body": [
+      [
+       "@set -eu; \\"
+      ],
+      [
+       "test -x \"",
+       [
+        [
+         "variable",
+         "rgmsa"
+        ]
+       ],
+       "\" || { echo \"build it first (cd ../rg-msa && cargo build --release)\"; exit 1; }"
+      ],
+      [
+       "printf '%s: msa --gene-selection %s\\n' \"",
+       [
+        [
+         "variable",
+         "arm"
+        ]
+       ],
+       "\" \"$sel\""
+      ],
+      [
+       "rg-msa msa --arm ",
+       [
+        [
+         "variable",
+         "arm"
+        ]
+       ],
+       " --out ",
+       [
+        [
+         "variable",
+         "results"
+        ]
+       ],
+       "/rgmsa/",
+       [
+        [
+         "variable",
+         "arm"
+        ]
+       ]
+      ]
+     ],
+     "dependencies": [],
+     "doc": "rg-msa over one arm's reads \u2014 the variable-sites MSA",
+     "name": "s01_msa",
+     "namepath": "run::s01_msa",
+     "parameters": [
+      {
+       "default": null,
+       "export": false,
+       "kind": "singular",
+       "name": "arm"
+      },
+      {
+       "default": "",
+       "export": false,
+       "kind": "singular",
+       "name": "force"
+      }
+     ],
+     "priors": 0,
+     "private": false,
+     "quiet": false,
+     "shebang": false
+    },
+    "s01_tree": {
+     "attributes": [
+      {
+       "group": "3. trees"
+      }
+     ],
+     "body": [
+      [
+       "iqtree2 -s ",
+       [
+        [
+         "variable",
+         "msa"
+        ]
+       ],
+       " -T ",
+       [
+        [
+         "variable",
+         "threads"
+        ]
+       ],
+       " --prefix ",
+       [
+        [
+         "variable",
+         "out"
+        ]
+       ]
+      ]
+     ],
+     "dependencies": [],
+     "doc": "Build the gene tree for one arm",
+     "name": "s01_tree",
+     "namepath": "run::s01_tree",
+     "parameters": [
+      {
+       "default": null,
+       "export": false,
+       "kind": "singular",
+       "name": "msa"
+      },
+      {
+       "default": "",
+       "export": false,
+       "kind": "singular",
+       "name": "out"
+      },
+      {
+       "default": "8",
+       "export": false,
+       "kind": "singular",
+       "name": "threads"
+      }
+     ],
+     "priors": 0,
+     "private": false,
+     "quiet": false,
+     "shebang": false
+    },
+    "s02_refilter": {
+     "attributes": [
+      {
+       "doc": "rg-msa refilter -- the variable-sites MSA for one arm"
+      },
+      {
+       "group": "2. rg-msa"
+      }
+     ],
+     "body": [
+      [
+       "rg-msa refilter --arm ",
+       [
+        [
+         "variable",
+         "arm"
+        ]
+       ],
+       " --out ",
+       [
+        [
+         "variable",
+         "results"
+        ]
+       ],
+       "/rgmsa/",
+       [
+        [
+         "variable",
+         "arm"
+        ]
+       ],
+       "_filt"
+      ]
+     ],
+     "dependencies": [],
+     "doc": "rg-msa refilter -- the variable-sites MSA for one arm",
+     "name": "s02_refilter",
+     "namepath": "run::s02_refilter",
+     "parameters": [
+      {
+       "default": null,
+       "export": false,
+       "kind": "singular",
+       "name": "arm"
+      },
+      {
+       "default": "",
+       "export": false,
+       "kind": "singular",
+       "name": "force"
+      }
+     ],
+     "priors": 0,
+     "private": false,
+     "quiet": false,
+     "shebang": false
+    }
+   },
+   "settings": {
+    "allow_duplicate_recipes": false,
+    "allow_duplicate_variables": false,
+    "dotenv_filename": null,
+    "dotenv_load": false,
+    "dotenv_override": false,
+    "dotenv_path": null,
+    "dotenv_required": false,
+    "export": false,
+    "fallback": false,
+    "ignore_comments": false,
+    "no_exit_message": false,
+    "positional_arguments": false,
+    "quiet": false,
+    "shell": null,
+    "tempdir": null,
+    "unstable": false,
+    "windows_powershell": false,
+    "windows_shell": null,
+    "working_directory": null
+   },
+   "source": "/data/git/4less/rg-msa_benchmark/run/run.just",
+   "unexports": [],
+   "warnings": []
+  }
+ },
+ "recipes": {
+  "_check-tools": {
+   "attributes": [
+    "private"
+   ],
+   "body": [
+    [
+     "@for t in minimap2 mafft iqtree2; do command -v $t >/dev/null || echo \"missing $t\"; done"
+    ]
+   ],
+   "dependencies": [],
+   "doc": "Check every tool this pipeline shells out to is present",
+   "name": "_check-tools",
+   "namepath": "_check-tools",
+   "parameters": [],
+   "priors": 0,
+   "private": true,
+   "quiet": false,
+   "shebang": false
+  },
+  "align-index": {
+   "attributes": [
+    {
+     "group": "1. setup"
+    }
+   ],
+   "body": [
+    [
+     "minimap2 -d ",
+     [
+      [
+       "variable",
+       "results"
+      ]
+     ],
+     "/index.mmi ",
+     [
+      [
+       "variable",
+       "ref"
+      ]
+     ]
+    ]
+   ],
+   "dependencies": [],
+   "doc": "Build the index every later step reads",
+   "name": "align-index",
+   "namepath": "align-index",
+   "parameters": [
+    {
+     "default": "refs/all.fna",
+     "export": false,
+     "kind": "singular",
+     "name": "ref"
+    }
+   ],
+   "priors": 0,
+   "private": false,
+   "quiet": false,
+   "shebang": false
+  },
+  "default": {
+   "attributes": [],
+   "body": [
+    [
+     "@just --list --unsorted"
+    ]
+   ],
+   "dependencies": [],
+   "doc": "Show every recipe in this justfile",
+   "name": "default",
+   "namepath": "default",
+   "parameters": [],
+   "priors": 0,
+   "private": false,
+   "quiet": false,
+   "shebang": false
+  },
+  "fetch-reads": {
+   "attributes": [
+    {
+     "group": "1. setup"
+    }
+   ],
+   "body": [
+    [
+     "aws s3 sync s3://rg-msa/sim data/sim"
+    ]
+   ],
+   "dependencies": [],
+   "doc": "Fetch the simulated read sets",
+   "name": "fetch-reads",
+   "namepath": "fetch-reads",
+   "parameters": [],
+   "priors": 0,
+   "private": false,
+   "quiet": false,
+   "shebang": false
+  }
+ },
+ "settings": {
+  "allow_duplicate_recipes": false,
+  "allow_duplicate_variables": false,
+  "dotenv_filename": null,
+  "dotenv_load": false,
+  "dotenv_override": false,
+  "dotenv_path": null,
+  "dotenv_required": false,
+  "export": false,
+  "fallback": false,
+  "ignore_comments": false,
+  "no_exit_message": false,
+  "positional_arguments": false,
+  "quiet": false,
+  "shell": null,
+  "tempdir": null,
+  "unstable": false,
+  "windows_powershell": false,
+  "windows_shell": null,
+  "working_directory": null
+ },
+ "source": "/data/git/4less/rg-msa_benchmark/justfile",
+ "unexports": [],
+ "warnings": []
+}

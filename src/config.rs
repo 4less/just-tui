@@ -180,7 +180,7 @@ impl Configs {
     /// `base` is the directory of the root justfile; the state file lives there.
     pub fn new(base: &Path) -> Self {
         let state_path = base.join(STATE_NAME);
-        let state = std::fs::read_to_string(&state_path)
+        let state = crate::world::read(&state_path)
             .map(|text| ConfigFile::parse(&state_path, &text))
             .unwrap_or_else(|_| ConfigFile {
                 path: state_path.clone(),
@@ -208,7 +208,7 @@ impl Configs {
         self.files
             .entry(path.clone())
             .or_insert_with(|| {
-                std::fs::read_to_string(&path)
+                crate::world::read(&path)
                     .ok()
                     .map(|text| ConfigFile::parse(&path, &text))
             })
@@ -260,15 +260,15 @@ impl Configs {
             let _ = writeln!(text, "\n[{name}]");
             write_settings(&mut text, settings);
         }
-        std::fs::write(&self.state_path, text)
+        crate::world::write(&self.state_path, &text)
     }
 
     /// Path of a scope's config file, creating it from the template when it
     /// does not exist yet, so it can be opened in an editor.
     pub fn ensure_file(&mut self, dir: &Path) -> std::io::Result<PathBuf> {
         let path = dir.join(CONFIG_NAME);
-        if !path.exists() {
-            std::fs::write(&path, TEMPLATE)?;
+        if !crate::world::exists(&path) {
+            crate::world::write(&path, TEMPLATE)?;
             self.files.remove(&path);
         }
         Ok(path)
@@ -288,7 +288,7 @@ impl Configs {
         settings: &Settings,
     ) -> std::io::Result<PathBuf> {
         let path = dir.join(CONFIG_NAME);
-        let mut file = std::fs::read_to_string(&path)
+        let mut file = crate::world::read(&path)
             .map(|text| ConfigFile::parse(&path, &text))
             .unwrap_or_else(|_| ConfigFile {
                 path: path.clone(),
@@ -302,7 +302,7 @@ impl Configs {
             None => file.defaults = settings.clone(),
         }
 
-        std::fs::write(&path, file.render())?;
+        crate::world::write(&path, &file.render())?;
         self.files.insert(path.clone(), Some(file));
         Ok(path)
     }

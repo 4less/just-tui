@@ -50,6 +50,9 @@ underneath.</p>
 │╰─────────────────────────────────────────────────────────────────────────────────────╯│
 ╰ ↑↓ · v hide log · f filter · ⏎ log · u reuse · s rerun · x kill · X kill+rerun · esc ─╯</code></pre></div>
 
+<p><a href="demo/#jobs">Open this in your browser</a> — the demo runs the real job browser
+against canned <code>squeue</code> and <code>sacct</code> output.</p>
+
 <p>Anything that looks like an error is picked out in red. The log file is found by asking
 <code>scontrol</code> while the controller still knows the job, and otherwise by looking for a file
 ending in <code>-&lt;job id&gt;</code> under the job's working directory — so jobs submitted outside

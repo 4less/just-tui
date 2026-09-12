@@ -1,7 +1,6 @@
 //! Talking to the `just` binary.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use anyhow::{Context, Result, anyhow};
 
@@ -23,8 +22,11 @@ pub struct Loaded {
     pub global: bool,
 }
 
-/// Run `just --dump --dump-format json` and parse the result.
-pub fn load(dir: &Path, explicit_file: Option<&Path>) -> Result<Loaded> {
+/// Ask `just` to describe a justfile as JSON.
+#[cfg(not(target_arch = "wasm32"))]
+fn dump(dir: &Path, explicit_file: Option<&Path>) -> Result<String> {
+    use std::process::Command;
+
     let mut cmd = Command::new("just");
     cmd.current_dir(dir);
     if let Some(file) = explicit_file {
@@ -45,9 +47,20 @@ pub fn load(dir: &Path, explicit_file: Option<&Path>) -> Result<Loaded> {
             message.to_owned()
         }));
     }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
 
+/// The demo carries one justfile, already dumped.
+#[cfg(target_arch = "wasm32")]
+fn dump(_dir: &Path, _explicit_file: Option<&Path>) -> Result<String> {
+    Ok(crate::world::demo::DUMP.to_owned())
+}
+
+/// Run `just --dump --dump-format json` and parse the result.
+pub fn load(dir: &Path, explicit_file: Option<&Path>) -> Result<Loaded> {
+    let dump = dump(dir, explicit_file)?;
     let justfile: Justfile =
-        serde_json::from_slice(&output.stdout).context("could not parse `just --dump` output")?;
+        serde_json::from_str(&dump).context("could not parse `just --dump` output")?;
 
     let path = justfile.source.as_ref().map(PathBuf::from);
     let working_dir = path

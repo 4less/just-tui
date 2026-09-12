@@ -1,7 +1,6 @@
 //! Looking at jobs that were already submitted: what the queue says about
 //! them, what the accounting database remembers, and the logs they left.
 
-use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use std::collections::HashMap;
@@ -171,7 +170,7 @@ pub struct JobList {
 /// Ask `squeue` for what is queued and `sacct` for what has finished within
 /// the last `days`. Never fails: a machine without Slurm reports a note.
 pub fn fetch(days: u32) -> JobList {
-    let user = std::env::var("USER").unwrap_or_default();
+    let user = crate::world::user();
 
     let queued = match user.is_empty() {
         true => capture("squeue", &["--me", "--noheader", SQUEUE_FORMAT]),
@@ -312,7 +311,7 @@ fn parse_sacct(line: &str) -> Option<Job> {
 /// Re-ask `squeue` alone. Finished jobs never change, so a refresh on a timer
 /// has no reason to wake `sacct` as well.
 pub fn refresh_queue() -> Option<Vec<Job>> {
-    let user = std::env::var("USER").unwrap_or_default();
+    let user = crate::world::user();
     let raw = match user.is_empty() {
         true => capture("squeue", &["--me", "--noheader", SQUEUE_FORMAT])?,
         false => capture("squeue", &["-u", &user, "--noheader", SQUEUE_FORMAT])?,
@@ -485,8 +484,8 @@ fn from_scontrol(id: &str) -> Option<Logs> {
         }
     }
     // A job that has not started has paths but no files behind them.
-    logs.out = logs.out.filter(|p| p.exists());
-    logs.err = logs.err.filter(|p| p.exists());
+    logs.out = logs.out.filter(|p| crate::world::exists(p));
+    logs.err = logs.err.filter(|p| crate::world::exists(p));
     logs.found().then_some(logs)
 }
 
@@ -522,14 +521,10 @@ fn collect(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
     if depth == 0 || out.len() > 4096 {
         return;
     }
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        match entry.file_type() {
-            Ok(kind) if kind.is_dir() => collect(&path, depth - 1, out),
-            _ => out.push(path),
+    for (path, is_dir) in crate::world::read_dir(dir) {
+        match is_dir {
+            true => collect(&path, depth - 1, out),
+            false => out.push(path),
         }
     }
 }
@@ -541,19 +536,10 @@ fn collect(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
 /// The end of a log file, which is where a failure says why. Returns the lines
 /// and whether anything was cut off the front.
 pub fn tail(path: &Path, max_lines: usize) -> (Vec<String>, bool) {
-    let Ok(mut file) = std::fs::File::open(path) else {
-        return (vec![format!("could not open {}", path.display())], false);
-    };
-    let size = file.metadata().map(|m| m.len()).unwrap_or(0);
-    let from = size.saturating_sub(TAIL_BYTES);
-    let mut truncated = from > 0;
-    let _ = file.seek(SeekFrom::Start(from));
-
-    let mut buffer = Vec::new();
-    if file.read_to_end(&mut buffer).is_err() {
+    let Some((text, mut truncated)) = crate::world::tail_bytes(path, TAIL_BYTES) else {
         return (vec![format!("could not read {}", path.display())], false);
-    }
-    let text = String::from_utf8_lossy(&buffer);
+    };
+    let text = text.as_str();
     let mut lines: Vec<String> = text.lines().map(str::to_owned).collect();
     // A partial first line is noise, not content.
     if truncated && !lines.is_empty() {

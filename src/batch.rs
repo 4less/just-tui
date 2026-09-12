@@ -80,19 +80,19 @@ fn line_for(args: &str, value: &str) -> String {
 pub fn write(base: &Path, plan: &Plan) -> std::io::Result<()> {
     let path = base.join(&plan.manifest);
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
+        crate::world::create_dir_all(parent)?;
     }
     let mut text = String::new();
     for line in &plan.lines {
         text.push_str(line);
         text.push('\n');
     }
-    std::fs::write(path, text)
+    crate::world::write(&path, &text)
 }
 
 /// The arguments a given task of an array ran with, read back from a manifest.
 pub fn line(base: &Path, manifest: &str, task: usize) -> Option<String> {
-    let text = std::fs::read_to_string(base.join(manifest)).ok()?;
+    let text = crate::world::read(&base.join(manifest)).ok()?;
     text.lines().nth(task).map(str::to_owned)
 }
 
@@ -100,7 +100,7 @@ pub fn line(base: &Path, manifest: &str, task: usize) -> Option<String> {
 /// commented and kept under version control.
 fn from_file(base: &Path, file: &str) -> Result<Vec<String>, String> {
     let path = base.join(file);
-    let text = std::fs::read_to_string(&path)
+    let text = crate::world::read(&path)
         .map_err(|err| format!("could not read {}: {err}", path.display()))?;
     Ok(text
         .lines()
@@ -141,11 +141,10 @@ fn from_glob(base: &Path, pattern: &str) -> Result<Vec<String>, String> {
                     false => base.join(prefix),
                 },
             };
-            let Ok(entries) = std::fs::read_dir(&dir) else {
-                continue;
-            };
-            for entry in entries.flatten() {
-                let name = entry.file_name().to_string_lossy().into_owned();
+            for (entry, _) in crate::world::read_dir(&dir) {
+                let Some(name) = entry.file_name().map(|n| n.to_string_lossy().into_owned()) else {
+                    continue;
+                };
                 // A pattern never matches a dotfile unless it asks to.
                 if name.starts_with('.') && !part.starts_with('.') {
                     continue;
@@ -166,7 +165,7 @@ fn from_glob(base: &Path, pattern: &str) -> Result<Vec<String>, String> {
                 true => path.clone(),
                 false => base.join(path),
             };
-            full.exists()
+            crate::world::exists(&full)
         })
         .map(|path| path.display().to_string())
         .collect();

@@ -4,7 +4,9 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender, channel};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use crate::world::Instant;
 
 use crate::history::Record;
 use crate::slurm::{self, Job, JobList, Logs, Usage};
@@ -320,7 +322,7 @@ impl App {
         view.fetched = Instant::now();
 
         let (days, sender) = (view.days(), view.sender.clone());
-        std::thread::spawn(move || {
+        crate::world::spawn(move || {
             let _ = sender.send(Fetched::Listing(slurm::fetch_jobs(days)));
         });
     }
@@ -375,7 +377,7 @@ impl App {
         view.fetched = Instant::now();
 
         let sender = view.sender.clone();
-        std::thread::spawn(move || {
+        crate::world::spawn(move || {
             let _ = sender.send(Fetched::Queue(slurm::refresh_queue()));
         });
     }
@@ -389,7 +391,7 @@ impl App {
         if ids.is_empty() {
             return;
         }
-        std::thread::spawn(move || {
+        crate::world::spawn(move || {
             let _ = sender.send(Fetched::Usage(slurm::fetch_usage(&ids)));
         });
     }
@@ -455,7 +457,7 @@ impl App {
         view.frame = 0;
 
         let sender = view.sender.clone();
-        std::thread::spawn(move || {
+        crate::world::spawn(move || {
             let logs = slurm::find_logs(&job, &hints);
             // A job that wrote nothing to stderr is better read from stdout.
             let shown = match want.1 {

@@ -77,6 +77,22 @@ bump level="patch":
 version:
     @cargo run --quiet -- --version
 
+# Build the browser demo into docs/demo
+#
+# Needs the wasm target and trunk:
+#   rustup target add wasm32-unknown-unknown
+#   cargo install trunk
+[doc("Compile the interface to WebAssembly for the docs site")]
+demo-build:
+    trunk build --release
+
+# Serve the documentation site with the demo at its real path
+demo-serve port="8000":
+    @echo "http://localhost:{{port}}/just-tui/demo/"
+    rm -rf .demo-serve && mkdir -p .demo-serve/just-tui
+    cp -r docs/* .demo-serve/just-tui/
+    python3 -m http.server -d .demo-serve {{port}}
+
 # Regenerate the documentation site into docs/
 docs:
     cd docs && python3 _content.py

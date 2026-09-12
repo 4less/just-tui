@@ -1,7 +1,7 @@
 //! Key handling. Every mode gets its own handler; the normal-mode one
 //! returns the [`Action`]s the event loop carries out.
 
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crate::input::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::{Action, App, Mode, Pane};
 use crate::submit::SaveScope;

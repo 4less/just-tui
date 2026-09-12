@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>just-tui — browser demo</title>
+
+<script type="module">
+import init, * as bindings from '/just-tui/demo/just-tui-20e4a9ca393c1321.js';
+const wasm = await init({ module_or_path: '/just-tui/demo/just-tui-20e4a9ca393c1321_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --canvas: #0a1422; --fg: #dae3f7; --dim: #8d909d; --outline: #3a4150; --primary: #7aa2f7; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--canvas); color: var(--fg);
+    font: 400 14px/1.6 Inter, system-ui, sans-serif;
+    display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    padding: 0.6rem 1rem; border-bottom: 1px solid var(--outline);
+  }
+  header .brand { font-weight: 700; }
+  header .brand .just { background: var(--primary); color: #002e6b; padding: 0.15rem 0.35rem; border-radius: 4px; }
+  header .hint { color: var(--dim); font-size: 13px; }
+  header .spacer { flex: 1; }
+  header a { color: var(--primary); text-decoration: none; font-size: 13px; }
+  header a:hover { text-decoration: underline; }
+
+  /* Ratzilla appends its grid — a <pre> of <span> cells — to the body.
+     Ordering puts it between the header and the footer wherever it lands. */
+  header { order: 1; }
+  /* Only placement and type — sizing is the backend's business, and taking
+     it over collapses the grid to nothing. */
+  body > pre {
+    order: 2; margin: 0; padding: 0.75rem 1rem;
+    font-family: ui-monospace, "DejaVu Sans Mono", "Liberation Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+  }
+  footer { order: 3; }
+  footer { padding: 0.5rem 1rem; border-top: 1px solid var(--outline); color: var(--dim); font-size: 12px; }
+  kbd {
+    background: #2c3345; color: var(--primary); border: 1px solid var(--outline);
+    border-radius: 3px; padding: 0 0.3rem; font: 700 11px/1.6 ui-monospace, monospace;
+  }
+</style>
+<link rel="modulepreload" href="/just-tui/demo/just-tui-20e4a9ca393c1321.js" crossorigin="anonymous" integrity="sha384-B9Da4c56lrleISoxrp9+gssJcmKgJYu3OY0R/bKYZhztCkC7HVLwbtc0xcLWMF0A"><link rel="preload" href="/just-tui/demo/just-tui-20e4a9ca393c1321_bg.wasm" crossorigin="anonymous" integrity="sha384-iHw3XHU6UelSA/oIdh1KERSmjz7zEqrbblNqYQDxkGXqJex8CQbMW5WJ14+RdpIk" as="fetch" type="application/wasm"></head>
+<body>
+<header>
+  <span class="brand"><span class="just">just</span> tui</span>
+  <span class="hint">
+    <kbd>↑</kbd><kbd>↓</kbd> move · <kbd>→</kbd> open · <kbd>s</kbd> submit ·
+    <kbd>S</kbd> jobs · <kbd>/</kbd> search · <kbd>?</kbd> help
+  </span>
+  <span class="spacer"></span>
+  <a href="../">Documentation</a>
+  <a href="https://github.com/4less/just-tui">GitHub</a>
+</header>
+
+
+<footer>
+  The real interface, compiled to WebAssembly. The cluster is canned — no job is
+  ever submitted, killed, or read from a disk.
+</footer>
+</body>
+</html>
