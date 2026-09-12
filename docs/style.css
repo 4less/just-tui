@@ -30,6 +30,13 @@
   --coral: #f7768e;
 
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Terminal art must come out of ONE font or the columns do not line up.
+     Google Fonts serves JetBrains Mono in a latin subset that stops short of
+     the box-drawing block (U+2500-257F), so ╭ ─ │ fall back to whatever the
+     system offers while the letters beside them do not — and the frames skew.
+     These faces all carry box drawing at the same advance width. */
+  --term: ui-monospace, "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono",
+          Menlo, Consolas, "Courier New", monospace;
   --sans: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
 
   --r: 4px;
@@ -38,6 +45,13 @@
 }
 
 * { box-sizing: border-box; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--canvas); }
+::-webkit-scrollbar-thumb { background: var(--selection); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--outline); }
+pre::-webkit-scrollbar-track, .term pre::-webkit-scrollbar-track { background: #050e1d; }
+* { scrollbar-width: thin; scrollbar-color: var(--selection) transparent; }
 html { scroll-behavior: smooth; scroll-padding-top: 6rem; }
 
 body {
@@ -77,19 +91,6 @@ code, kbd, pre, .mono { font-family: var(--mono); }
 .topnav a[aria-current] { color: var(--primary); border-bottom: 2px solid var(--primary); }
 
 .topbar .spacer { flex: 1; }
-
-.searchbox {
-  display: flex; align-items: center; gap: 0.5rem;
-  min-width: 230px; padding: 0.35rem 0.6rem;
-  background: var(--surface-high);
-  border: 1px solid var(--outline); border-radius: var(--r);
-  color: var(--fg-faint); font-size: 13px;
-}
-.searchbox .k {
-  margin-left: auto; padding: 0 0.3rem;
-  border: 1px solid var(--outline); border-radius: 3px;
-  font: 500 11px/1.5 var(--mono); color: var(--fg-dim);
-}
 
 .btn {
   display: inline-flex; align-items: center; gap: 0.4rem;
@@ -198,7 +199,8 @@ main > .term, main > table, main > pre { max-width: 640px; }
 main { min-width: 0; }
 
 .badge {
-  display: inline-flex; align-items: center; gap: 0.45rem;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+  text-align: center;
   padding: 0.3rem 0.7rem; margin-bottom: 1.1rem;
   background: var(--primary-soft); border: 1px solid rgba(122, 162, 247, 0.3);
   border-radius: 999px;
@@ -332,6 +334,11 @@ td:first-child { white-space: nowrap; }
 }
 .term .dot { width: 9px; height: 9px; border-radius: 50%; }
 .term .chrome .right { margin-left: auto; color: var(--fg-faint); font-size: 11.5px; }
+.term pre, .term code {
+  font-family: var(--term);
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
+}
 .term pre { border: 0; margin: 0; border-radius: 0; background: transparent; font-size: 11.5px; line-height: 1.5; }
 
 .pager { display: flex; gap: 1rem; margin-top: 3.5rem; }
@@ -358,12 +365,122 @@ footer .inner {
 footer a { color: var(--fg-dim); }
 footer .links { display: flex; gap: 1.1rem; flex-wrap: wrap; }
 
+.sidebar-label { display: none; }
+
+/* ------------------------------------------------- contents, while reading */
+
+/* On a wide screen the sidebar is sticky and always in view. Once it drops
+   below the article this takes over: a button that stays put, opening the
+   same contents without scrolling back to the top. No script — a <details>
+   does it. */
+.quicknav { display: none; }
+
+@media (max-width: 860px) {
+  .quicknav {
+    display: block; position: fixed; z-index: 40;
+    right: 0.9rem; bottom: 0.9rem;
+  }
+  .quicknav summary {
+    list-style: none; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    padding: 0.6rem 0.95rem;
+    background: var(--primary); color: #002e6b;
+    border-radius: 999px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    font: 700 13px/1 var(--sans);
+  }
+  .quicknav summary::-webkit-details-marker { display: none; }
+  .quicknav summary .bars { font-size: 15px; line-height: 1; }
+  .quicknav[open] summary { background: var(--surface-highest); color: var(--fg); }
+
+  .quicknav nav {
+    position: absolute; right: 0; bottom: 3.2rem;
+    width: min(78vw, 290px); max-height: 62vh; overflow-y: auto;
+    padding: 0.4rem 0.9rem 0.9rem;
+    background: var(--surface); border: 1px solid var(--outline);
+    border-radius: var(--r-lg); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  }
+  .quicknav nav h2 {
+    display: flex; align-items: center; gap: 0.35rem;
+    font: 600 10.5px/1.4 var(--sans); letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--fg-faint); margin: 1rem 0 0.4rem; padding: 0; border: 0;
+  }
+  .quicknav nav h2::before { content: "⌐"; font-family: var(--mono); color: var(--outline); }
+  .quicknav nav ul { list-style: none; margin: 0; padding-left: 0.45rem; border-left: 1px solid var(--outline-soft); }
+  .quicknav nav a { display: block; padding: 0.3rem 0.55rem; color: var(--fg-dim); font-size: 13.5px; border-radius: var(--r-sm); }
+  .quicknav nav a[aria-current] { color: var(--fg); background: var(--selection); font-weight: 600; box-shadow: inset 2px 0 0 var(--primary); }
+}
+
+/* ================================================================ narrow == */
+
 @media (max-width: 1180px) {
-  .shell { grid-template-columns: 220px minmax(0, 1fr); }
+  .shell { grid-template-columns: 208px minmax(0, 1fr); gap: 1.75rem; }
   .rail { display: none; }
 }
+
+/* Below this the three columns cannot all earn their space. The page becomes
+   one column: content first, then the full contents list under it, with the
+   top bar carrying the section links so navigation is still one tap away. */
 @media (max-width: 860px) {
-  .shell { grid-template-columns: 1fr; }
-  .sidebar { position: static; max-height: none; }
-  .topnav, .searchbox { display: none; }
+  /* The bar has to wrap, or the links run off the right-hand edge. */
+  .topbar { flex-wrap: wrap; gap: 0.6rem 0.75rem; padding: 0.55rem 0.9rem; }
+  .topbar .spacer { flex: 1; }
+  .btn.install { display: none; }
+  .topnav {
+    order: 3; width: 100%; margin-top: 0.1rem;
+    gap: 0.9rem; overflow-x: auto; padding-bottom: 0.15rem;
+    scrollbar-width: none;
+  }
+  .topnav::-webkit-scrollbar { display: none; }
+  .topnav a { white-space: nowrap; }
+
+  .crumbbar { padding: 0.45rem 0.9rem; }
+
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2rem; padding: 1rem 0.9rem 3rem;
+  }
+  main { order: 1; }
+  main > * { max-width: none; }
+  .sidebar {
+    order: 2; position: static; max-height: none;
+    border-top: 1px solid var(--outline-soft); padding-top: 1.25rem;
+  }
+  .sidebar-label {
+    display: block; margin: 0 0 0.25rem;
+    font: 700 15px/1.4 var(--sans); color: var(--fg);
+  }
+  /* Two columns of links: the full contents is long on a phone. */
+  .sidebar nav, .sidebar > h2 { break-inside: avoid; }
+
+  .hero { padding: 3rem 0.9rem 2.5rem; }
+  .hero p { font-size: 15.5px; }
+  .wrap { padding: 0 0.9rem; }
+  .section { padding: 2.25rem 0; }
+
+  .pager { flex-direction: column; }
+  .pager .next { text-align: left; }
+
+  footer .inner { flex-direction: column; gap: 0.6rem; }
+}
+
+/* A table of keys is wider than a phone; let it scroll rather than squeeze. */
+@media (max-width: 700px) {
+  main table { display: block; overflow-x: auto; white-space: nowrap; }
+  main table td, main table th { white-space: nowrap; }
+  .term pre, pre { font-size: 11px; }
+}
+
+@media (max-width: 480px) {
+  /* Wrapped onto two lines the leading dot no longer reads as a marker. */
+  .badge { font-size: 10px; letter-spacing: 0.07em; }
+  .badge::before { content: none; }
+}
+
+@media (max-width: 420px) {
+  body { font-size: 14px; }
+  h1 { font-size: 23px; }
+  h2 { font-size: 16px; }
+  .cards { grid-template-columns: 1fr; }
+  .hero .actions { flex-direction: column; align-items: stretch; }
+  .hero .actions .btn { justify-content: center; }
 }

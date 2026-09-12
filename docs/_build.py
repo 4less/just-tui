@@ -79,8 +79,7 @@ def head(title, desc, page):
   <a class="brand" href="index.html"><span class="just">just</span><span class="tui">tui</span></a>
   <nav class="topnav">{top}</nav>
   <span class="spacer"></span>
-  <span class="searchbox">search<span class="k">Ctrl K</span></span>
-  <a class="btn" href="docs.html#install">cargo install --path .</a>
+  <a class="btn install" href="docs.html#install">cargo install --path .</a>
   <a class="btn" href="{REPO}">★ Star on GitHub</a>
 </header>
 """
@@ -130,7 +129,7 @@ def doc_page(page, title, crumbs, badge, body, prev, nxt):
 </div>
 
 <div class="shell">
-  <aside class="sidebar">{"".join(nav)}</aside>
+  <aside class="sidebar"><p class="sidebar-label">All pages</p>{"".join(nav)}</aside>
   <main>
     <p class="badge">{badge}</p>
     {body}
@@ -145,6 +144,11 @@ def doc_page(page, title, crumbs, badge, body, prev, nxt):
     </ul></div>
   </aside>
 </div>
+
+<details class="quicknav">
+  <summary><span class="bars">☰</span> Contents</summary>
+  <nav>{"".join(nav)}</nav>
+</details>
 {foot()}"""
 
 
