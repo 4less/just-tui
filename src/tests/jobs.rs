@@ -190,3 +190,22 @@ fn usage_is_measured_against_what_was_allocated() {
     let pending = list.jobs.iter().find(|job| job.id == "4211").unwrap();
     assert_eq!(usage.cpu_percent(pending), None, "no elapsed time yet");
 }
+
+#[test]
+fn htslib_style_failures_are_picked_out_too() {
+    // How minibwa, samtools and the rest report trouble.
+    assert!(slurm::is_error_line(
+        "[E::main_map] failed to load the index. ABORT!"
+    ));
+    assert!(slurm::is_error_line(
+        "ERROR: failed to open file 'data/reads.fq': No such file or directory"
+    ));
+
+    // But a clean `flagstat` run says "QC-failed" on every line of its table.
+    assert!(!slurm::is_error_line(
+        "4000 + 0 in total (QC-passed reads + QC-failed reads)"
+    ));
+    assert!(!slurm::is_error_line(
+        "[M::worker_pipeline::0.034*2.43] mapped 600000 bp in 4000 sequences"
+    ));
+}

@@ -1,3 +1,3 @@
-418823|align-reads-sr|RUNNING|compute|2026-09-12T09:02:11|2026-09-12T09:02:40|00:04:12|node07|/home/you/phix|8|16G
+418823|align-reads|RUNNING|compute|2026-09-12T09:02:11|2026-09-12T09:02:40|00:04:12|node07|/home/you/phix|8|16G
 418826|align-sort|PENDING|compute|2026-09-12T09:06:02|N/A|0:00|(Dependency)|/home/you/phix|4|8G
 418827|align-depth|PENDING|compute|2026-09-12T09:06:05|N/A|0:00|(Dependency)|/home/you/phix|2|4G

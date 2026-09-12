@@ -562,7 +562,7 @@ pub fn tail(path: &Path, max_lines: usize) -> (Vec<String>, bool) {
 
 /// Whether a log line looks like the thing the reader is hunting for.
 pub fn is_error_line(line: &str) -> bool {
-    const MARKERS: [&str; 10] = [
+    const MARKERS: [&str; 13] = [
         "error",
         "fatal",
         "traceback",
@@ -570,9 +570,14 @@ pub fn is_error_line(line: &str) -> bool {
         "panicked",
         "segmentation fault",
         "command not found",
+        "no such file",
         "oom-kill",
         "cancelled due to",
         "exceeded memory",
+        // How the htslib family says it: `[E::main] …` and `ABORT!`. Not
+        // "failed", which `samtools flagstat` prints on a perfectly good run.
+        "abort",
+        "[e::",
     ];
     let lower = line.to_ascii_lowercase();
     MARKERS.iter().any(|marker| lower.contains(marker))

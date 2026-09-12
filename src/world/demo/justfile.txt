@@ -30,7 +30,7 @@ simulate-reads n="4000" length="150":
 # Check the tools this pipeline shells out to are present
 [private]
 _check-tools:
-    @for t in curl minimap2 samtools; do command -v $t >/dev/null || echo "missing $t"; done
+    @for t in curl minibwa samtools; do command -v $t >/dev/null || echo "missing $t"; done
 
 alias reads := simulate-reads
 

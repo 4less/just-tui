@@ -1,0 +1,3 @@
+[M::main] Version: 0.7-r424-dirty
+[M::main] CMD: ../minibwa-master/minibwa index data/phix.fa
+[M::main] Real time: 0.001 sec; CPU: 0.003 sec; Peak RSS: 0.011 GB

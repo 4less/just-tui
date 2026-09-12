@@ -3,16 +3,21 @@ results := "results"
 
 # Aligning the reads and counting what mapped
 
+# Index the reference so the aligner can load it
+[group('2. align')]
+index:
+    minibwa index {{data}}/phix.fa
+
 # Align the reads to the reference and count what mapped
 #
-# minimap2 writes its progress to stderr and the alignments to a file, so the
-# job's .err holds the mapping log and its .out holds the flagstat table.
+# minibwa writes its progress to stderr and the alignments to stdout, so the
+# SAM goes to a file and the job's .err holds the mapping log — while the
+# flagstat table that follows lands in its .out.
 [doc("Align the reads to the reference, then count what mapped")]
 [group('2. align')]
-reads preset="sr" threads="8":
+reads threads="8":
     mkdir -p {{results}}
-    minimap2 -ax {{preset}} -t {{threads}} -o {{results}}/aln.sam \
-      {{data}}/phix.fa {{data}}/reads.fq
+    minibwa map -t {{threads}} {{data}}/phix.fa {{data}}/reads.fq > {{results}}/aln.sam
     samtools flagstat {{results}}/aln.sam
 
 # Sort and index the alignments

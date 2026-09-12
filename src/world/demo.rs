@@ -32,13 +32,14 @@ const SINFO: &str = include_str!("demo/sinfo.txt");
 const QOS: &str = include_str!("demo/qos.txt");
 const ACCOUNTS: &str = include_str!("demo/accounts.txt");
 
-/// Real output, captured by running this pipeline: minimap2 writes its
+/// Real output, captured by running this pipeline: minibwa writes its
 /// progress to stderr while samtools writes the flagstat table to stdout, so
 /// the two logs of one job genuinely differ.
 const ALIGN_ERR: &str = include_str!("demo/align.err");
 const ALIGN_OUT: &str = include_str!("demo/align.out");
-/// The same alignment against reads that had not been simulated yet.
+/// The same alignment before the reference had been indexed.
 const FAILED_ERR: &str = include_str!("demo/failed.err");
+const INDEX_ERR: &str = include_str!("demo/index.err");
 /// curl's transfer table, and what the recipe echoed after it.
 const FETCH_ERR: &str = include_str!("demo/fetch.err");
 const FETCH_OUT: &str = include_str!("demo/fetch.out");
@@ -92,6 +93,10 @@ pub fn read(path: &Path) -> Result<String> {
             true => FETCH_ERR,
             false => FETCH_OUT,
         },
+        _ if name.contains("418816") => match err {
+            true => INDEX_ERR,
+            false => "",
+        },
         // Every other alignment, running or finished.
         _ if name.contains("418823") || name.contains("418799") => match err {
             true => ALIGN_ERR,
@@ -109,12 +114,13 @@ pub fn read_dir(path: &Path) -> Vec<(PathBuf, bool)> {
 
     if under("logs/align") {
         return [
-            "reads-sr-418823.out",
-            "reads-sr-418823.err",
-            "reads-sr-418820.out",
-            "reads-sr-418820.err",
-            "reads-map-ont-418799.out",
-            "reads-map-ont-418799.err",
+            "reads-418823.out",
+            "reads-418823.err",
+            "reads-418820.out",
+            "reads-418820.err",
+            "reads-418799.out",
+            "reads-418799.err",
+            "index-418816.err",
         ]
         .iter()
         .map(|file| (path.join(file), false))

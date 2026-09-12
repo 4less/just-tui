@@ -25,17 +25,17 @@ fn the_justfile_is_a_real_dump_of_the_file_shown_beside_it() {
     // And the source pane has the text those recipes were dumped from.
     let justfile = read("justfile");
     assert!(justfile.contains("fetch-reference:"));
-    assert!(read("align/align.just").contains("minimap2 -ax"));
+    assert!(read("align/align.just").contains("minibwa map"));
 }
 
 #[test]
 fn a_job_s_two_logs_are_not_the_same_log() {
     // minimap2 writes its progress to stderr; samtools writes the flagstat
     // table to stdout. Both were captured by running the pipeline.
-    let err = read("logs/align/reads-sr-418823.err");
-    let out = read("logs/align/reads-sr-418823.out");
+    let err = read("logs/align/reads-418823.err");
+    let out = read("logs/align/reads-418823.out");
 
-    assert!(err.contains("[M::worker_pipeline"), "the mapping log");
+    assert!(err.contains("[M::worker_pipeline"), "minibwa's mapping log");
     assert!(
         out.contains("in total (QC-passed reads"),
         "the flagstat table"
@@ -53,8 +53,11 @@ fn a_job_s_two_logs_are_not_the_same_log() {
 
 #[test]
 fn the_failed_job_says_why_it_failed() {
-    let err = read("logs/align/reads-sr-418820.err");
-    assert!(err.contains("failed to open file"), "minimap2's own words");
+    let err = read("logs/align/reads-418820.err");
+    assert!(
+        err.contains("failed to load the index"),
+        "minibwa's own words"
+    );
     assert!(
         err.lines().any(slurm::is_error_line),
         "and the browser picks the line out"

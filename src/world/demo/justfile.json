@@ -40,7 +40,7 @@
      "value": "results"
     }
    },
-   "first": "reads",
+   "first": "index",
    "doc": null,
    "groups": [],
    "modules": {},
@@ -80,6 +80,34 @@
      "quiet": false,
      "shebang": false
     },
+    "index": {
+     "attributes": [
+      {
+       "group": "2. align"
+      }
+     ],
+     "body": [
+      [
+       "minibwa index ",
+       [
+        [
+         "variable",
+         "data"
+        ]
+       ],
+       "/phix.fa"
+      ]
+     ],
+     "dependencies": [],
+     "doc": "Index the reference so the aligner can load it",
+     "name": "index",
+     "namepath": "align::index",
+     "parameters": [],
+     "priors": 0,
+     "private": false,
+     "quiet": false,
+     "shebang": false
+    },
     "reads": {
      "attributes": [
       {
@@ -100,31 +128,14 @@
        ]
       ],
       [
-       "minimap2 -ax ",
-       [
-        [
-         "variable",
-         "preset"
-        ]
-       ],
-       " -t ",
+       "minibwa map -t ",
        [
         [
          "variable",
          "threads"
         ]
        ],
-       " -o ",
-       [
-        [
-         "variable",
-         "results"
-        ]
-       ],
-       "/aln.sam \\"
-      ],
-      [
-       "  ",
+       " ",
        [
         [
          "variable",
@@ -138,7 +149,14 @@
          "data"
         ]
        ],
-       "/reads.fq"
+       "/reads.fq > ",
+       [
+        [
+         "variable",
+         "results"
+        ]
+       ],
+       "/aln.sam"
       ],
       [
        "samtools flagstat ",
@@ -156,12 +174,6 @@
      "name": "reads",
      "namepath": "align::reads",
      "parameters": [
-      {
-       "default": "sr",
-       "export": false,
-       "kind": "singular",
-       "name": "preset"
-      },
       {
        "default": "8",
        "export": false,
@@ -253,7 +265,7 @@
    ],
    "body": [
     [
-     "@for t in curl minimap2 samtools; do command -v $t >/dev/null || echo \"missing $t\"; done"
+     "@for t in curl minibwa samtools; do command -v $t >/dev/null || echo \"missing $t\"; done"
     ]
    ],
    "dependencies": [],

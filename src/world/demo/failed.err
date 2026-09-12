@@ -1,8 +1,1 @@
-[M::mm_idx_gen::0.002*2.13] collected minimizers
-[M::mm_idx_gen::0.003*2.07] sorted minimizers
-[M::main::0.003*2.06] loaded/built the index for 1 target sequence(s)
-[M::mm_mapopt_update::0.003*2.06] mid_occ = 1000
-[M::mm_idx_stat] kmer size: 21; skip: 11; is_hpc: 0; #seq: 1
-[M::mm_idx_stat::0.003*2.03] distinct minimizers: 900 (100.00% are singletons); average occurrences: 1.000; average spacing: 5.984; total length: 5386
-ERROR: failed to open file 'data/missing.fq': No such file or directory
-ERROR: failed to map the query file
+[E::main_map] failed to load the index. ABORT!
