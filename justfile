@@ -86,8 +86,10 @@ version:
 demo-build:
     trunk build --release
 
-# Serve the documentation site with the demo at its real path
-demo-serve port="8000":
+# Depends on the build, because serving a stale bundle looks exactly like a
+# change that did not work.
+[doc("Serve the documentation site with the demo at its real path")]
+demo-serve port="8000": demo-build
     @echo "http://localhost:{{port}}/just-tui/demo/"
     rm -rf .demo-serve && mkdir -p .demo-serve/just-tui
     cp -r docs/* .demo-serve/just-tui/
