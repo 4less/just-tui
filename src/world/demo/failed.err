@@ -1,6 +1,8 @@
-+ rg-msa msa --arm nonfocal_tgt --out results/rgmsa/nonfocal_tgt
-reading 1 reference map from refs/nonfocal.mmi
-thread 'main' panicked at src/msa/build.rs:212:31:
-called `Result::unwrap()` on an `Err` value: Io(Os { code: 2, kind: NotFound, message: "No such file or directory" })
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
-error: Recipe `s01_msa` failed on line 9 with exit code 1
+[M::mm_idx_gen::0.002*2.13] collected minimizers
+[M::mm_idx_gen::0.003*2.07] sorted minimizers
+[M::main::0.003*2.06] loaded/built the index for 1 target sequence(s)
+[M::mm_mapopt_update::0.003*2.06] mid_occ = 1000
+[M::mm_idx_stat] kmer size: 21; skip: 11; is_hpc: 0; #seq: 1
+[M::mm_idx_stat::0.003*2.03] distinct minimizers: 900 (100.00% are singletons); average occurrences: 1.000; average spacing: 5.984; total length: 5386
+ERROR: failed to open file 'data/missing.fq': No such file or directory
+ERROR: failed to map the query file

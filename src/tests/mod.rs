@@ -3,6 +3,7 @@
 mod app;
 mod batch;
 mod cluster;
+mod demo;
 mod highlight;
 mod jobs;
 mod justfile;

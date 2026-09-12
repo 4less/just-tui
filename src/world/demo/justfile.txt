@@ -1,30 +1,37 @@
-# rg-msa — a small benchmark pipeline
+# phix — align a small read set to a reference
+#
+# A four-step pipeline over the phiX174 genome, the usual sequencing control:
+# fetch it, simulate reads from it, align them back, and count what mapped.
 #
 # Run `just` with no arguments to see every recipe.
 
 set dotenv-load := false
 
+data    := "data"
 results := "results"
 
 # Show every recipe in this justfile
 default:
     @just --list --unsorted
 
-# Build the index every later step reads
-[group('1. setup')]
-align-index ref="refs/all.fna":
-    minimap2 -d {{results}}/index.mmi {{ref}}
+# Download the phiX174 reference from NCBI
+[group('1. data')]
+fetch-reference:
+    mkdir -p {{data}}
+    curl -L -o {{data}}/phix.fa \
+      "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_001422.1&rettype=fasta&retmode=text"
+    echo "reference: $(grep -c '^>' {{data}}/phix.fa) sequence, $(grep -v '^>' {{data}}/phix.fa | tr -d '\n' | wc -c) bp"
 
-# Fetch the simulated read sets
-[group('1. setup')]
-fetch-reads:
-    aws s3 sync s3://rg-msa/sim data/sim
+# Simulate a read set from the reference
+[group('1. data')]
+simulate-reads n="4000" length="150":
+    scripts/simulate.py {{data}}/phix.fa {{n}} {{length}} > {{data}}/reads.fq
 
-# Check every tool this pipeline shells out to is present
+# Check the tools this pipeline shells out to are present
 [private]
 _check-tools:
-    @for t in minimap2 mafft iqtree2; do command -v $t >/dev/null || echo "missing $t"; done
+    @for t in curl minimap2 samtools; do command -v $t >/dev/null || echo "missing $t"; done
 
-alias idx := align-index
+alias reads := simulate-reads
 
-mod run
+mod align

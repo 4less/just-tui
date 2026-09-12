@@ -336,6 +336,11 @@ pub fn fetch_usage(ids: &[String]) -> HashMap<String, Usage> {
     ) else {
         return HashMap::new();
     };
+    parse_usage_lines(&raw)
+}
+
+/// The parsing half, so what `sstat` said can be checked without asking it.
+pub fn parse_usage_lines(raw: &str) -> HashMap<String, Usage> {
     raw.lines().filter_map(parse_usage).collect()
 }
 

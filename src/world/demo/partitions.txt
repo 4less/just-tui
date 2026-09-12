@@ -1,3 +1,2 @@
-PartitionName=qib-compute Default=YES State=UP MaxTime=UNLIMITED DefaultTime=90-00:00:00 MaxMemPerNode=UNLIMITED MaxCPUsPerNode=2208 TotalNodes=14 AllowQos=ALL AllowAccounts=ALL
-PartitionName=qib-short State=UP MaxTime=02:00:00 DefaultTime=00:30:00 MaxMemPerNode=257000 MaxCPUsPerNode=64 TotalNodes=6 AllowQos=ALL AllowAccounts=ALL
-PartitionName=qib-gpu State=UP MaxTime=7-00:00:00 DefaultTime=04:00:00 MaxMemPerNode=515000 MaxCPUsPerNode=96 TotalNodes=2 AllowQos=ALL AllowAccounts=ALL
+PartitionName=compute Default=YES State=UP MaxTime=7-00:00:00 DefaultTime=04:00:00 MaxMemPerNode=257000 MaxCPUsPerNode=64 TotalNodes=8 AllowQos=ALL AllowAccounts=ALL
+PartitionName=short State=UP MaxTime=02:00:00 DefaultTime=00:30:00 MaxMemPerNode=64000 MaxCPUsPerNode=16 TotalNodes=4 AllowQos=ALL AllowAccounts=ALL

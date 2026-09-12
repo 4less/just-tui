@@ -481,8 +481,14 @@ generated that way.
 
 `docs/demo/` is this application compiled to WebAssembly — the same tree, submit form and job
 browser, with the cluster canned. Everything that would reach the operating system goes
-through `src/world.rs`, which answers from `src/world/demo/` under `wasm32`: `squeue` and
-`sacct` output, a justfile, two logs. `ratzilla` draws the interface into the page.
+through `src/world.rs`, which answers from `src/world/demo/` under `wasm32`.
+
+The fixtures are not invented. The demo's justfile aligns simulated reads to the phiX174
+genome, and its logs were captured by running that pipeline: `curl`'s transfer table, minimap2's
+mapping progress, `samtools flagstat`'s table, and minimap2's own error when the reads were not
+there yet. A job's `.out` and `.err` are genuinely different files, because minimap2 and
+samtools genuinely write to different streams. `src/tests/demo.rs` checks all of that without a
+browser.
 
 ```sh
 rustup target add wasm32-unknown-unknown && cargo install trunk

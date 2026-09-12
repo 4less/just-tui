@@ -1,12 +1,18 @@
 {
  "aliases": {
-  "idx": {
+  "reads": {
    "attributes": [],
-   "name": "idx",
-   "target": "align-index"
+   "name": "reads",
+   "target": "simulate-reads"
   }
  },
  "assignments": {
+  "data": {
+   "export": false,
+   "name": "data",
+   "private": false,
+   "value": "data"
+  },
   "results": {
    "export": false,
    "name": "results",
@@ -18,189 +24,143 @@
  "doc": null,
  "groups": [],
  "modules": {
-  "run": {
+  "align": {
    "aliases": {},
    "assignments": {
+    "data": {
+     "export": false,
+     "name": "data",
+     "private": false,
+     "value": "data"
+    },
     "results": {
      "export": false,
      "name": "results",
      "private": false,
      "value": "results"
-    },
-    "rgmsa": {
-     "export": false,
-     "name": "rgmsa",
-     "private": false,
-     "value": "../rg-msa/target/release/rg-msa"
     }
    },
-   "first": "s01_msa",
+   "first": "reads",
    "doc": null,
    "groups": [],
    "modules": {},
    "recipes": {
-    "collect": {
+    "depth": {
      "attributes": [
       {
-       "group": "4. report"
+       "group": "3. report"
       }
      ],
      "body": [
       [
-       "rg-msa collect ",
+       "samtools depth -a ",
        [
         [
          "variable",
          "results"
         ]
        ],
-       "/rgmsa -o ",
+       "/aln.bam > ",
        [
         [
          "variable",
          "results"
         ]
        ],
-       "/metrics.tsv"
+       "/depth.tsv"
       ]
      ],
      "dependencies": [],
-     "doc": "Collect the per-arm metrics into one table",
-     "name": "collect",
-     "namepath": "run::collect",
+     "doc": "Depth across the genome, one line per position",
+     "name": "depth",
+     "namepath": "align::depth",
      "parameters": [],
      "priors": 0,
      "private": false,
      "quiet": false,
      "shebang": false
     },
-    "s01_msa": {
+    "reads": {
      "attributes": [
       {
-       "doc": "rg-msa over one arm's reads \u2014 the variable-sites MSA"
+       "doc": "Align the reads to the reference, then count what mapped"
       },
       {
-       "group": "2. rg-msa"
+       "group": "2. align"
       }
      ],
      "body": [
       [
-       "@set -eu; \\"
-      ],
-      [
-       "test -x \"",
-       [
-        [
-         "variable",
-         "rgmsa"
-        ]
-       ],
-       "\" || { echo \"build it first (cd ../rg-msa && cargo build --release)\"; exit 1; }"
-      ],
-      [
-       "printf '%s: msa --gene-selection %s\\n' \"",
-       [
-        [
-         "variable",
-         "arm"
-        ]
-       ],
-       "\" \"$sel\""
-      ],
-      [
-       "rg-msa msa --arm ",
-       [
-        [
-         "variable",
-         "arm"
-        ]
-       ],
-       " --out ",
+       "mkdir -p ",
        [
         [
          "variable",
          "results"
         ]
-       ],
-       "/rgmsa/",
-       [
-        [
-         "variable",
-         "arm"
-        ]
        ]
-      ]
-     ],
-     "dependencies": [],
-     "doc": "rg-msa over one arm's reads \u2014 the variable-sites MSA",
-     "name": "s01_msa",
-     "namepath": "run::s01_msa",
-     "parameters": [
-      {
-       "default": null,
-       "export": false,
-       "kind": "singular",
-       "name": "arm"
-      },
-      {
-       "default": "",
-       "export": false,
-       "kind": "singular",
-       "name": "force"
-      }
-     ],
-     "priors": 0,
-     "private": false,
-     "quiet": false,
-     "shebang": false
-    },
-    "s01_tree": {
-     "attributes": [
-      {
-       "group": "3. trees"
-      }
-     ],
-     "body": [
+      ],
       [
-       "iqtree2 -s ",
+       "minimap2 -ax ",
        [
         [
          "variable",
-         "msa"
+         "preset"
         ]
        ],
-       " -T ",
+       " -t ",
        [
         [
          "variable",
          "threads"
         ]
        ],
-       " --prefix ",
+       " -o ",
        [
         [
          "variable",
-         "out"
+         "results"
         ]
-       ]
+       ],
+       "/aln.sam \\"
+      ],
+      [
+       "  ",
+       [
+        [
+         "variable",
+         "data"
+        ]
+       ],
+       "/phix.fa ",
+       [
+        [
+         "variable",
+         "data"
+        ]
+       ],
+       "/reads.fq"
+      ],
+      [
+       "samtools flagstat ",
+       [
+        [
+         "variable",
+         "results"
+        ]
+       ],
+       "/aln.sam"
       ]
      ],
      "dependencies": [],
-     "doc": "Build the gene tree for one arm",
-     "name": "s01_tree",
-     "namepath": "run::s01_tree",
+     "doc": "Align the reads to the reference, then count what mapped",
+     "name": "reads",
+     "namepath": "align::reads",
      "parameters": [
       {
-       "default": null,
+       "default": "sr",
        "export": false,
        "kind": "singular",
-       "name": "msa"
-      },
-      {
-       "default": "",
-       "export": false,
-       "kind": "singular",
-       "name": "out"
+       "name": "preset"
       },
       {
        "default": "8",
@@ -214,59 +174,46 @@
      "quiet": false,
      "shebang": false
     },
-    "s02_refilter": {
+    "sort": {
      "attributes": [
       {
-       "doc": "rg-msa refilter -- the variable-sites MSA for one arm"
-      },
-      {
-       "group": "2. rg-msa"
+       "group": "2. align"
       }
      ],
      "body": [
       [
-       "rg-msa refilter --arm ",
-       [
-        [
-         "variable",
-         "arm"
-        ]
-       ],
-       " --out ",
+       "samtools sort -o ",
        [
         [
          "variable",
          "results"
         ]
        ],
-       "/rgmsa/",
+       "/aln.bam ",
        [
         [
          "variable",
-         "arm"
+         "results"
         ]
        ],
-       "_filt"
+       "/aln.sam"
+      ],
+      [
+       "samtools index ",
+       [
+        [
+         "variable",
+         "results"
+        ]
+       ],
+       "/aln.bam"
       ]
      ],
      "dependencies": [],
-     "doc": "rg-msa refilter -- the variable-sites MSA for one arm",
-     "name": "s02_refilter",
-     "namepath": "run::s02_refilter",
-     "parameters": [
-      {
-       "default": null,
-       "export": false,
-       "kind": "singular",
-       "name": "arm"
-      },
-      {
-       "default": "",
-       "export": false,
-       "kind": "singular",
-       "name": "force"
-      }
-     ],
+     "doc": "Sort and index the alignments",
+     "name": "sort",
+     "namepath": "align::sort",
+     "parameters": [],
      "priors": 0,
      "private": false,
      "quiet": false,
@@ -294,7 +241,7 @@
     "windows_shell": null,
     "working_directory": null
    },
-   "source": "/data/git/4less/rg-msa_benchmark/run/run.just",
+   "source": "/home/you/phix/align/align.just",
    "unexports": [],
    "warnings": []
   }
@@ -306,57 +253,16 @@
    ],
    "body": [
     [
-     "@for t in minimap2 mafft iqtree2; do command -v $t >/dev/null || echo \"missing $t\"; done"
+     "@for t in curl minimap2 samtools; do command -v $t >/dev/null || echo \"missing $t\"; done"
     ]
    ],
    "dependencies": [],
-   "doc": "Check every tool this pipeline shells out to is present",
+   "doc": "Check the tools this pipeline shells out to are present",
    "name": "_check-tools",
    "namepath": "_check-tools",
    "parameters": [],
    "priors": 0,
    "private": true,
-   "quiet": false,
-   "shebang": false
-  },
-  "align-index": {
-   "attributes": [
-    {
-     "group": "1. setup"
-    }
-   ],
-   "body": [
-    [
-     "minimap2 -d ",
-     [
-      [
-       "variable",
-       "results"
-      ]
-     ],
-     "/index.mmi ",
-     [
-      [
-       "variable",
-       "ref"
-      ]
-     ]
-    ]
-   ],
-   "dependencies": [],
-   "doc": "Build the index every later step reads",
-   "name": "align-index",
-   "namepath": "align-index",
-   "parameters": [
-    {
-     "default": "refs/all.fna",
-     "export": false,
-     "kind": "singular",
-     "name": "ref"
-    }
-   ],
-   "priors": 0,
-   "private": false,
    "quiet": false,
    "shebang": false
   },
@@ -377,22 +283,120 @@
    "quiet": false,
    "shebang": false
   },
-  "fetch-reads": {
+  "fetch-reference": {
    "attributes": [
     {
-     "group": "1. setup"
+     "group": "1. data"
     }
    ],
    "body": [
     [
-     "aws s3 sync s3://rg-msa/sim data/sim"
+     "mkdir -p ",
+     [
+      [
+       "variable",
+       "data"
+      ]
+     ]
+    ],
+    [
+     "curl -L -o ",
+     [
+      [
+       "variable",
+       "data"
+      ]
+     ],
+     "/phix.fa \\"
+    ],
+    [
+     "  \"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_001422.1&rettype=fasta&retmode=text\""
+    ],
+    [
+     "echo \"reference: $(grep -c '^>' ",
+     [
+      [
+       "variable",
+       "data"
+      ]
+     ],
+     "/phix.fa) sequence, $(grep -v '^>' ",
+     [
+      [
+       "variable",
+       "data"
+      ]
+     ],
+     "/phix.fa | tr -d '\\n' | wc -c) bp\""
     ]
    ],
    "dependencies": [],
-   "doc": "Fetch the simulated read sets",
-   "name": "fetch-reads",
-   "namepath": "fetch-reads",
+   "doc": "Download the phiX174 reference from NCBI",
+   "name": "fetch-reference",
+   "namepath": "fetch-reference",
    "parameters": [],
+   "priors": 0,
+   "private": false,
+   "quiet": false,
+   "shebang": false
+  },
+  "simulate-reads": {
+   "attributes": [
+    {
+     "group": "1. data"
+    }
+   ],
+   "body": [
+    [
+     "scripts/simulate.py ",
+     [
+      [
+       "variable",
+       "data"
+      ]
+     ],
+     "/phix.fa ",
+     [
+      [
+       "variable",
+       "n"
+      ]
+     ],
+     " ",
+     [
+      [
+       "variable",
+       "length"
+      ]
+     ],
+     " > ",
+     [
+      [
+       "variable",
+       "data"
+      ]
+     ],
+     "/reads.fq"
+    ]
+   ],
+   "dependencies": [],
+   "doc": "Simulate a read set from the reference",
+   "name": "simulate-reads",
+   "namepath": "simulate-reads",
+   "parameters": [
+    {
+     "default": "4000",
+     "export": false,
+     "kind": "singular",
+     "name": "n"
+    },
+    {
+     "default": "150",
+     "export": false,
+     "kind": "singular",
+     "name": "length"
+    }
+   ],
    "priors": 0,
    "private": false,
    "quiet": false,
@@ -420,7 +424,7 @@
   "windows_shell": null,
   "working_directory": null
  },
- "source": "/data/git/4less/rg-msa_benchmark/justfile",
+ "source": "/home/you/phix/justfile",
  "unexports": [],
  "warnings": []
 }

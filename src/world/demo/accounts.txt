@@ -1,2 +1,1 @@
-qib
-qib-hpc
+lab

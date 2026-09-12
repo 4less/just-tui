@@ -17,6 +17,8 @@ pub use jobs::{
 };
 // Job listings are fetched by the app; re-exported under a name that says so.
 pub use jobs::fetch as fetch_jobs;
+#[allow(unused_imports)]
+pub use jobs::parse_usage_lines as fetch_usage_from;
 // The pure half of the fetch, so the parsing can be tested without a cluster.
 #[allow(unused_imports)]
 pub use jobs::merge as merge_jobs;

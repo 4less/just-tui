@@ -8,8 +8,9 @@
 use std::io::{Error, ErrorKind, Result};
 use std::path::{Path, PathBuf};
 
-/// `just --dump --dump-format json` for a small bioinformatics-flavoured
-/// justfile with a module, a group, an alias and a private recipe.
+/// `just --dump --dump-format json` for a four-step alignment pipeline over
+/// the phiX174 genome: fetch the reference, simulate reads, align them, count
+/// what mapped. A module, groups, an alias and a private recipe.
 pub const DUMP: &str = include_str!("demo/justfile.json");
 
 /// The justfile itself, so the source pane has real text to show.
@@ -31,8 +32,16 @@ const SINFO: &str = include_str!("demo/sinfo.txt");
 const QOS: &str = include_str!("demo/qos.txt");
 const ACCOUNTS: &str = include_str!("demo/accounts.txt");
 
-const LOG_FAILED: &str = include_str!("demo/failed.err");
-const LOG_RUNNING: &str = include_str!("demo/running.out");
+/// Real output, captured by running this pipeline: minimap2 writes its
+/// progress to stderr while samtools writes the flagstat table to stdout, so
+/// the two logs of one job genuinely differ.
+const ALIGN_ERR: &str = include_str!("demo/align.err");
+const ALIGN_OUT: &str = include_str!("demo/align.out");
+/// The same alignment against reads that had not been simulated yet.
+const FAILED_ERR: &str = include_str!("demo/failed.err");
+/// curl's transfer table, and what the recipe echoed after it.
+const FETCH_ERR: &str = include_str!("demo/fetch.err");
+const FETCH_OUT: &str = include_str!("demo/fetch.out");
 
 /// Answer a read of the cluster.
 pub fn capture(program: &str, args: &[&str]) -> Option<String> {
@@ -66,19 +75,29 @@ pub fn run(program: &str, _args: &[&str]) -> std::result::Result<(), String> {
     }
 }
 
-/// A handful of files: the justfile the tree is built from, and two logs.
+/// The justfiles the tree is built from, and one log per job that has one.
 pub fn read(path: &Path) -> Result<String> {
     let name = path.to_string_lossy();
-    let text = if name.ends_with("run.just") {
-        RUN_JUST
-    } else if name.ends_with("justfile") {
-        JUSTFILE
-    } else if name.ends_with("-23474876.err") || name.ends_with("-23474876.out") {
-        LOG_FAILED
-    } else if name.contains("23474919") {
-        LOG_RUNNING
-    } else {
-        return Err(Error::new(ErrorKind::NotFound, format!("no {name} here")));
+    let err = name.ends_with(".err");
+
+    let text = match () {
+        _ if name.ends_with("align.just") => RUN_JUST,
+        _ if name.ends_with("justfile") => JUSTFILE,
+        // The job that failed: the reads were not there yet.
+        _ if name.contains("418820") => match err {
+            true => FAILED_ERR,
+            false => "",
+        },
+        _ if name.contains("418805") => match err {
+            true => FETCH_ERR,
+            false => FETCH_OUT,
+        },
+        // Every other alignment, running or finished.
+        _ if name.contains("418823") || name.contains("418799") => match err {
+            true => ALIGN_ERR,
+            false => ALIGN_OUT,
+        },
+        _ => return Err(Error::new(ErrorKind::NotFound, format!("no {name} here"))),
     };
     Ok(text.to_owned())
 }
@@ -88,22 +107,28 @@ pub fn read_dir(path: &Path) -> Vec<(PathBuf, bool)> {
     let name = path.to_string_lossy().replace('\\', "/");
     let under = |dir: &str| name.ends_with(dir) || name.ends_with(&format!("{dir}/"));
 
-    if under("logs") {
-        return vec![(path.join("level3"), true)];
-    }
-    if under("logs/level3") {
-        return vec![(path.join("run"), true)];
-    }
-    if under("logs/level3/run") {
+    if under("logs/align") {
         return [
-            "s01_msa-tgt_filt_peel-23474919.out",
-            "s01_msa-tgt_filt_peel-23474919.err",
-            "s01_msa-nonfocal_tgt-23474876.out",
-            "s01_msa-nonfocal_tgt-23474876.err",
-            "align-index-23473080.out",
+            "reads-sr-418823.out",
+            "reads-sr-418823.err",
+            "reads-sr-418820.out",
+            "reads-sr-418820.err",
+            "reads-map-ont-418799.out",
+            "reads-map-ont-418799.err",
         ]
         .iter()
         .map(|file| (path.join(file), false))
+        .collect();
+    }
+    if under("logs") {
+        return [
+            ("align", true),
+            ("fetch-reference-418805.out", false),
+            ("fetch-reference-418805.err", false),
+            ("simulate-reads-4000-418812.out", false),
+        ]
+        .iter()
+        .map(|(file, dir)| (path.join(file), *dir))
         .collect();
     }
     Vec::new()

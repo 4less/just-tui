@@ -1,6 +1,4 @@
-23474876|level3-run-s01_msa-nonfocal_tgt|FAILED|qib-compute|2026-09-11T22:10:03|2026-09-11T22:10:41|2026-09-11T22:10:41|00:00:00|1:0|q512n03|/data/git/4less/rg-msa_benchmark|64|1280G
-23474863|level3-run-s01_msa-nonfocal_cong|FAILED|qib-compute|2026-09-11T21:58:12|2026-09-11T21:58:51|2026-09-11T21:58:52|00:00:01|1:0|q512n03|/data/git/4less/rg-msa_benchmark|64|1280G
-23473597|level3-run-s01_msa-cong_filt_peel|COMPLETED|qib-compute|2026-09-11T14:02:19|2026-09-11T14:04:00|2026-09-11T15:41:08|01:37:08|0:0|q512n05|/data/git/4less/rg-msa_benchmark|64|1280G
-23473080|level3-run-align-index|COMPLETED|qib-compute|2026-09-10T18:20:00|2026-09-10T18:21:12|2026-09-10T22:13:29|03:52:17|0:0|q512n02|/data/git/4less/rg-msa_benchmark|32|256G
-23473075|level3-run-align-index|OUT_OF_MEMORY|qib-compute|2026-09-10T18:02:44|2026-09-10T18:03:10|2026-09-10T18:09:31|00:06:21|0:125|q512n02|/data/git/4less/rg-msa_benchmark|32|64G
-23472904|level3-run-collect|COMPLETED|qib-short|2026-09-10T11:15:00|2026-09-10T11:15:20|2026-09-10T11:18:02|00:02:42|0:0|q256n01|/data/git/4less/rg-msa_benchmark|4|16G
+418820|align-reads-sr|FAILED|compute|2026-09-12T08:41:00|2026-09-12T08:41:12|2026-09-12T08:41:13|00:00:01|1:0|node07|/home/you/phix|8|16G
+418812|simulate-reads-4000|COMPLETED|compute|2026-09-12T08:30:00|2026-09-12T08:30:09|2026-09-12T08:30:41|00:00:32|0:0|node03|/home/you/phix|2|4G
+418805|fetch-reference|COMPLETED|short|2026-09-12T08:24:00|2026-09-12T08:24:05|2026-09-12T08:24:07|00:00:02|0:0|node01|/home/you/phix|1|2G
+418799|align-reads-map-ont|OUT_OF_MEMORY|compute|2026-09-11T19:10:00|2026-09-11T19:10:20|2026-09-11T19:12:58|00:02:38|0:125|node07|/home/you/phix|8|2G

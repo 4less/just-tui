@@ -1,5 +1,3 @@
 normal
 long
 highmem
-gpu
-lowpri

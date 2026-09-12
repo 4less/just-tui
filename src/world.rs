@@ -5,7 +5,9 @@
 //! from [`demo`] — canned output of the exact shape the parsers already read,
 //! which is why nothing above this module needs to know which build it is in.
 
-#[cfg(target_arch = "wasm32")]
+// Compiled natively as well, so what the browser is served can be tested
+// without a browser.
+#[cfg(any(target_arch = "wasm32", test))]
 pub mod demo;
 
 // ---------------------------------------------------------------- processes --

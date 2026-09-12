@@ -1,3 +1,2 @@
-qib-compute|2208|4108000|(null)
-qib-short|64|257000|(null)
-qib-gpu|96|515000|gpu:a100:4
+compute|64|257000|(null)
+short|16|64000|(null)

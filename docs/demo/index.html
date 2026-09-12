@@ -6,8 +6,8 @@
 <title>just-tui — browser demo</title>
 
 <script type="module">
-import init, * as bindings from '/just-tui/demo/just-tui-c5d463ed45aff75d.js';
-const wasm = await init({ module_or_path: '/just-tui/demo/just-tui-c5d463ed45aff75d_bg.wasm' });
+import init, * as bindings from '/just-tui/demo/just-tui-1eedca0e8cb53961.js';
+const wasm = await init({ module_or_path: '/just-tui/demo/just-tui-1eedca0e8cb53961_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -91,7 +91,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
   #terminal pre { margin: 0; padding: 0; }
   #terminal:focus, #terminal :focus { outline: none; }
 </style>
-<link rel="modulepreload" href="/just-tui/demo/just-tui-c5d463ed45aff75d.js" crossorigin="anonymous" integrity="sha384-WR7SzHgz0VqhYWej+ioUwlumwuwRK9coGNcXjKdJ/NclwZWhG/iNmpYeYCj250a7"><link rel="preload" href="/just-tui/demo/just-tui-c5d463ed45aff75d_bg.wasm" crossorigin="anonymous" integrity="sha384-WiZbx+WWMcn31cfrLmJozC3mUOryUHHNT+4xZ8fLxxAqKw49Jgu8lvSJxRMHPY29" as="fetch" type="application/wasm"></head>
+<link rel="modulepreload" href="/just-tui/demo/just-tui-1eedca0e8cb53961.js" crossorigin="anonymous" integrity="sha384-iwALYdIDgV0hQboUpcg0rpcVhOLxiWyzdE9D5fIODyQ78DKIjeuYQeMCKkEtNR2k"><link rel="preload" href="/just-tui/demo/just-tui-1eedca0e8cb53961_bg.wasm" crossorigin="anonymous" integrity="sha384-qK65qj8U3LNwvkvjfVCN5dDgQFmeZORpbUlP71eZzXxOcWgz1Saz5z13EaD9Ukyl" as="fetch" type="application/wasm"></head>
 <body>
 <header>
   <span class="brand"><span class="just">just</span> tui</span>
