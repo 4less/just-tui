@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The job browser — just-tui</title>
-<meta name="description" content="just-tui: a terminal explorer for just recipes, with first-class Slurm submission and job monitoring.">
+<meta name="description" content="The job browser">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -13,43 +13,23 @@
 <body>
 <header class="topbar">
   <a class="brand" href="index.html"><span class="just">just</span><span class="tui">tui</span></a>
-  <nav class="topnav"><a href="index.html">Overview</a><a href="recipes.html">Recipes</a><a href="slurm.html">Slurm</a><a href="jobs.html" aria-current="page">Jobs</a><a href="keys.html">Keys</a></nav>
+  <nav class="topnav"><a href="index.html">Overview</a><a href="docs.html">Docs</a><a href="slurm.html">Slurm</a><a href="jobs.html" aria-current="page">Jobs</a><a href="keys.html">Keys</a></nav>
   <span class="spacer"></span>
-  <span class="pill">v0.2.0</span>
-  <a class="pill" href="https://github.com/4less/just-tui">GitHub ★</a>
+  <span class="searchbox">search<span class="k">Ctrl K</span></span>
+  <a class="btn" href="docs.html#install">cargo install --path .</a>
+  <a class="btn" href="https://github.com/4less/just-tui">★ Star on GitHub</a>
 </header>
 
+<div class="crumbbar">
+  <a href="index.html">just-tui</a> / <a href="docs.html">Docs</a> / Jobs
+  <span class="spacer"></span>
+  <span>v0.2.0</span>
+</div>
+
 <div class="shell">
-  <aside class="sidebar"><h2>Getting started</h2>
-<ul>
-<li><a href="index.html">What just-tui is</a></li>
-<li><a href="index.html#install">Installing</a></li>
-<li><a href="index.html#quickstart">Quickstart</a></li>
-</ul><h2>Browsing</h2>
-<ul>
-<li><a href="recipes.html">The explorer</a></li>
-<li><a href="recipes.html#groups">Groups</a></li>
-<li><a href="recipes.html#search">Search</a></li>
-<li><a href="recipes.html#global">Global recipes</a></li>
-</ul><h2>Slurm</h2>
-<ul>
-<li><a href="slurm.html">Submitting a recipe</a></li>
-<li><a href="slurm.html#config">Config files</a></li>
-<li><a href="slurm.html#logs">Where logs go</a></li>
-<li><a href="slurm.html#batch">One recipe, many inputs</a></li>
-</ul><h2>Jobs</h2>
-<ul>
-<li><a href="jobs.html" aria-current="page">The job browser</a></li>
-<li><a href="jobs.html#usage">Live memory and CPU</a></li>
-<li><a href="jobs.html#actions">Kill and rerun</a></li>
-<li><a href="jobs.html#history">Past submissions</a></li>
-</ul><h2>Reference</h2>
-<ul>
-<li><a href="keys.html">Every key</a></li>
-<li><a href="keys.html#files">Files it writes</a></li>
-</ul></aside>
+  <aside class="sidebar"><h2>Getting started</h2><ul><li><a href="docs.html">Introduction</a></li><li><a href="docs.html#install">Installing</a></li><li><a href="docs.html#quickstart">Quickstart</a></li><li><a href="docs.html#panes">What the panes show</a></li></ul><h2>Browsing recipes</h2><ul><li><a href="recipes.html">The explorer</a></li><li><a href="recipes.html#groups">Groups</a></li><li><a href="recipes.html#search">Search</a></li><li><a href="recipes.html#global">Global recipes</a></li></ul><h2>Slurm</h2><ul><li><a href="slurm.html">Submitting a recipe</a></li><li><a href="slurm.html#config">Config files</a></li><li><a href="slurm.html#logs">Where logs go</a></li><li><a href="slurm.html#batch">One recipe, many inputs</a></li></ul><h2>Jobs</h2><ul><li><a href="jobs.html" aria-current="page">The job browser</a></li><li><a href="jobs.html#usage">Live memory and CPU</a></li><li><a href="jobs.html#actions">Kill and rerun</a></li><li><a href="jobs.html#history">Past submissions</a></li></ul><h2>Reference</h2><ul><li><a href="keys.html">Every key</a></li><li><a href="keys.html#files">Files it writes</a></li></ul></aside>
   <main>
-    <p class="crumbs"><a href="index.html">Docs</a> / Jobs</p>
+    <p class="badge">Monitoring</p>
     
 <h1>The job browser</h1>
 
@@ -57,28 +37,25 @@
 <code>sacct</code> for what has finished, newest first, and puts the tail of the selected job's log
 underneath.</p>
 
-<div class="term"><div class="chrome"><span class="dot" style="background:#f7768e"></span><span class="dot" style="background:#e0af68"></span><span class="dot" style="background:#9ece6a"></span><span>just-tui — Slurm jobs</span></div><pre><code>
-╭ Slurm jobs — 5 of 5 in the last 7 days — live — all ──────────────────────────────────╮
+<div class="term"><div class="chrome"><span class="dot" style="background:#f7768e"></span><span class="dot" style="background:#e0af68"></span><span class="dot" style="background:#9ece6a"></span><span>just-tui — Slurm jobs</span><span class="right">live</span></div><pre><code>╭ Slurm jobs — 5 of 5 in the last 7 days — live — all ──────────────────────────────────╮
 │ ▸ 23474919   RUNNING    level3-run-s01_msa-nonfocal_tgt…  00:01:32   233G/1280G  18%  │
 │   23474878   RUNNING    level3-run-s01_msa-nonfocal_cong… 06:39:02  1240G/1280G  97%  │
 │   23474876   FAILED     level3-run-s01_msa-nonfocal_tgt…  00:00:00   exit 1           │
 │   23473080   COMPLETED  level3-run-align-index            03:52:17   ok               │
 │   23473075   OOM        level3-run-align-index            00:06:21   signal 125       │
-│                                                                                        │
-│   submitted 2026-09-08T22:00  ·  level3::run::s01_msa tgt_filt_peel  ·  qib-compute     │
-│╭ stderr — logs/level3/run/s01_msa-tgt_filt_peel-23474876.err ─────────────────────────╮│
-││ loading 4.2M rows                                                                    ││
-││ slurmstepd: error: Exceeded job memory limit                                         ││
-│╰──────────────────────────────────────────────────────────────────────────────────────╯│
-╰ ↑↓ · v hide log · f filter · ⏎ log · u reuse · s rerun · x kill · X kill+rerun · esc ─╯
-</code></pre></div>
+│                                                                                       │
+│   submitted 2026-09-08T22:00 · level3::run::s01_msa tgt_filt_peel · qib-compute        │
+│╭ stderr — logs/level3/run/s01_msa-tgt_filt_peel-23474876.err ────────────────────────╮│
+││ loading 4.2M rows                                                                   ││
+││ slurmstepd: error: Exceeded job memory limit                                        ││
+│╰─────────────────────────────────────────────────────────────────────────────────────╯│
+╰ ↑↓ · v hide log · f filter · ⏎ log · u reuse · s rerun · x kill · X kill+rerun · esc ─╯</code></pre></div>
 
 <p>Anything that looks like an error is picked out in red. The log file is found by asking
 <code>scontrol</code> while the controller still knows the job, and otherwise by looking for a file
-ending in <code>-&lt;job id&gt;</code> under the job's working directory — so jobs submitted
-outside just-tui are readable too.</p>
-
-<h3>Keys</h3>
+ending in <code>-&lt;job id&gt;</code> under the job's working directory — so jobs submitted outside
+just-tui are readable too. Finding it happens on a thread, so the list stays navigable while it
+works.</p>
 
 <table>
 <tr><th>Key</th><th>Does</th></tr>
@@ -89,20 +66,20 @@ outside just-tui are readable too.</p>
 <tr><td><kbd>Enter</kbd> <kbd>o</kbd></td><td>open the whole log in <code>$PAGER</code></td></tr>
 <tr><td><kbd>d</kbd></td><td>how far back to look: 1 / 7 / 30 / 90 days</td></tr>
 <tr><td><kbd>p</kbd></td><td>pause or resume the five-second refresh</td></tr>
-<tr><td><kbd>r</kbd></td><td>reload · <kbd>y</kbd> copy the log path · <kbd>PgUp</kbd>/<kbd>PgDn</kbd>/<kbd>g</kbd>/<kbd>G</kbd> scroll</td></tr>
+<tr><td><kbd>r</kbd></td><td>reload · <kbd>y</kbd> copy the log path · <kbd>PgUp</kbd> <kbd>PgDn</kbd> <kbd>g</kbd> <kbd>G</kbd> scroll</td></tr>
 </table>
 
 <p><kbd>f</kbd> lists every state this cluster has reported alongside the usual ones —
 <span class="state run">RUNNING</span> <span class="state pend">PENDING</span>
 <span class="state fail">FAILED</span> and the rest — each with how many jobs hold it.
-<kbd>Space</kbd> turns one on or off and the list behind follows at once; <kbd>a</kbd> goes back to
-everything.</p>
+<kbd>Space</kbd> turns one on or off and the list behind follows at once, so there is nothing to
+apply; <kbd>a</kbd> goes back to everything.</p>
 
 <h2 id="usage">Live memory and CPU</h2>
 
 <p>A running job shows what it is <strong>actually using</strong> against what it reserved:</p>
 
-<pre><code>23474919  RUNNING   level3-run-s01_msa-nonfocal_tgt…  00:01:32   233G/1280G  18%   64c  93%
+<pre><code>23474919  RUNNING   level3-run-s01_msa-nonfocal_tgt…   00:01:32   233G/1280G  18%   64c  93%
 23474878  RUNNING   level3-run-s01_msa-nonfocal_cong…  06:39:02  1240G/1280G  97%   64c  98%</code></pre>
 
 <p><code>MaxRSS</code> and <code>AveCPU</code> come from one <code>sstat</code> call covering every
@@ -112,9 +89,13 @@ running job at once, not one per job. CPU % is CPU time consumed against CPU tim
 <p>Colours read as strain: memory is red near its limit, and <strong>CPU is the other way
 round</strong> — red means allocated cores are idling, green means they are busy.</p>
 
+<div class="panel"><header><b>Nothing waits on the scheduler</b><span class="tag">threads</span></header><div class="body">
 <p>The clock on a running job ticks every second, carried forward locally from the elapsed time
-<code>squeue</code> reported; the queue itself is re-asked every five seconds. Nothing that talks
-to Slurm runs on the drawing thread, so none of it interrupts a keystroke.</p>
+<code>squeue</code> reported; the queue itself is re-asked every five seconds. Every call to Slurm —
+<code>squeue</code>, <code>sacct</code>, <code>sstat</code>, <code>scontrol</code>, and the
+detection behind the submit form — runs on a thread and is delivered through a channel the event
+loop drains before each frame, so none of it lands in the middle of a keystroke.</p>
+</div></div>
 
 <h2 id="actions">Kill and rerun</h2>
 
@@ -155,16 +136,23 @@ the recipe, those rows show the <strong>arguments</strong>, which is what tells 
 <li><kbd>u</kbd> in the job browser jumps from a job to the settings it ran with.</li>
 </ul>
 
-<p>So a job that failed three weeks ago can be found, read, and resubmitted with one field changed.
-The file is machine-written and gitignored; it is trimmed to the last 500 entries.</p>
+<p>The file is machine-written and gitignored; it is trimmed to the last 500 entries.</p>
 
     <nav class="pager"><a href="slurm.html"><span>Previous</span>← Submitting a recipe</a><a class="next" href="keys.html"><span>Next</span>Every key →</a></nav>
   </main>
+  <aside class="rail">
+    <div class="box"><h2>On this page</h2><ul><li><a href="#usage">Live memory and CPU</a></li><li><a href="#actions">Kill and rerun</a></li><li><a href="#history">Past submissions</a></li></ul></div>
+    <div class="box"><h2>Repository</h2><ul>
+      <li><a href="https://github.com/4less/just-tui">Browse the source</a></li>
+      <li><a href="https://github.com/4less/just-tui/issues">Report an issue</a></li>
+      <li><a href="https://github.com/4less/just-tui/blob/main/README.md">README</a></li>
+    </ul></div>
+  </aside>
 </div>
 
-<footer>
-  <span>just-tui — a terminal explorer for <a href="https://github.com/casey/just">just</a> recipes</span>
-  <span><a href="https://github.com/4less/just-tui">Repository</a> · <a href="https://github.com/4less/just-tui/issues">Issues</a> · <a href="https://github.com/casey/just">just</a> · <a href="https://slurm.schedmd.com/">Slurm</a></span>
-</footer>
+<footer><div class="inner">
+  <span>just-tui · v0.2.0 · a terminal explorer for <a href="https://github.com/casey/just">just</a> recipes</span>
+  <span class="links"><a href="https://github.com/4less/just-tui">Repository</a><a href="https://github.com/4less/just-tui/issues">Issues</a><a href="https://github.com/casey/just">just</a><a href="https://slurm.schedmd.com/">Slurm</a></span>
+</div></footer>
 </body>
 </html>

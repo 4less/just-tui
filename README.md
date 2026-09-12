@@ -479,8 +479,9 @@ generated that way.
 ### The documentation site
 
 `docs/` is plain HTML served by GitHub Pages from `main` — no CI, no build step, so it cannot
-break in a workflow. `just docs` regenerates the pages from `docs/_content.py`; `just docs-serve`
-previews them. See [`docs/README.md`](docs/README.md).
+break in a workflow. A landing page, then five documentation pages behind it. `just docs`
+regenerates them from `docs/_content.py`; `just docs-serve` previews them locally. See
+[`docs/README.md`](docs/README.md).
 
 ### Layout
 
