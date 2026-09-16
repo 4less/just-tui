@@ -155,12 +155,17 @@ each = data/level3/*.fna     # a glob…
 args = {}                    # …and where each match lands
 
 [level3::run::s02_refilter]
-each = @arms.txt             # …or one line of arguments per row
+each = @arms.txt             # …or one line of arguments per row…
+
+[level3::run::s03_peel]
+each = tgt, cong, focal      # …or an inline list
 ```
 
 `{}` works like `xargs -I{}`. Without it the value is appended, which is how `just` takes a
 positional parameter. With `@file`, blank lines and `#` comments are skipped, so a run list
-can be kept under version control and commented.
+can be kept under version control and commented. A value containing a comma is an inline
+list: the pieces are trimmed, taken literally and in the order written, so they need not
+name files that exist.
 
 On submit the expansion is written to a **manifest** beside the logs — one line of arguments
 per task — and a single array is submitted that reads it:

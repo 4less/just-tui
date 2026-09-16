@@ -6,7 +6,8 @@
 //!
 //! ```text
 //! each = data/level3/*.fna     # a glob…
-//! each = @runs.txt             # …or one line of arguments per row
+//! each = @runs.txt             # …or one line of arguments per row…
+//! each = tgt, cong, focal      # …or an inline list
 //! args = input={} mode=peel    # {} is where each value lands
 //! ```
 
@@ -42,6 +43,7 @@ pub fn plan(base: &Path, namepath: &str, settings: &Settings) -> Result<Option<P
 
     let values = match each.strip_prefix('@') {
         Some(file) => from_file(base, file.trim())?,
+        None if each.contains(',') => from_list(each),
         None => from_glob(base, each)?,
     };
     if values.is_empty() {
@@ -108,6 +110,16 @@ fn from_file(base: &Path, file: &str) -> Result<Vec<String>, String> {
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
         .map(str::to_owned)
         .collect())
+}
+
+/// A comma-separated list, taken literally and in the order written, like
+/// the lines of a file. A trailing comma is not an empty task.
+fn from_list(list: &str) -> Vec<String> {
+    list.split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 // ---------------------------------------------------------------------------

@@ -91,6 +91,31 @@ fn a_file_supplies_the_lines_instead() {
 }
 
 #[test]
+fn a_comma_separated_list_is_taken_as_written() {
+    let dir = inputs("list");
+
+    // Values need not exist on disk: they are arguments, not paths.
+    let plan = batch::plan(
+        &dir,
+        "run",
+        &each("tgt_filt_peel, cong_filt_peel force=1,focal,", ""),
+    )
+    .unwrap()
+    .expect("an expansion");
+    assert_eq!(
+        plan.lines,
+        ["tgt_filt_peel", "cong_filt_peel force=1", "focal"],
+        "in the order written, trimmed, without an empty task for the trailing comma"
+    );
+
+    // A list of only commas is a mistake, like a glob that matches nothing.
+    let empty = batch::plan(&dir, "run", &each(" , ,", ""));
+    assert!(empty.unwrap_err().contains("matched nothing"));
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn each_value_lands_where_the_placeholder_is() {
     let dir = inputs("placeholder");
 
