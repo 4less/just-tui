@@ -261,3 +261,186 @@ impl SubmitForm {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Chains
+// ---------------------------------------------------------------------------
+
+/// One link of a chain as the chooser shows it: the recipe, whether it is
+/// going out this time, and the settings it would go out with.
+pub struct ChainRow {
+    pub link: crate::chain::Link,
+    pub checked: bool,
+    /// What the config chain supplied, so the row can say where its settings
+    /// came from.
+    pub resolved: Resolved,
+    /// What it will be submitted with: resolved, then edited in the form.
+    pub settings: Settings,
+    /// The form was opened and accepted for this row.
+    pub edited: bool,
+    /// Directory the job runs in.
+    pub base: PathBuf,
+    /// Directory of the module the recipe lives in, for the form's saves.
+    pub scope_dir: PathBuf,
+}
+
+impl ChainRow {
+    pub fn new(
+        link: crate::chain::Link,
+        resolved: Resolved,
+        base: PathBuf,
+        scope_dir: PathBuf,
+    ) -> Self {
+        let mut settings = resolved.settings.clone();
+        // `align: (fetch "hg38")` calls fetch with an argument; that is what
+        // fetch's job runs with, whatever a config says.
+        if !link.args.is_empty() {
+            settings.args = link.args.clone();
+        }
+        Self {
+            link,
+            checked: true,
+            resolved,
+            settings,
+            edited: false,
+            base,
+            scope_dir,
+        }
+    }
+
+    /// Whether the form has to be opened for this row before it can go out.
+    pub fn needs_form(&self) -> bool {
+        self.checked && !self.edited && !self.settings.configured()
+    }
+
+    /// Where the settings stand: `edited`, `config`, `last run`, or nothing.
+    pub fn status(&self) -> &'static str {
+        if self.edited {
+            return "edited";
+        }
+        if self.resolved.sources.iter().any(|s| s != "last run") {
+            return "config";
+        }
+        if self.resolved.sources.iter().any(|s| s == "last run") {
+            return "last run";
+        }
+        "no settings"
+    }
+}
+
+/// The chooser: every link of a chain, which ones go out, and where in the
+/// walk through their forms the reader is.
+pub struct ChainForm {
+    /// The recipe `s` was pressed on.
+    pub head: String,
+    pub rows: Vec<ChainRow>,
+    pub cursor: usize,
+    /// The row whose submit form is open, while one is.
+    pub step: Option<usize>,
+}
+
+impl ChainForm {
+    pub fn new(head: String, rows: Vec<ChainRow>, skipped: &[String]) -> Self {
+        let mut form = Self {
+            head,
+            rows,
+            cursor: 0,
+            step: None,
+        };
+        for row in &mut form.rows {
+            if skipped.iter().any(|name| *name == row.link.label()) {
+                row.checked = false;
+            }
+        }
+        form.cursor = form.rows.len().saturating_sub(1);
+        form
+    }
+
+    pub fn move_cursor(&mut self, delta: isize) {
+        let count = self.rows.len() as isize;
+        if count > 0 {
+            self.cursor = (self.cursor as isize + delta).rem_euclid(count) as usize;
+        }
+    }
+
+    pub fn toggle(&mut self) {
+        if let Some(row) = self.rows.get_mut(self.cursor) {
+            row.checked = !row.checked;
+        }
+    }
+
+    pub fn set_all(&mut self, checked: bool) {
+        for row in &mut self.rows {
+            row.checked = checked;
+        }
+    }
+
+    pub fn checked(&self) -> usize {
+        self.rows.iter().filter(|row| row.checked).count()
+    }
+
+    /// Rows that still need the form, from `from` on.
+    pub fn next_needing_form(&self, from: usize) -> Option<usize> {
+        (from..self.rows.len()).find(|&i| self.rows[i].needs_form())
+    }
+
+    pub fn needing_form(&self) -> usize {
+        self.rows.iter().filter(|row| row.needs_form()).count()
+    }
+
+    /// The checked rows this one waits on. An unchecked upstream is declared
+    /// done, so it is simply not waited for.
+    pub fn waits_on(&self, index: usize) -> Vec<usize> {
+        self.rows[index]
+            .link
+            .after
+            .iter()
+            .copied()
+            .filter(|&upstream| self.rows[upstream].checked)
+            .collect()
+    }
+
+    /// Labels of the unchecked rows, for the state file.
+    pub fn skipped(&self) -> Vec<String> {
+        self.rows
+            .iter()
+            .filter(|row| !row.checked)
+            .map(|row| row.link.label())
+            .collect()
+    }
+
+    /// `waits on tree, s00_fetch`, naming rows by their recipe.
+    pub fn waits_label(&self, index: usize) -> String {
+        let names: Vec<&str> = self
+            .waits_on(index)
+            .into_iter()
+            .map(|i| leaf(&self.rows[i].link.namepath))
+            .collect();
+        match names.is_empty() {
+            true => String::new(),
+            false => format!("waits on {}", names.join(", ")),
+        }
+    }
+
+    /// Placeholder job ids for a preview, before anything is submitted.
+    pub fn placeholder_ids(&self, index: usize) -> Vec<String> {
+        self.waits_on(index)
+            .into_iter()
+            .map(|i| format!("<{}>", leaf(&self.rows[i].link.namepath)))
+            .collect()
+    }
+
+    /// Adopt what the form ended with for the row whose step it was.
+    pub fn accept(&mut self, settings: Settings) {
+        if let Some(row) = self.step.and_then(|i| self.rows.get_mut(i)) {
+            row.settings = settings;
+            row.edited = true;
+        }
+        self.step = None;
+    }
+}
+
+/// The recipe name without its module path.
+pub fn leaf(namepath: &str) -> &str {
+    namepath.rsplit("::").next().unwrap_or(namepath)
+}

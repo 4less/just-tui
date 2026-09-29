@@ -74,6 +74,12 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     if app.mode == Mode::ConfigPick {
         submit::draw_config_pick(frame, app, frame.area());
     }
+    if matches!(app.mode, Mode::Chain | Mode::ConfirmChain) {
+        submit::draw_chain(frame, app, frame.area());
+    }
+    if app.mode == Mode::ConfirmChain {
+        submit::draw_chain_confirm(frame, app, frame.area());
+    }
     if matches!(app.mode, Mode::Jobs | Mode::ConfirmJob | Mode::JobFilter) {
         // Stop one row short of the bottom: that line carries the status
         // messages the browser itself reports, and a full-screen overlay

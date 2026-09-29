@@ -12,7 +12,7 @@ use crate::tree::{Filter, Kind, Tree};
 #[test]
 fn parses_a_dump() {
     let file = fixture();
-    assert_eq!(file.recipes.len(), 3);
+    assert_eq!(file.recipes.len(), 4);
     assert_eq!(file.modules["sub"].recipes["deep"].namepath, "sub::deep");
     assert_eq!(file.assignments["target"].value, serde_json::json!("out"));
     assert_eq!(file.first.as_deref(), Some("hello"));
@@ -29,7 +29,7 @@ fn recipe_metadata_is_read() {
     let (before, after) = file.recipes["build"].split_dependencies();
     assert_eq!(before.len(), 1);
     assert_eq!(before[0].recipe, "hello");
-    assert_eq!(after[0].recipe, "after");
+    assert_eq!(after[0].recipe, "post");
 }
 
 #[test]
@@ -47,7 +47,7 @@ fn tree_nests_modules_under_a_root() {
     let root = &tree.nodes[tree.roots[0]];
     assert!(root.is_root);
     assert_eq!(tree.count_modules(), 1, "the root is not a module");
-    assert_eq!(tree.count_recipes(), 4);
+    assert_eq!(tree.count_recipes(), 5);
 
     let deep = tree.find_namepath(0, "sub::deep").expect("nested recipe");
     assert_eq!(tree.nodes[deep].depth, 2);

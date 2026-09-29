@@ -863,7 +863,11 @@ impl App {
             .as_ref()
             .map(|plan| (plan.manifest.as_path(), plan.count()));
 
-        match slurm::submit(&base, &record.namepath, &record.settings, batch) {
+        // A link of a chain ran `just --no-deps`, and so should its rerun:
+        // its dependencies were jobs of their own. The waits are not kept,
+        // since the jobs they named are long gone.
+        let link = record.chained().then_some(&[][..]);
+        match slurm::submit(&base, &record.namepath, &record.settings, batch, link) {
             slurm::Submission::Failed { message } => Err(format!("sbatch: {message}")),
             slurm::Submission::Ok { job_id } => {
                 let (out, err) =
@@ -879,6 +883,7 @@ impl App {
                         .map(|plan| plan.manifest.display().to_string())
                         .unwrap_or_default(),
                     tasks: plan.as_ref().map_or(0, |plan| plan.count()),
+                    after: Vec::new(),
                     ..record
                 };
                 if let Err(problem) = self.history.append(again) {

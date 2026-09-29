@@ -10,7 +10,7 @@ use super::{centered, overlay_block, pad, shorten_home, truncate};
 use crate::app::App;
 use crate::config::CONFIG_NAME;
 use crate::slurm::{self, Cluster, Field, Partition};
-use crate::submit::SubmitForm;
+use crate::submit::{ChainForm, SubmitForm, leaf};
 use crate::theme;
 
 /// The form is happiest narrow, but the `sbatch` line under it grows with
@@ -32,6 +32,39 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
         .min(area.width.saturating_sub(2));
     let inner = width.saturating_sub(4) as usize;
 
+    // A row of a chain names its place in the walk, and what it waits on.
+    let step = app
+        .chain
+        .as_ref()
+        .and_then(|chain| chain.step.map(|step| (chain, step)));
+    let (title, footer) = match step {
+        Some((chain, step)) => {
+            let waits = chain.waits_label(step);
+            let title = match waits.is_empty() {
+                true => format!(
+                    " step {} of {} · {} ",
+                    step + 1,
+                    chain.rows.len(),
+                    form.namepath
+                ),
+                false => format!(
+                    " step {} of {} · {} · {waits} ",
+                    step + 1,
+                    chain.rows.len(),
+                    form.namepath
+                ),
+            };
+            (
+                title,
+                " ↑↓ field · ←→ move/pick · ^u clear · ⏎ accept · F2/F3/F4 save · esc back to the chain ",
+            )
+        }
+        None => (
+            format!(" Submit {} to Slurm ", form.namepath),
+            " ↑↓ field · ←→ move/pick · ^u clear · ⏎ submit · F2/F3/F4 save · F5 edit · F6 history ",
+        ),
+    };
+
     let mut lines: Vec<Line> = slurm::FIELDS
         .iter()
         .enumerate()
@@ -48,18 +81,54 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
         .collect();
 
     lines.push(Line::default());
-    lines.extend(summary(form, cluster, inner));
+    let placeholders = step.map(|(chain, step)| chain.placeholder_ids(step));
+    lines.extend(summary(form, cluster, inner, placeholders.as_deref()));
+    if let Some((chain, step)) = step {
+        lines.push(progress_line(chain, step, inner));
+    }
 
     let popup = centered(area, width, lines.len() as u16 + 2);
     frame.render_widget(Clear, popup);
     frame.render_widget(
-        Paragraph::new(lines).block(overlay_block(
-            &format!(" Submit {} to Slurm ", form.namepath),
-            " ↑↓ field · ←→ move/pick · ^u clear · ⏎ submit · F2/F3/F4 save · F5 edit · F6 history ",
-            theme::ACCENT,
-        )),
+        Paragraph::new(lines).block(overlay_block(&title, footer, theme::ACCENT)),
         popup,
     );
+}
+
+/// `done: tree · s00_fetch    next: s02_refilter`, so a reader in the middle
+/// of a chain knows where they are.
+fn progress_line(chain: &ChainForm, step: usize, width: usize) -> Line<'static> {
+    let done: Vec<&str> = chain.rows[..step]
+        .iter()
+        .filter(|row| row.checked)
+        .map(|row| leaf(&row.link.namepath))
+        .collect();
+    let next: Vec<&str> = chain.rows[step + 1..]
+        .iter()
+        .filter(|row| row.checked)
+        .map(|row| leaf(&row.link.namepath))
+        .collect();
+    let mut spans = vec![Span::styled("   done: ", theme::label())];
+    spans.push(Span::styled(
+        match done.is_empty() {
+            true => "—".to_owned(),
+            false => done.join(" · "),
+        },
+        Style::default().fg(theme::DIM),
+    ));
+    spans.push(Span::styled("    next: ", theme::label()));
+    spans.push(Span::styled(
+        match next.is_empty() {
+            true => "confirm".to_owned(),
+            false => next.join(" · "),
+        },
+        Style::default().fg(theme::MATCH),
+    ));
+    let text: String = spans.iter().map(|s| s.content.as_ref()).collect();
+    match text.chars().count() > width {
+        true => Line::from(Span::styled(truncate(&text, width), theme::label())),
+        false => Line::from(spans),
+    }
 }
 
 /// One editable row: label, value, and either the pick-list limits or a hint.
@@ -188,9 +257,22 @@ fn note(
 }
 
 /// Log path, the command as it will be run, warnings, and provenance.
-fn summary(form: &SubmitForm, cluster: &Cluster, width: usize) -> Vec<Line<'static>> {
+/// `chain` is the job ids this one waits on, stood in for by names until
+/// the chain is submitted.
+fn summary(
+    form: &SubmitForm,
+    cluster: &Cluster,
+    width: usize,
+    chain: Option<&[String]>,
+) -> Vec<Line<'static>> {
     let (out, _) = slurm::log_paths(&form.namepath, &form.settings);
-    let command = slurm::preview_command(&form.base, &form.namepath, &form.settings, form.batch());
+    let command = slurm::preview_command(
+        &form.base,
+        &form.namepath,
+        &form.settings,
+        form.batch(),
+        chain,
+    );
 
     let mut lines = Vec::new();
 
@@ -328,6 +410,188 @@ pub fn draw_config_pick(frame: &mut Frame, app: &App, area: Rect) {
         Paragraph::new(lines).block(overlay_block(
             " Edit which config? ",
             " ↑↓ scope · ⏎ open in $EDITOR · esc back ",
+            theme::MATCH,
+        )),
+        popup,
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Chains
+// ---------------------------------------------------------------------------
+
+/// The chooser: one row per link, in the order they would be submitted.
+pub fn draw_chain(frame: &mut Frame, app: &App, area: Rect) {
+    let Some(chain) = app.chain.as_ref() else {
+        return;
+    };
+    let width = area
+        .width
+        .saturating_sub(6)
+        .clamp(WIDTH.min(area.width.saturating_sub(2)), MAX_WIDTH)
+        .min(area.width.saturating_sub(2));
+    let inner = width.saturating_sub(4) as usize;
+    let name_width = chain
+        .rows
+        .iter()
+        .map(|row| row.link.label().chars().count())
+        .max()
+        .unwrap_or(0)
+        .clamp(12, inner.saturating_sub(30));
+
+    let mut lines: Vec<Line> = Vec::new();
+    for (index, row) in chain.rows.iter().enumerate() {
+        let selected = index == chain.cursor;
+        let status = row.status();
+        let mut spans = vec![
+            Span::styled(
+                if selected { " ▸ " } else { "   " },
+                Style::default().fg(theme::ACCENT),
+            ),
+            Span::styled(
+                if row.checked { "[x] " } else { "[ ] " },
+                Style::default().fg(if row.checked {
+                    theme::RECIPE
+                } else {
+                    theme::DIM
+                }),
+            ),
+            Span::styled(format!("{:>2}  ", index + 1), theme::label()),
+            Span::styled(
+                format!("{:<name_width$}  ", truncate(&row.link.label(), name_width)),
+                Style::default().fg(if row.checked { theme::FG } else { theme::DIM }),
+            ),
+            Span::styled(
+                format!("{status:<12}"),
+                Style::default().fg(match status {
+                    "no settings" => theme::INTERP,
+                    "edited" => theme::MATCH,
+                    _ => theme::VARIABLE,
+                }),
+            ),
+        ];
+        let detail = match row.needs_form() {
+            true => "will ask".to_owned(),
+            false => row.settings.asked_for(),
+        };
+        let used: usize = spans.iter().map(|s| s.content.chars().count()).sum();
+        spans.push(Span::styled(
+            truncate(&detail, inner.saturating_sub(used)),
+            theme::label(),
+        ));
+        pad(&mut spans, inner);
+        let line = Line::from(spans);
+        lines.push(match selected {
+            true => line.style(Style::default().bg(theme::SELECTION_BG)),
+            false => line,
+        });
+
+        let waits = chain.waits_on(index);
+        if !waits.is_empty() {
+            let numbers: Vec<String> = waits.iter().map(|i| (i + 1).to_string()).collect();
+            lines.push(Line::from(Span::styled(
+                format!("{:>10}↳ after {}", "", numbers.join(", ")),
+                theme::label(),
+            )));
+        }
+    }
+
+    lines.push(Line::default());
+    let asks = chain.needing_form();
+    lines.push(Line::from(vec![
+        Span::styled(
+            format!("   {} of {} jobs", chain.checked(), chain.rows.len()),
+            Style::default().fg(theme::FG),
+        ),
+        Span::styled(
+            match asks {
+                0 => String::new(),
+                1 => " · 1 needs settings".to_owned(),
+                n => format!(" · {n} need settings"),
+            },
+            Style::default().fg(theme::INTERP),
+        ),
+        Span::styled(
+            "   unchecked = already done, not waited for",
+            theme::label(),
+        ),
+    ]));
+
+    let popup = centered(area, width, lines.len() as u16 + 2);
+    frame.render_widget(Clear, popup);
+    frame.render_widget(
+        Paragraph::new(lines).block(overlay_block(
+            &format!(" Submit {} and what it runs with ", chain.head),
+            " space toggle · a all · n none · f open form · ⏎ continue · esc ",
+            theme::ACCENT,
+        )),
+        popup,
+    );
+}
+
+/// Every `sbatch` line the chain would run, waiting for a `y`.
+pub fn draw_chain_confirm(frame: &mut Frame, app: &App, area: Rect) {
+    let Some(chain) = app.chain.as_ref() else {
+        return;
+    };
+    let width = area.width.saturating_sub(4).min(MAX_WIDTH);
+    let inner = width.saturating_sub(4) as usize;
+
+    let mut lines: Vec<Line> = Vec::new();
+    for (index, row) in chain.rows.iter().enumerate() {
+        if !row.checked {
+            continue;
+        }
+        let placeholders = chain.placeholder_ids(index);
+        let plan = crate::batch::plan(&row.base, &row.link.namepath, &row.settings)
+            .ok()
+            .flatten();
+        let batch = plan
+            .as_ref()
+            .map(|plan| (plan.manifest.as_path(), plan.count()));
+        let command = slurm::preview_command(
+            &row.base,
+            &row.link.namepath,
+            &row.settings,
+            batch,
+            Some(&placeholders),
+        );
+        lines.push(Line::from(vec![
+            Span::styled(format!("  {:>2}  ", index + 1), theme::label()),
+            Span::styled(
+                row.link.label(),
+                Style::default()
+                    .fg(theme::RECIPE)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                match chain.waits_label(index).is_empty() {
+                    true => String::new(),
+                    false => format!("   {}", chain.waits_label(index)),
+                },
+                theme::label(),
+            ),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("      $ ", theme::label()),
+            Span::styled(
+                truncate(&command, inner.saturating_sub(8)),
+                Style::default().fg(theme::FG),
+            ),
+        ]));
+    }
+    lines.push(Line::default());
+    lines.push(Line::from(Span::styled(
+        "   <name> stands for the job id that link gets when it is submitted",
+        theme::label(),
+    )));
+
+    let popup = centered(area, width, lines.len() as u16 + 2);
+    frame.render_widget(Clear, popup);
+    frame.render_widget(
+        Paragraph::new(lines).block(overlay_block(
+            &format!(" Submit {} jobs in this order? ", chain.checked()),
+            " y submit them · any other key goes back to the chooser ",
             theme::MATCH,
         )),
         popup,

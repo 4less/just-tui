@@ -44,6 +44,13 @@ pub struct Record {
     pub manifest: String,
     /// How many tasks that expansion came to; 0 for an ordinary job.
     pub tasks: usize,
+    /// Job ids this one was told to wait on, when it went out as part of a
+    /// chain. Empty for a job submitted alone.
+    pub after: Vec<String>,
+    /// The first job id of the chain this one was submitted in, so the
+    /// members of one submission can be told apart from another's. Empty
+    /// for a job submitted alone.
+    pub chain: String,
     pub settings: Settings,
 }
 
@@ -58,21 +65,12 @@ impl Record {
 
     /// The settings summarised for a list: only what was actually asked for.
     pub fn asked_for(&self) -> String {
-        let mut parts = Vec::new();
-        for (label, value) in [
-            ("", self.settings.partition.as_str()),
-            ("", self.settings.qos.as_str()),
-            ("cpu ", self.settings.cpus.as_str()),
-            ("mem ", self.settings.mem.as_str()),
-            ("time ", self.settings.time.as_str()),
-            ("gpu ", self.settings.gpus.as_str()),
-            ("array ", self.settings.array.as_str()),
-        ] {
-            if !value.is_empty() {
-                parts.push(format!("{label}{value}"));
-            }
-        }
-        parts.join(" · ")
+        self.settings.asked_for()
+    }
+
+    /// Went out as part of a chain, so it ran `just --no-deps`.
+    pub fn chained(&self) -> bool {
+        !self.chain.is_empty()
     }
 }
 

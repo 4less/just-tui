@@ -44,7 +44,7 @@ fn renders_a_full_frame() {
 fn the_submit_form_opens_with_resolved_settings() {
     let mut app = fixture_app();
     app.cluster = Some(test_cluster());
-    app.open_submit();
+    app.open_submit_single();
 
     assert_eq!(app.mode, Mode::Submit);
     let form = app.form.as_ref().expect("form is open");
@@ -132,7 +132,7 @@ fn the_job_browser_shows_the_queue_and_a_log() {
 fn a_job_name_is_built_from_the_recipe_and_its_arguments() {
     let mut app = fixture_app();
     app.cluster = Some(test_cluster());
-    app.open_submit();
+    app.open_submit_single();
 
     let form = app.form.as_mut().expect("form is open");
     form.settings.args = "name=ada".to_owned();
@@ -169,7 +169,7 @@ fn overlays_survive_a_tiny_terminal() {
         },
         ..Default::default()
     });
-    app.open_submit();
+    app.open_submit_single();
     app.picker = Some(HistoryPick {
         namepath: Some("build".to_owned()),
         index: 0,
@@ -422,7 +422,7 @@ fn the_submit_form_opens_before_the_cluster_answers() {
 
     let mut app = fixture_app();
     let opened = Instant::now();
-    app.open_submit();
+    app.open_submit_single();
 
     assert!(
         opened.elapsed() < Duration::from_millis(100),
@@ -443,7 +443,7 @@ fn the_submit_form_opens_before_the_cluster_answers() {
 fn fields_can_be_edited_anywhere_not_just_at_the_end() {
     let mut app = fixture_app();
     app.cluster = Some(test_cluster());
-    app.open_submit();
+    app.open_submit_single();
 
     let form = app.form.as_mut().expect("form is open");
     // Move to `args` and type something in.

@@ -113,6 +113,34 @@ impl Field {
 }
 
 impl Settings {
+    /// `qib-compute · cpu 32 · mem 64G`: what was asked for, and nothing
+    /// that was left to the defaults.
+    pub fn asked_for(&self) -> String {
+        let mut parts = Vec::new();
+        for (label, value) in [
+            ("", self.partition.as_str()),
+            ("", self.qos.as_str()),
+            ("cpu ", self.cpus.as_str()),
+            ("mem ", self.mem.as_str()),
+            ("time ", self.time.as_str()),
+            ("gpu ", self.gpus.as_str()),
+            ("array ", self.array.as_str()),
+        ] {
+            if !value.is_empty() {
+                parts.push(format!("{label}{value}"));
+            }
+        }
+        parts.join(" · ")
+    }
+
+    /// Whether anything about the allocation itself has been decided. A
+    /// recipe with none of these set is one the form has to ask about.
+    pub fn configured(&self) -> bool {
+        [&self.partition, &self.cpus, &self.mem, &self.time]
+            .iter()
+            .any(|value| !value.trim().is_empty())
+    }
+
     pub fn get(&self, field: Field) -> &str {
         match field {
             Field::Name => &self.name,

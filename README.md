@@ -212,6 +212,66 @@ Two things to know: every task gets the **same** `--mem`, `--cpus` and `--time`,
 suits work that is uniform across inputs; and rerunning a few failed tasks means resubmitting
 the array with `--array=3,7,19` rather than pressing `s`.
 
+### Dependencies as a chain of jobs
+
+`just align` runs `align`'s dependencies first, in one process. Submitted as one job they
+all share one allocation: a 4 GB fetch and a 256 GB alignment get the biggest request. So
+`s` on a recipe with dependencies opens a **chooser** instead of the form, and submits one
+job per recipe, ordered by Slurm:
+
+```
+╭ Submit align and what it runs with ────────────────────────────────────╮
+│   [x]  1  fetch hg38    config       qib-compute · cpu 4 · mem 8G      │
+│   [x]  2  sub::tree     last run     cpu 32 · mem 128G · time 96:00:00 │
+│   [x]  3  sub::index    no settings  will ask                          │
+│          ↳ after 2                                                     │
+│ ▸ [x]  4  align         last run     cpu 64 · mem 64G                  │
+│          ↳ after 1, 3                                                  │
+│                                                                        │
+│   4 of 4 jobs · 1 needs settings   unchecked = already done, not waited for │
+╰ space toggle · a all · n none · f open form · ⏎ continue · esc ───────╯
+```
+
+The justfile is the only source: prior dependencies (`align: fetch index`) and subsequent
+ones (`align: fetch && report`) are both in the chain, a recipe reached twice is one row, and
+`(fetch "hg38")` puts `hg38` in that job's `args`. Rows are in submission order; the `↳ after`
+line names which rows a job waits on.
+
+**Unchecking** a row means "already done, do not run it": the jobs that waited on it simply
+lose that wait. The chooser remembers what was unchecked, per recipe, in
+`.just-tui-cluster-state` (`skip = …`), so the next `s` opens the way it was left. A
+dependency new since then starts checked.
+
+**Continuing** walks the checked rows that have **no settings** — nothing for partition,
+cpus, mem or time from any config or previous run — and opens the ordinary form for each,
+titled `step 3 of 4 · sub::index · waits on tree`, with `done:` and `next:` in the footer.
+`Enter` accepts a row's values, `Esc` goes back to the chooser, and `F2`/`F3`/`F4` save
+defaults as they always did, so a recipe filled in once is not asked about again. `f` opens
+the form for any row, configured or not. Rows that already have settings are reviewed in the
+chooser itself.
+
+**Submitting** shows every `sbatch` line in order and takes a `y`:
+
+```
+sbatch … --wrap "just --no-deps fetch hg38"                                    → 23474901
+sbatch … --wrap "just --no-deps sub::tree"                                     → 23474902
+sbatch … --dependency=afterok:23474902 --kill-on-invalid-dep=yes \
+       --wrap "just --no-deps sub::index"                                      → 23474903
+sbatch … --dependency=afterok:23474901:23474903 --kill-on-invalid-dep=yes \
+       --wrap "just --no-deps align"                                           → 23474904
+```
+
+Every job runs `just --no-deps`, or `align` would run `fetch` and `index` again inside its
+own allocation. `afterok` releases a job only when everything it waits on exited 0, and
+`--kill-on-invalid-dep=yes` cancels the rest of the chain when something upstream fails,
+rather than leaving it pending as `DependencyNeverSatisfied` until someone notices. If an
+`sbatch` fails part way, what is already queued stays queued and the error names it.
+
+In the job browser a chained job shows `↳` before its name, a pending one says `waits on
+tree`, and one whose upstream failed says `upstream failed`. `s` on any of them submits that
+job alone, still with `--no-deps`. A row with `each` is one array job in the chain, and the
+jobs after it wait for every task.
+
 ### Logs
 
 Always under `logs/` in the justfile's base directory, mirroring the module structure:
@@ -392,6 +452,7 @@ time = 96:00:00
 
 Keys: `partition` (or `queue`), `account`, `qos`, `cpus`, `mem`, `time`, `nodes`, `gpus`
 (or `gres`), `array`, `extra`, `args`, `each` (or `glob`, `inputs`). An empty or absent key means the flag is not passed.
+The state file alone also carries `skip`, the chain rows left unchecked last time.
 
 Precedence, weakest first — **the nearer config always wins**, and every config beats the
 automatically recorded state:

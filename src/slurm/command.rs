@@ -116,12 +116,16 @@ pub fn resolved_log_paths(namepath: &str, settings: &Settings, job_id: &str) -> 
     (fill(out), fill(err))
 }
 
-/// The full `sbatch` argument list for a recipe.
+/// The full `sbatch` argument list for a recipe. `chain` is `None` for a job
+/// submitted alone; in a chain it names the job ids this one waits on, empty
+/// for the first link, and the job runs `just --no-deps` so the dependencies
+/// that are jobs of their own are not run a second time inside it.
 pub fn build_command(
     base: &Path,
     namepath: &str,
     settings: &Settings,
     batch: Option<(&Path, usize)>,
+    chain: Option<&[String]>,
 ) -> Vec<String> {
     let (out, err) = log_paths(namepath, settings);
     let mut args = vec![
@@ -151,12 +155,21 @@ pub fn build_command(
     if let Some((_, count)) = batch {
         args.push(format!("--array={}", array_range(settings, count)));
     }
+    // A job whose upstream fails can never start; without the second flag
+    // Slurm leaves it pending forever rather than cancelling it.
+    if let Some(after) = chain
+        && !after.is_empty()
+    {
+        args.push(format!("--dependency=afterok:{}", after.join(":")));
+        args.push("--kill-on-invalid-dep=yes".to_owned());
+    }
 
     args.push("--wrap".to_owned());
     args.push(wrap_command(
         namepath,
         settings,
         batch.map(|(path, _)| path),
+        chain.is_some(),
     ));
     args
 }
@@ -173,14 +186,23 @@ fn array_range(settings: &Settings, count: usize) -> String {
 /// What the job actually runs. An expansion reads its own line of the
 /// manifest; `$(…)` is left for the shell sbatch runs this under, so the task
 /// id is resolved on the node rather than here.
-fn wrap_command(namepath: &str, settings: &Settings, manifest: Option<&Path>) -> String {
+fn wrap_command(
+    namepath: &str,
+    settings: &Settings,
+    manifest: Option<&Path>,
+    no_deps: bool,
+) -> String {
+    let just = match no_deps {
+        true => "just --no-deps",
+        false => "just",
+    };
     if let Some(manifest) = manifest {
         return format!(
-            "just {namepath} $(sed -n \"$((SLURM_ARRAY_TASK_ID+1))p\" {})",
+            "{just} {namepath} $(sed -n \"$((SLURM_ARRAY_TASK_ID+1))p\" {})",
             manifest.display()
         );
     }
-    let mut command = format!("just {namepath}");
+    let mut command = format!("{just} {namepath}");
     if !settings.args.trim().is_empty() {
         command.push(' ');
         command.push_str(settings.args.trim());
@@ -195,6 +217,7 @@ pub fn preview_command(
     namepath: &str,
     settings: &Settings,
     batch: Option<(&Path, usize)>,
+    chain: Option<&[String]>,
 ) -> String {
     let skip = [
         "--parsable",
@@ -203,7 +226,7 @@ pub fn preview_command(
         "--output=",
         "--error=",
     ];
-    let shown: Vec<String> = build_command(base, namepath, settings, batch)
+    let shown: Vec<String> = build_command(base, namepath, settings, batch, chain)
         .into_iter()
         .filter(|arg| !skip.iter().any(|prefix| arg.starts_with(prefix)))
         .collect();
@@ -239,6 +262,7 @@ pub fn submit(
     namepath: &str,
     settings: &Settings,
     batch: Option<(&Path, usize)>,
+    chain: Option<&[String]>,
 ) -> Submission {
     let dir = log_dir(base, namepath, settings);
     if let Err(err) = std::fs::create_dir_all(&dir) {
@@ -247,7 +271,7 @@ pub fn submit(
         };
     }
 
-    let args = build_command(base, namepath, settings, batch);
+    let args = build_command(base, namepath, settings, batch, chain);
     let borrowed: Vec<&str> = args.iter().map(String::as_str).collect();
 
     match super::cluster::capture_in("sbatch", &borrowed, base) {

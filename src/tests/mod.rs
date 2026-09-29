@@ -2,6 +2,7 @@
 
 mod app;
 mod batch;
+mod chain;
 mod cluster;
 mod demo;
 mod highlight;
@@ -32,11 +33,14 @@ const DUMP: &str = r#"{
     }
   },
   "recipes": {
+    "post": {"attributes": [], "body": [["echo post"]], "dependencies": [], "doc": "Runs last",
+      "name": "post", "namepath": "post", "parameters": [], "priors": 0,
+      "private": false, "quiet": false, "shebang": false},
     "_hidden": {"attributes": [], "body": [["echo x"]], "dependencies": [], "doc": null,
       "name": "_hidden", "namepath": "_hidden", "parameters": [], "priors": 0,
       "private": true, "quiet": false, "shebang": false},
     "build": {"attributes": [], "body": [["cargo build"]],
-      "dependencies": [{"arguments": [], "recipe": "hello"}, {"arguments": [], "recipe": "after"}],
+      "dependencies": [{"arguments": [], "recipe": "hello"}, {"arguments": [], "recipe": "post"}],
       "doc": "Build it", "name": "build", "namepath": "build", "parameters": [],
       "priors": 1, "private": false, "quiet": false, "shebang": false},
     "hello": {"attributes": [{"group": "greet"}], "body": [["echo \"hi ", [["variable", "name"]], "\""]],

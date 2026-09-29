@@ -17,7 +17,7 @@ use crate::history::History;
 use crate::just::{self, Loaded};
 use crate::slurm::Cluster;
 use crate::source::SourceCache;
-use crate::submit::SubmitForm;
+use crate::submit::{ChainForm, SubmitForm};
 use crate::tree::{Filter, Kind, Tree};
 use crate::ui::Panes;
 
@@ -56,6 +56,10 @@ pub enum Mode {
     Args,
     Help,
     Submit,
+    /// Choosing which links of a dependency chain go out, before their forms.
+    Chain,
+    /// The chain's `sbatch` lines, waiting for a `y`.
+    ConfirmChain,
     /// Choosing which `.just-tui-cluster-config` to open in an editor.
     ConfigPick,
     /// Browsing Slurm jobs and their logs.
@@ -128,6 +132,8 @@ pub struct App {
     /// Detection in flight, so the form need not wait for it.
     pub detecting: Option<std::sync::mpsc::Receiver<Cluster>>,
     pub form: Option<SubmitForm>,
+    /// The chain chooser, while a recipe with dependencies is being submitted.
+    pub chain: Option<ChainForm>,
     /// Every job submitted from this project, with the settings it used.
     pub history: History,
     /// Built the first time the job browser is opened.
@@ -171,6 +177,7 @@ impl App {
             cluster: None,
             detecting: None,
             form: None,
+            chain: None,
             history,
             jobs: None,
             picker: None,

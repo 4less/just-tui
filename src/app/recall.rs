@@ -86,7 +86,7 @@ impl App {
                 ));
                 return;
             }
-            self.open_submit();
+            self.open_submit_single();
         }
 
         self.mode = Mode::Submit;

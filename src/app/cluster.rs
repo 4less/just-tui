@@ -2,10 +2,11 @@
 
 use super::{Action, App, Mode};
 use crate::batch;
+use crate::chain::Chain;
 use crate::config;
 use crate::history::{self, Record};
-use crate::slurm::{self, Cluster};
-use crate::submit::{SaveScope, SubmitForm};
+use crate::slurm::{self, Cluster, Settings};
+use crate::submit::{ChainForm, ChainRow, SaveScope, SubmitForm};
 
 impl App {
     /// Take delivery of the cluster description, if it has arrived.
@@ -19,25 +20,56 @@ impl App {
         }
     }
 
-    /// Open the submit form for the selected recipe, detecting the cluster
-    /// the first time it is needed.
+    /// Submit the selected recipe: the chain chooser when it has
+    /// dependencies, the form alone when it does not.
     pub fn open_submit(&mut self) {
         let Some(namepath) = self.run_target() else {
             self.error("select a recipe to submit");
             return;
         };
         let Some(id) = self.selected_id else { return };
+        let root = self.selected().map_or(0, |n| n.root_index);
 
-        // Detection is four calls to the controller. The form opens on free
-        // text and the pick lists fill in when they answer.
-        if self.cluster.is_none() && self.detecting.is_none() {
-            let (sender, receiver) = std::sync::mpsc::channel();
-            self.detecting = Some(receiver);
-            crate::world::spawn(move || {
-                let _ = sender.send(Cluster::detect());
-            });
+        let chain = match Chain::build(&self.tree, root, id) {
+            Ok(chain) => chain,
+            Err(problem) => {
+                self.error(problem);
+                return;
+            }
+        };
+        if chain.len() < 2 {
+            self.open_submit_single();
+            return;
         }
 
+        self.start_detecting();
+        let base = self.selected_source().working_dir.clone();
+        let rows: Vec<ChainRow> = chain
+            .links
+            .into_iter()
+            .map(|link| {
+                let module_dirs = self.tree.module_dirs(link.id);
+                let scope_dir = module_dirs.last().cloned().unwrap_or_else(|| base.clone());
+                let resolved = self.resolve_settings(link.id, &link.namepath);
+                ChainRow::new(link, resolved, base.clone(), scope_dir)
+            })
+            .collect();
+        let skipped = self.configs.skipped(&namepath).to_vec();
+
+        self.chain = Some(ChainForm::new(namepath, rows, &skipped));
+        self.mode = Mode::Chain;
+    }
+
+    /// Open the submit form for the selected recipe on its own, detecting the
+    /// cluster the first time it is needed.
+    pub fn open_submit_single(&mut self) {
+        let Some(namepath) = self.run_target() else {
+            self.error("select a recipe to submit");
+            return;
+        };
+        let Some(id) = self.selected_id else { return };
+
+        self.start_detecting();
         let base = self.selected_source().working_dir.clone();
         let module_dirs = self.tree.module_dirs(id);
         let scope_dir = module_dirs.last().cloned().unwrap_or_else(|| base.clone());
@@ -45,6 +77,194 @@ impl App {
 
         self.form = Some(SubmitForm::new(namepath, resolved, base, scope_dir));
         self.mode = Mode::Submit;
+    }
+
+    /// Detection is four calls to the controller. The form opens on free
+    /// text and the pick lists fill in when they answer.
+    fn start_detecting(&mut self) {
+        if self.cluster.is_none() && self.detecting.is_none() {
+            let (sender, receiver) = std::sync::mpsc::channel();
+            self.detecting = Some(receiver);
+            crate::world::spawn(move || {
+                let _ = sender.send(Cluster::detect());
+            });
+        }
+    }
+
+    /// Open the form for one row of the chain.
+    pub fn open_chain_step(&mut self, row: usize) {
+        let Some(chain) = self.chain.as_mut() else {
+            return;
+        };
+        let Some(entry) = chain.rows.get(row) else {
+            return;
+        };
+        let mut form = SubmitForm::new(
+            entry.link.namepath.clone(),
+            entry.resolved.clone(),
+            entry.base.clone(),
+            entry.scope_dir.clone(),
+        );
+        form.adopt(entry.settings.clone());
+        chain.step = Some(row);
+        chain.cursor = row;
+        self.form = Some(form);
+        self.mode = Mode::Submit;
+    }
+
+    /// Back from a row's form to the chooser, keeping nothing typed there.
+    pub fn leave_chain_step(&mut self) {
+        if let Some(chain) = self.chain.as_mut() {
+            chain.step = None;
+        }
+        self.form = None;
+        self.mode = Mode::Chain;
+    }
+
+    /// Enter on a row's form: keep its values and move on to the next row
+    /// that needs asking about, or to the confirmation.
+    pub fn accept_chain_step(&mut self) {
+        let Some(form) = self.form.take() else { return };
+        if let Some(problem) = form.plan_error.clone() {
+            self.form = Some(form);
+            self.error(format!("each: {problem}"));
+            return;
+        }
+        let Some(chain) = self.chain.as_mut() else {
+            return;
+        };
+        let step = chain.step.unwrap_or(0);
+        chain.accept(form.settings);
+        match chain.next_needing_form(step + 1) {
+            Some(next) => self.open_chain_step(next),
+            None => self.mode = Mode::ConfirmChain,
+        }
+    }
+
+    /// Enter in the chooser: walk the rows that have no settings, then ask
+    /// for the `y`.
+    pub fn continue_chain(&mut self) {
+        let Some(chain) = self.chain.as_ref() else {
+            return;
+        };
+        if chain.checked() == 0 {
+            self.error("nothing is checked — space toggles a row, a checks them all");
+            return;
+        }
+        match chain.next_needing_form(0) {
+            Some(row) => self.open_chain_step(row),
+            None => self.mode = Mode::ConfirmChain,
+        }
+    }
+
+    /// Hand every checked row to sbatch in order, each told which of the
+    /// earlier ones it waits on. A failure part way stops there: what is
+    /// already queued stays queued and is named, so it can be cancelled.
+    pub fn submit_chain(&mut self) {
+        let Some(chain) = self.chain.take() else {
+            return;
+        };
+        self.mode = Mode::Normal;
+
+        let mut ids: Vec<Option<String>> = vec![None; chain.rows.len()];
+        let mut first = String::new();
+        for (index, row) in chain.rows.iter().enumerate() {
+            if !row.checked {
+                continue;
+            }
+            let after: Vec<String> = chain
+                .waits_on(index)
+                .into_iter()
+                .filter_map(|upstream| ids[upstream].clone())
+                .collect();
+            match self.submit_link(row, &after, &first) {
+                Ok(job_id) => {
+                    if first.is_empty() {
+                        first = job_id.clone();
+                    }
+                    ids[index] = Some(job_id);
+                }
+                Err(problem) => {
+                    let queued: Vec<&str> = ids.iter().flatten().map(String::as_str).collect();
+                    self.error(match queued.is_empty() {
+                        true => format!("{}: {problem}", row.link.namepath),
+                        false => format!(
+                            "{}: {problem} — already queued: {}",
+                            row.link.namepath,
+                            queued.join(", ")
+                        ),
+                    });
+                    return;
+                }
+            }
+        }
+
+        if let Err(err) = self.configs.remember_skipped(&chain.head, &chain.skipped()) {
+            self.error(format!("submitted, but could not save the chooser: {err}"));
+            return;
+        }
+        let queued: Vec<&str> = ids.iter().flatten().map(String::as_str).collect();
+        self.info(format!(
+            "submitted {} jobs: {}",
+            queued.len(),
+            queued.join(" → ")
+        ));
+    }
+
+    /// One link: write its manifest if it has one, submit it after the jobs
+    /// named, and record it the way a single submission is recorded.
+    fn submit_link(
+        &mut self,
+        row: &ChainRow,
+        after: &[String],
+        chain: &str,
+    ) -> Result<String, String> {
+        let namepath = &row.link.namepath;
+        let settings: &Settings = &row.settings;
+        let plan = batch::plan(&row.base, namepath, settings)
+            .map_err(|problem| format!("each: {problem}"))?;
+        if let Some(plan) = plan.as_ref()
+            && let Err(err) = batch::write(&row.base, plan)
+        {
+            return Err(format!("could not write the manifest: {err}"));
+        }
+        let batch = plan
+            .as_ref()
+            .map(|plan| (plan.manifest.as_path(), plan.count()));
+
+        let job_id = match slurm::submit(&row.base, namepath, settings, batch, Some(after)) {
+            slurm::Submission::Ok { job_id } => job_id,
+            slurm::Submission::Failed { message } => return Err(format!("sbatch: {message}")),
+        };
+
+        let (out, err) = slurm::resolved_log_paths(namepath, settings, &job_id);
+        let record = Record {
+            job_id: job_id.clone(),
+            namepath: namepath.clone(),
+            name: slurm::job_name(namepath, settings),
+            at: history::now(),
+            when: history::timestamp(),
+            out,
+            err,
+            command: slurm::preview_command(&row.base, namepath, settings, batch, Some(after)),
+            base: row.base.display().to_string(),
+            manifest: plan
+                .as_ref()
+                .map(|plan| plan.manifest.display().to_string())
+                .unwrap_or_default(),
+            tasks: plan.as_ref().map_or(0, |plan| plan.count()),
+            after: after.to_vec(),
+            chain: match chain.is_empty() {
+                true => job_id.clone(),
+                false => chain.to_owned(),
+            },
+            settings: settings.clone(),
+        };
+        self.configs
+            .remember(namepath, settings)
+            .and_then(|()| self.history.append(record))
+            .map_err(|err| format!("queued as {job_id}, but could not save settings: {err}"))?;
+        Ok(job_id)
     }
 
     /// Merge the config chain for one recipe.
@@ -90,7 +310,13 @@ impl App {
             return;
         }
 
-        match slurm::submit(&form.base, &form.namepath, &form.settings, form.batch()) {
+        match slurm::submit(
+            &form.base,
+            &form.namepath,
+            &form.settings,
+            form.batch(),
+            None,
+        ) {
             slurm::Submission::Ok { job_id } => {
                 let (out, err) = slurm::resolved_log_paths(&form.namepath, &form.settings, &job_id);
                 let record = Record {
@@ -106,6 +332,7 @@ impl App {
                         &form.namepath,
                         &form.settings,
                         form.batch(),
+                        None,
                     ),
                     base: form.base.display().to_string(),
                     manifest: form
@@ -114,6 +341,8 @@ impl App {
                         .map(|plan| plan.manifest.display().to_string())
                         .unwrap_or_default(),
                     tasks: form.plan.as_ref().map_or(0, |plan| plan.count()),
+                    after: Vec::new(),
+                    chain: String::new(),
                     settings: form.settings.clone(),
                 };
                 let name = record.name.clone();

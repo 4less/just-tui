@@ -100,7 +100,13 @@ fn builds_an_sbatch_command() {
         args: "force=1".into(),
         ..Default::default()
     };
-    let args = slurm::build_command(Path::new("/work/proj"), "level3::db::tree", &settings, None);
+    let args = slurm::build_command(
+        Path::new("/work/proj"),
+        "level3::db::tree",
+        &settings,
+        None,
+        None,
+    );
 
     assert!(args.contains(&"--chdir=/work/proj".to_owned()));
     // The arguments are baked into the name, so two runs stay apart.

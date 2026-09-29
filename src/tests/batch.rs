@@ -182,7 +182,13 @@ fn an_expansion_submits_as_one_array() {
         ..Default::default()
     };
     let manifest = Path::new("logs/count-245df667.args");
-    let args = slurm::build_command(Path::new("/work"), "count", &settings, Some((manifest, 37)));
+    let args = slurm::build_command(
+        Path::new("/work"),
+        "count",
+        &settings,
+        Some((manifest, 37)),
+        None,
+    );
 
     assert!(args.contains(&"--array=0-36%4".to_owned()), "got {args:?}");
     assert_eq!(

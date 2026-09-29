@@ -53,6 +53,9 @@ pub struct ConfigFile {
     pub defaults: Settings,
     /// `[namepath]` sections, applying to one recipe.
     pub recipes: BTreeMap<String, Settings>,
+    /// `skip = a, b` under a section: the links of that recipe's chain that
+    /// were left unchecked last time. Only the state file writes it.
+    pub skips: BTreeMap<String, Vec<String>>,
 }
 
 impl ConfigFile {
@@ -75,10 +78,16 @@ impl ConfigFile {
             let Some((key, value)) = line.split_once('=') else {
                 continue;
             };
+            let value = value.trim().trim_matches(['"', '\'']).to_owned();
+            if key.trim() == "skip" {
+                if let Some(name) = &section {
+                    file.skips.insert(name.clone(), split_list(&value));
+                }
+                continue;
+            }
             let Some(field) = field_for_key(key.trim()) else {
                 continue;
             };
-            let value = value.trim().trim_matches(['"', '\'']).to_owned();
             match &section {
                 Some(name) => *file.recipes.entry(name.clone()).or_default().get_mut(field) = value,
                 None => *file.defaults.get_mut(field) = value,
@@ -106,6 +115,16 @@ impl ConfigFile {
         }
         out
     }
+}
+
+/// `a, b, c` as its parts, blanks dropped.
+fn split_list(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 fn write_settings(out: &mut String, settings: &Settings) {
@@ -252,6 +271,35 @@ impl Configs {
         self.state
             .recipes
             .insert(namepath.to_owned(), settings.clone());
+        self.write_state()
+    }
+
+    /// Which links of a recipe's chain were left unchecked last time.
+    pub fn skipped(&self, namepath: &str) -> &[String] {
+        self.state
+            .skips
+            .get(namepath)
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+    }
+
+    /// Remember which links were left unchecked, so the next chooser opens
+    /// the way this one was left.
+    pub fn remember_skipped(&mut self, namepath: &str, skipped: &[String]) -> std::io::Result<()> {
+        match skipped.is_empty() {
+            true => self.state.skips.remove(namepath),
+            false => self
+                .state
+                .skips
+                .insert(namepath.to_owned(), skipped.to_vec()),
+        };
+        // A recipe that has never been submitted still needs a section for
+        // the key to sit under.
+        self.state.recipes.entry(namepath.to_owned()).or_default();
+        self.write_state()
+    }
+
+    fn write_state(&self) -> std::io::Result<()> {
         let mut text = String::from(
             "# just-tui: settings each recipe was last submitted with.\n\
              # Written automatically — edit .just-tui-cluster-config instead.\n",
@@ -259,6 +307,9 @@ impl Configs {
         for (name, settings) in &self.state.recipes {
             let _ = writeln!(text, "\n[{name}]");
             write_settings(&mut text, settings);
+            if let Some(skipped) = self.state.skips.get(name) {
+                let _ = writeln!(text, "{:<10} = {}", "skip", skipped.join(", "));
+            }
         }
         crate::world::write(&self.state_path, &text)
     }

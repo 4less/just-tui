@@ -14,6 +14,8 @@ impl App {
             Mode::Search => return self.handle_search_key(key),
             Mode::Args => return self.handle_args_key(key),
             Mode::Submit => return self.handle_submit_key(key),
+            Mode::Chain => return self.handle_chain_key(key),
+            Mode::ConfirmChain => return self.handle_chain_confirm_key(key),
             Mode::ConfigPick => return self.handle_config_pick_key(key),
             Mode::Jobs => return self.handle_jobs_key(key),
             Mode::ConfirmJob => return self.handle_confirm_key(key),
@@ -273,10 +275,22 @@ impl App {
             return Action::None;
         }
         // Keys that need the app, not just the form.
+        let in_chain = self
+            .chain
+            .as_ref()
+            .is_some_and(|chain| chain.step.is_some());
         match key.code {
+            KeyCode::Esc if in_chain => {
+                self.leave_chain_step();
+                return Action::None;
+            }
             KeyCode::Esc => {
                 self.form = None;
                 self.mode = Mode::Normal;
+                return Action::None;
+            }
+            KeyCode::Enter if in_chain => {
+                self.accept_chain_step();
                 return Action::None;
             }
             KeyCode::Enter => {
@@ -326,6 +340,60 @@ impl App {
             KeyCode::Backspace => form.pop_char(),
             KeyCode::Char(c) => form.push_char(c),
             _ => {}
+        }
+        Action::None
+    }
+
+    /// The chain chooser: which links go out, and on to their forms.
+    fn handle_chain_key(&mut self, key: KeyEvent) -> Action {
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+            return Action::Quit;
+        }
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') => {
+                self.chain = None;
+                self.mode = Mode::Normal;
+            }
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Tab => self.move_chain(1),
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::BackTab => self.move_chain(-1),
+            KeyCode::Char(' ') => {
+                if let Some(chain) = self.chain.as_mut() {
+                    chain.toggle();
+                }
+            }
+            KeyCode::Char('a') => {
+                if let Some(chain) = self.chain.as_mut() {
+                    chain.set_all(true);
+                }
+            }
+            KeyCode::Char('n') => {
+                if let Some(chain) = self.chain.as_mut() {
+                    chain.set_all(false);
+                }
+            }
+            KeyCode::Char('f') => {
+                let cursor = self.chain.as_ref().map(|chain| chain.cursor);
+                if let Some(row) = cursor {
+                    self.open_chain_step(row);
+                }
+            }
+            KeyCode::Enter => self.continue_chain(),
+            _ => {}
+        }
+        Action::None
+    }
+
+    fn move_chain(&mut self, delta: isize) {
+        if let Some(chain) = self.chain.as_mut() {
+            chain.move_cursor(delta);
+        }
+    }
+
+    /// Like a kill: only `y` sends a chain to the queue.
+    fn handle_chain_confirm_key(&mut self, key: KeyEvent) -> Action {
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => self.submit_chain(),
+            _ => self.mode = Mode::Chain,
         }
         Action::None
     }
@@ -446,7 +514,7 @@ impl App {
             ));
             return Action::None;
         }
-        self.open_submit();
+        self.open_submit_single();
         if let Some(form) = self.form.as_mut() {
             form.adopt(record.settings.clone());
         }

@@ -17,6 +17,10 @@ const KEYS: &[(&str, &str)] = &[
     ("r", "run the selected recipe"),
     ("s", "submit to Slurm (sbatch)"),
     ("←→ ^u", "in the form: move the caret, clear a field"),
+    (
+        "space / a / n / f",
+        "in the chain chooser: toggle, all, none, form",
+    ),
     ("S", "browse Slurm jobs, their usage and logs"),
     ("v / f", "in that view: hide the log, filter by state"),
     ("s / x / X", "in that view: rerun, kill, or kill and rerun"),

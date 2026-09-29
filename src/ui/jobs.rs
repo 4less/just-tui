@@ -124,6 +124,7 @@ fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
                 index == view.cursor,
                 view.since_fetch(),
                 width,
+                chain_note(app, job),
             )
         })
         .collect();
@@ -131,8 +132,56 @@ fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Paragraph::new(lines), area);
 }
 
-fn row(job: &Job, usage: Option<Usage>, selected: bool, since: u64, width: usize) -> Line<'static> {
+/// What a job's place in a chain says about it: `↳` before its name when it
+/// waited on something, and why it is pending when that is the reason.
+struct ChainNote {
+    indent: bool,
+    /// Replaces the right-hand columns while the job waits, or after the
+    /// wait can never end.
+    tail: Option<String>,
+}
+
+fn chain_note(app: &App, job: &Job) -> ChainNote {
+    let Some(record) = app.history.for_job(&job.id) else {
+        return ChainNote {
+            indent: false,
+            tail: None,
+        };
+    };
+    let indent = !record.after.is_empty();
+    let tail = match (job.pending(), job.nodes.as_str()) {
+        (true, reason) if reason.contains("DependencyNeverSatisfied") => {
+            Some("upstream failed".to_owned())
+        }
+        (true, reason) if indent && reason.contains("Dependency") => {
+            let names: Vec<String> = record
+                .after
+                .iter()
+                .map(|id| match app.history.for_job(id) {
+                    Some(upstream) => crate::submit::leaf(&upstream.namepath).to_owned(),
+                    None => id.clone(),
+                })
+                .collect();
+            Some(format!("waits on {}", names.join(", ")))
+        }
+        _ => None,
+    };
+    ChainNote { indent, tail }
+}
+
+fn row(
+    job: &Job,
+    usage: Option<Usage>,
+    selected: bool,
+    since: u64,
+    width: usize,
+    note: ChainNote,
+) -> Line<'static> {
     let name = width.saturating_sub(FIXED).max(8);
+    let shown = match note.indent {
+        true => format!("↳ {}", job.name),
+        false => job.name.clone(),
+    };
     let mut spans = vec![
         Span::styled(
             if selected { " ▸ " } else { "   " },
@@ -147,12 +196,15 @@ fn row(job: &Job, usage: Option<Usage>, selected: bool, since: u64, width: usize
             Style::default().fg(state_color(job)),
         ),
         Span::styled(
-            format!("{:<width$}", truncate(&job.name, name), width = name + 1),
+            format!("{:<width$}", truncate(&shown, name), width = name + 1),
             Style::default().fg(theme::FG),
         ),
         Span::styled(format!("{:<11}", job.elapsed_now(since)), theme::label()),
     ];
-    spans.extend(stats(job, usage));
+    match note.tail {
+        Some(tail) => spans.push(Span::styled(tail, Style::default().fg(theme::MATCH))),
+        None => spans.extend(stats(job, usage)),
+    }
     pad(&mut spans, width);
 
     let line = Line::from(spans);

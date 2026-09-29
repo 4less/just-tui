@@ -6,6 +6,7 @@
 
 pub mod app;
 pub mod batch;
+pub mod chain;
 pub mod config;
 pub mod highlight;
 pub mod history;
