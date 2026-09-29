@@ -439,6 +439,7 @@ pub fn draw_chain(frame: &mut Frame, app: &App, area: Rect) {
         .unwrap_or(0)
         .clamp(12, inner.saturating_sub(30));
 
+    let run = chain.is_run();
     let mut lines: Vec<Line> = Vec::new();
     for (index, row) in chain.rows.iter().enumerate() {
         let selected = index == chain.cursor;
@@ -461,18 +462,21 @@ pub fn draw_chain(frame: &mut Frame, app: &App, area: Rect) {
                 format!("{:<name_width$}  ", truncate(&row.link.label(), name_width)),
                 Style::default().fg(if row.checked { theme::FG } else { theme::DIM }),
             ),
-            Span::styled(
+        ];
+        if !run {
+            spans.push(Span::styled(
                 format!("{status:<12}"),
                 Style::default().fg(match status {
                     "no settings" => theme::INTERP,
                     "edited" => theme::MATCH,
                     _ => theme::VARIABLE,
                 }),
-            ),
-        ];
-        let detail = match row.needs_form() {
-            true => "will ask".to_owned(),
-            false => row.settings.asked_for(),
+            ));
+        }
+        let detail = match (run, row.needs_form()) {
+            (true, _) => format!("$ just --no-deps {}", row.link.label()),
+            (false, true) => "will ask".to_owned(),
+            (false, false) => row.settings.asked_for(),
         };
         let used: usize = spans.iter().map(|s| s.content.chars().count()).sum();
         spans.push(Span::styled(
@@ -497,10 +501,18 @@ pub fn draw_chain(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     lines.push(Line::default());
-    let asks = chain.needing_form();
+    let asks = match run {
+        true => 0,
+        false => chain.needing_form(),
+    };
     lines.push(Line::from(vec![
         Span::styled(
-            format!("   {} of {} jobs", chain.checked(), chain.rows.len()),
+            format!(
+                "   {} of {} {}",
+                chain.checked(),
+                chain.rows.len(),
+                if run { "recipes" } else { "jobs" }
+            ),
             Style::default().fg(theme::FG),
         ),
         Span::styled(
@@ -512,19 +524,32 @@ pub fn draw_chain(frame: &mut Frame, app: &App, area: Rect) {
             Style::default().fg(theme::INTERP),
         ),
         Span::styled(
-            "   unchecked = already done, not waited for",
+            match run {
+                true => "   unchecked = already done, not run",
+                false => "   unchecked = already done, not waited for",
+            },
             theme::label(),
         ),
     ]));
 
+    let (title, footer) = match &chain.purpose {
+        crate::submit::Purpose::Run { dry: true, .. } => (
+            format!(" Dry-run {} and what it runs with ", chain.head),
+            " space toggle · a all · n none · ⏎ run · esc ",
+        ),
+        crate::submit::Purpose::Run { .. } => (
+            format!(" Run {} and what it runs with ", chain.head),
+            " space toggle · a all · n none · ⏎ run · esc ",
+        ),
+        crate::submit::Purpose::Submit => (
+            format!(" Submit {} and what it runs with ", chain.head),
+            " space toggle · a all · n none · f open form · ⏎ continue · esc ",
+        ),
+    };
     let popup = centered(area, width, lines.len() as u16 + 2);
     frame.render_widget(Clear, popup);
     frame.render_widget(
-        Paragraph::new(lines).block(overlay_block(
-            &format!(" Submit {} and what it runs with ", chain.head),
-            " space toggle · a all · n none · f open form · ⏎ continue · esc ",
-            theme::ACCENT,
-        )),
+        Paragraph::new(lines).block(overlay_block(&title, footer, theme::ACCENT)),
         popup,
     );
 }

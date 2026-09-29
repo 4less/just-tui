@@ -38,37 +38,54 @@ fn re_enter(terminal: &mut DefaultTerminal) -> Result<()> {
 
 /// Drop out of the alternate screen, run `just`, then come back. Running
 /// inline rather than capturing output keeps interactive recipes working.
+/// Run each `just` invocation in turn, stopping at the first that fails, the
+/// way `just` itself stops a chain of dependencies.
 pub fn run_just(
     terminal: &mut DefaultTerminal,
     app: &mut App,
-    args: &[String],
+    commands: &[Vec<String>],
     dir: &Path,
     dry: bool,
 ) -> Result<()> {
     leave();
 
     let mut stdout = io::stdout();
-    let _ = writeln!(
-        stdout,
-        "\n\x1b[1;34m❯\x1b[0m \x1b[1mjust {}\x1b[0m{}\n",
-        args.join(" "),
-        if dry { "  \x1b[2m(dry run)\x1b[0m" } else { "" }
-    );
-    let _ = stdout.flush();
+    let total = commands.len();
+    for (index, args) in commands.iter().enumerate() {
+        let step = match total {
+            1 => String::new(),
+            n => format!("  \x1b[2m({} of {n})\x1b[0m", index + 1),
+        };
+        let _ = writeln!(
+            stdout,
+            "\n\x1b[1;34m❯\x1b[0m \x1b[1mjust {}\x1b[0m{}{step}\n",
+            args.join(" "),
+            if dry { "  \x1b[2m(dry run)\x1b[0m" } else { "" }
+        );
+        let _ = stdout.flush();
 
-    match Command::new("just").args(args).current_dir(dir).status() {
-        Ok(status) if status.success() => {
-            let _ = writeln!(stdout, "\n\x1b[32m✓ finished\x1b[0m");
-            app.info("recipe finished");
-        }
-        Ok(status) => {
-            let code = status.code().unwrap_or(-1);
-            let _ = writeln!(stdout, "\n\x1b[31m✗ exit code {code}\x1b[0m");
-            app.error(format!("recipe exited with {code}"));
-        }
-        Err(err) => {
-            let _ = writeln!(stdout, "\n\x1b[31m✗ {err}\x1b[0m");
-            app.error(format!("could not run just: {err}"));
+        match Command::new("just").args(args).current_dir(dir).status() {
+            Ok(status) if status.success() => {
+                let _ = writeln!(stdout, "\n\x1b[32m✓ finished\x1b[0m");
+                app.info(match total {
+                    1 => "recipe finished".to_owned(),
+                    n => format!("{n} recipes finished"),
+                });
+            }
+            Ok(status) => {
+                let code = status.code().unwrap_or(-1);
+                let _ = writeln!(stdout, "\n\x1b[31m✗ exit code {code}\x1b[0m");
+                app.error(match total {
+                    1 => format!("recipe exited with {code}"),
+                    _ => format!("step {} of {total} exited with {code}", index + 1),
+                });
+                break;
+            }
+            Err(err) => {
+                let _ = writeln!(stdout, "\n\x1b[31m✗ {err}\x1b[0m");
+                app.error(format!("could not run just: {err}"));
+                break;
+            }
         }
     }
 

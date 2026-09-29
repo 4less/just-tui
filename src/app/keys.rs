@@ -372,12 +372,16 @@ impl App {
                 }
             }
             KeyCode::Char('f') => {
-                let cursor = self.chain.as_ref().map(|chain| chain.cursor);
+                let cursor = self
+                    .chain
+                    .as_ref()
+                    .filter(|chain| !chain.is_run())
+                    .map(|chain| chain.cursor);
                 if let Some(row) = cursor {
                     self.open_chain_step(row);
                 }
             }
-            KeyCode::Enter => self.continue_chain(),
+            KeyCode::Enter => return self.continue_chain(),
             _ => {}
         }
         Action::None

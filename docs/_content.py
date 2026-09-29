@@ -470,6 +470,12 @@ exited 0, and <code>--kill-on-invalid-dep=yes</code> cancels the rest of the cha
 upstream fails, rather than leaving it pending as <code>DependencyNeverSatisfied</code> until someone
 notices.</p>
 
+<p><strong>Running locally</strong> goes through the same chooser: <kbd>Enter</kbd>,
+<kbd>r</kbd>, <kbd>n</kbd> and <kbd>a</kbd> on a recipe with dependencies open it titled
+<code>Run align and what it runs with</code>, and <kbd>Enter</kbd> there runs one
+<code>just --no-deps</code> per checked row, in order, stopping at the first failure. A recipe
+without dependencies runs at once, as it always did. What was unchecked is remembered for both.</p>
+
 <div class="note">
 In the job browser a chained job shows <code>↳</code> before its name, a pending one says
 <code>waits on reads</code>, and one whose upstream failed says <code>upstream failed</code>.

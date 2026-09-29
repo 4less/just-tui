@@ -5,8 +5,9 @@ use crate::batch;
 use crate::chain::Chain;
 use crate::config;
 use crate::history::{self, Record};
+use crate::just;
 use crate::slurm::{self, Cluster, Settings};
-use crate::submit::{ChainForm, ChainRow, SaveScope, SubmitForm};
+use crate::submit::{ChainForm, ChainRow, Purpose, SaveScope, SubmitForm};
 
 impl App {
     /// Take delivery of the cluster description, if it has arrived.
@@ -27,22 +28,49 @@ impl App {
             self.error("select a recipe to submit");
             return;
         };
-        let Some(id) = self.selected_id else { return };
+        if !self.open_chain(&namepath, Purpose::Submit) {
+            self.open_submit_single();
+        }
+    }
+
+    /// Run the selected recipe through the chooser, if it has dependencies.
+    /// Says whether it did; a recipe without any is left to the caller.
+    pub fn open_run_chain(&mut self, extra: &str, dry: bool) -> bool {
+        let Some(namepath) = self.run_target() else {
+            return false;
+        };
+        self.open_chain(
+            &namepath,
+            Purpose::Run {
+                extra: extra.to_owned(),
+                dry,
+            },
+        )
+    }
+
+    /// The chooser for the selected recipe, when its chain has more than one
+    /// link. A problem with the chain is reported and counts as opened, so
+    /// the caller does not fall back to running it with the problem in it.
+    fn open_chain(&mut self, namepath: &str, purpose: Purpose) -> bool {
+        let Some(id) = self.selected_id else {
+            return false;
+        };
         let root = self.selected().map_or(0, |n| n.root_index);
 
         let chain = match Chain::build(&self.tree, root, id) {
             Ok(chain) => chain,
             Err(problem) => {
                 self.error(problem);
-                return;
+                return true;
             }
         };
         if chain.len() < 2 {
-            self.open_submit_single();
-            return;
+            return false;
         }
 
-        self.start_detecting();
+        if purpose == Purpose::Submit {
+            self.start_detecting();
+        }
         let base = self.selected_source().working_dir.clone();
         let rows: Vec<ChainRow> = chain
             .links
@@ -54,10 +82,11 @@ impl App {
                 ChainRow::new(link, resolved, base.clone(), scope_dir)
             })
             .collect();
-        let skipped = self.configs.skipped(&namepath).to_vec();
+        let skipped = self.configs.skipped(namepath).to_vec();
 
-        self.chain = Some(ChainForm::new(namepath, rows, &skipped));
+        self.chain = Some(ChainForm::new(namepath.to_owned(), purpose, rows, &skipped));
         self.mode = Mode::Chain;
+        true
     }
 
     /// Open the submit form for the selected recipe on its own, detecting the
@@ -141,20 +170,41 @@ impl App {
         }
     }
 
-    /// Enter in the chooser: walk the rows that have no settings, then ask
-    /// for the `y`.
-    pub fn continue_chain(&mut self) {
+    /// Enter in the chooser. For a submission, walk the rows that have no
+    /// settings, then ask for the `y`. For a run, run them.
+    pub fn continue_chain(&mut self) -> Action {
         let Some(chain) = self.chain.as_ref() else {
-            return;
+            return Action::None;
         };
         if chain.checked() == 0 {
             self.error("nothing is checked — space toggles a row, a checks them all");
-            return;
+            return Action::None;
+        }
+        if chain.is_run() {
+            return self.run_chain();
         }
         match chain.next_needing_form(0) {
             Some(row) => self.open_chain_step(row),
             None => self.mode = Mode::ConfirmChain,
         }
+        Action::None
+    }
+
+    /// One `just --no-deps` per checked row, in order. What was unchecked is
+    /// remembered the same way a submission remembers it.
+    fn run_chain(&mut self) -> Action {
+        let Some(chain) = self.chain.take() else {
+            return Action::None;
+        };
+        self.mode = Mode::Normal;
+        let source = self.selected_source();
+        let dir = source.working_dir.clone();
+        let commands = chain.run_commands(&just::file_args(source));
+        let dry = matches!(chain.purpose, Purpose::Run { dry: true, .. });
+        if let Err(err) = self.configs.remember_skipped(&chain.head, &chain.skipped()) {
+            self.error(format!("could not save the chooser: {err}"));
+        }
+        Action::Run { commands, dir, dry }
     }
 
     /// Hand every checked row to sbatch in order, each told which of the

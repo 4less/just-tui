@@ -24,8 +24,11 @@ pub struct Link {
     pub id: usize,
     pub namepath: String,
     /// Literal arguments the dependency was declared with: `(fetch "hg38")`
-    /// gives `hg38`. Empty when it was named bare.
+    /// gives `hg38`, quoted for a shell where it needs to be. Empty when it
+    /// was named bare.
     pub args: String,
+    /// The same values one by one, for handing to `just` directly.
+    pub argv: Vec<String>,
     /// Positions in [`Chain::links`] of the jobs this one waits on.
     pub after: Vec<usize>,
 }
@@ -58,7 +61,7 @@ impl Chain {
             index: BTreeMap::new(),
             open: Vec::new(),
         };
-        builder.visit(head, String::new())?;
+        builder.visit(head, Vec::new())?;
         Ok(Chain {
             links: sort(builder.links)?,
         })
@@ -85,8 +88,9 @@ struct Builder<'a> {
 }
 
 impl Builder<'_> {
-    fn visit(&mut self, id: usize, args: String) -> Result<usize, String> {
+    fn visit(&mut self, id: usize, argv: Vec<String>) -> Result<usize, String> {
         let node = &self.tree.nodes[id];
+        let args = argv.iter().map(|a| quote(a)).collect::<Vec<_>>().join(" ");
         let key = (node.namepath.clone(), args.clone());
         if let Some(&at) = self.index.get(&key) {
             if self.open.contains(&at) {
@@ -100,6 +104,7 @@ impl Builder<'_> {
             id,
             namepath: node.namepath.clone(),
             args,
+            argv,
             after: Vec::new(),
         });
         self.index.insert(key, at);
@@ -171,14 +176,14 @@ fn resolve(tree: &Tree, root: usize, from: &str, name: &str) -> Result<usize, St
     }
 }
 
-/// The dependency's arguments as one string for the `args` field. Only
-/// literals can be carried over: a variable or a call would need `just` to
-/// evaluate it, and the job is the one that runs `just`.
-fn literal_args(from: &str, dependency: &Dependency) -> Result<String, String> {
+/// The dependency's arguments as values. Only literals can be carried over:
+/// a variable or a call would need `just` to evaluate it, and the job is the
+/// one that runs `just`.
+fn literal_args(from: &str, dependency: &Dependency) -> Result<Vec<String>, String> {
     let mut out = Vec::with_capacity(dependency.arguments.len());
     for value in &dependency.arguments {
         match value {
-            Value::String(text) => out.push(quote(text)),
+            Value::String(text) => out.push(text.clone()),
             other => {
                 return Err(format!(
                     "{from} calls {} with {}, which is not a literal",
@@ -188,7 +193,7 @@ fn literal_args(from: &str, dependency: &Dependency) -> Result<String, String> {
             }
         }
     }
-    Ok(out.join(" "))
+    Ok(out)
 }
 
 /// A literal with a space in it has to survive the shell the job runs under.

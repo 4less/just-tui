@@ -393,3 +393,84 @@ fn the_chooser_and_the_confirmation_render() {
     assert!(text.contains("done: fetch · tree · index    next: report"));
     assert!(text.contains("esc back to the chain"));
 }
+
+#[test]
+fn running_a_recipe_with_dependencies_goes_through_the_chooser_too() {
+    use crate::app::Action;
+
+    let mut app = pipeline_app();
+    // Enter on a recipe with dependencies opens the chooser instead of
+    // running; the rows are the same, without the settings column.
+    let action = app.handle_key(key(KeyCode::Enter));
+    assert!(matches!(action, Action::None));
+    assert_eq!(app.mode, Mode::Chain);
+    assert!(app.chain.as_ref().unwrap().is_run());
+    let text = screen(&mut app, 100, 30);
+    assert!(text.contains("Run align and what it runs with"));
+    assert!(text.contains("$ just --no-deps fetch hg38"));
+    assert!(text.contains("⏎ run"));
+    assert!(
+        !text.contains("will ask"),
+        "a run has no settings to ask about"
+    );
+
+    // Leaving the index out: it is already done. Enter runs the rest, one
+    // `just --no-deps` each, in order, with the argument the justfile gave.
+    // The cursor starts on the last row; two up is sub::index.
+    app.handle_key(key(KeyCode::Char('k')));
+    app.handle_key(key(KeyCode::Char('k')));
+    app.handle_key(key(KeyCode::Char(' ')));
+    let action = app.handle_key(key(KeyCode::Enter));
+    let Action::Run { commands, dry, .. } = action else {
+        panic!("a run");
+    };
+    assert!(!dry);
+    assert_eq!(
+        commands,
+        [
+            vec!["--no-deps", "fetch", "hg38"],
+            vec!["--no-deps", "sub::tree"],
+            vec!["--no-deps", "align"],
+            vec!["--no-deps", "report"],
+        ]
+    );
+    assert_eq!(app.mode, Mode::Normal);
+    assert_eq!(app.configs.skipped("align"), ["sub::index"]);
+
+    // `n` is the same walk with --dry-run on every step.
+    app.handle_key(key(KeyCode::Char('n')));
+    assert_eq!(app.mode, Mode::Chain);
+    let text = screen(&mut app, 100, 30);
+    assert!(text.contains("Dry-run align"));
+    let Action::Run { commands, dry, .. } = app.handle_key(key(KeyCode::Enter)) else {
+        panic!("a run");
+    };
+    assert!(dry);
+    assert_eq!(commands[0], ["--no-deps", "--dry-run", "fetch", "hg38"]);
+    assert_eq!(
+        commands.len(),
+        4,
+        "the index stayed unchecked from last time"
+    );
+
+    // Extra arguments go to the head recipe alone.
+    app.handle_key(key(KeyCode::Char('a')));
+    for c in "x=1".chars() {
+        app.handle_key(key(KeyCode::Char(c)));
+    }
+    app.handle_key(key(KeyCode::Enter));
+    assert_eq!(app.mode, Mode::Chain);
+    let Action::Run { commands, .. } = app.handle_key(key(KeyCode::Enter)) else {
+        panic!("a run");
+    };
+    assert_eq!(commands[2], ["--no-deps", "align", "x=1"]);
+    assert_eq!(commands[0], ["--no-deps", "fetch", "hg38"]);
+
+    // A recipe without dependencies runs straight away, as before.
+    assert!(app.select_namepath("solo"));
+    let Action::Run { commands, .. } = app.handle_key(key(KeyCode::Enter)) else {
+        panic!("a run");
+    };
+    assert_eq!(commands, [vec!["solo"]]);
+    assert!(app.chain.is_none());
+}

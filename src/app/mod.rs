@@ -82,8 +82,10 @@ pub enum StatusKind {
 pub enum Action {
     None,
     Quit,
+    /// One `just` invocation per entry, run in order and stopped at the
+    /// first failure. A recipe alone is one entry; a chain is several.
     Run {
-        args: Vec<String>,
+        commands: Vec<Vec<String>>,
         dir: PathBuf,
         dry: bool,
     },
@@ -256,11 +258,17 @@ impl App {
         }
     }
 
+    /// Run the selected recipe. One with dependencies goes through the chain
+    /// chooser first, so the ones already done can be left out; the run then
+    /// happens when the chooser is confirmed.
     pub(super) fn build_run(&mut self, extra: &str, dry: bool) -> Action {
         let Some(target) = self.run_target() else {
             self.error("select a recipe to run");
             return Action::None;
         };
+        if self.open_run_chain(extra, dry) {
+            return Action::None;
+        }
         let source = self.selected_source();
         let dir = source.working_dir.clone();
         let mut args = just::file_args(source);
@@ -268,12 +276,20 @@ impl App {
             args.push("--dry-run".into());
         }
         args.push(target);
-        args.extend(
-            extra
-                .split_whitespace()
-                .filter(|s| !s.is_empty())
-                .map(str::to_owned),
-        );
-        Action::Run { args, dir, dry }
+        args.extend(split_args(extra));
+        Action::Run {
+            commands: vec![args],
+            dir,
+            dry,
+        }
     }
+}
+
+/// Extra arguments typed at the prompt, one per word.
+pub(crate) fn split_args(extra: &str) -> Vec<String> {
+    extra
+        .split_whitespace()
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+        .collect()
 }

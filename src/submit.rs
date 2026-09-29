@@ -328,11 +328,25 @@ impl ChainRow {
     }
 }
 
+/// What confirming the chooser does.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Purpose {
+    /// One Slurm job per checked row, chained with `--dependency`.
+    Submit,
+    /// One `just --no-deps` per checked row, here, in order.
+    Run {
+        /// Arguments typed for the head recipe.
+        extra: String,
+        dry: bool,
+    },
+}
+
 /// The chooser: every link of a chain, which ones go out, and where in the
 /// walk through their forms the reader is.
 pub struct ChainForm {
-    /// The recipe `s` was pressed on.
+    /// The recipe `s` or Enter was pressed on.
     pub head: String,
+    pub purpose: Purpose,
     pub rows: Vec<ChainRow>,
     pub cursor: usize,
     /// The row whose submit form is open, while one is.
@@ -340,9 +354,10 @@ pub struct ChainForm {
 }
 
 impl ChainForm {
-    pub fn new(head: String, rows: Vec<ChainRow>, skipped: &[String]) -> Self {
+    pub fn new(head: String, purpose: Purpose, rows: Vec<ChainRow>, skipped: &[String]) -> Self {
         let mut form = Self {
             head,
+            purpose,
             rows,
             cursor: 0,
             step: None,
@@ -427,6 +442,36 @@ impl ChainForm {
         self.waits_on(index)
             .into_iter()
             .map(|i| format!("<{}>", leaf(&self.rows[i].link.namepath)))
+            .collect()
+    }
+
+    pub fn is_run(&self) -> bool {
+        matches!(self.purpose, Purpose::Run { .. })
+    }
+
+    /// The `just` invocations a run comes to: one per checked row, in order,
+    /// each with `--no-deps` since the rows before it are its dependencies.
+    /// `prefix` pins `just` to the right file, as a single run does.
+    pub fn run_commands(&self, prefix: &[String]) -> Vec<Vec<String>> {
+        let Purpose::Run { extra, dry } = &self.purpose else {
+            return Vec::new();
+        };
+        self.rows
+            .iter()
+            .filter(|row| row.checked)
+            .map(|row| {
+                let mut args = prefix.to_vec();
+                args.push("--no-deps".to_owned());
+                if *dry {
+                    args.push("--dry-run".to_owned());
+                }
+                args.push(row.link.namepath.clone());
+                args.extend(row.link.argv.iter().cloned());
+                if row.link.namepath == self.head && row.link.argv.is_empty() {
+                    args.extend(crate::app::split_args(extra));
+                }
+                args
+            })
             .collect()
     }
 

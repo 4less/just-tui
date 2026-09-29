@@ -272,6 +272,11 @@ tree`, and one whose upstream failed says `upstream failed`. `s` on any of them 
 job alone, still with `--no-deps`. A row with `each` is one array job in the chain, and the
 jobs after it wait for every task.
 
+**Running locally** goes through the same chooser: `Enter`, `r`, `n` and `a` on a recipe with
+dependencies open it titled `Run align and what it runs with`, and `Enter` there runs one
+`just --no-deps` per checked row, in order, stopping at the first failure. A recipe without
+dependencies runs at once, as it always did. What was unchecked is remembered for both.
+
 ### Logs
 
 Always under `logs/` in the justfile's base directory, mirroring the module structure:

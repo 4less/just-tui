@@ -178,7 +178,9 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
         match action {
             Action::None => {}
             Action::Quit => return Ok(()),
-            Action::Run { args, dir, dry } => terminal::run_just(terminal, app, &args, &dir, dry)?,
+            Action::Run { commands, dir, dry } => {
+                terminal::run_just(terminal, app, &commands, &dir, dry)?
+            }
             Action::Edit { path, line } => terminal::edit(terminal, app, &path, line)?,
             Action::View { path } => terminal::view(terminal, app, &path)?,
             Action::Copy(text) => {
