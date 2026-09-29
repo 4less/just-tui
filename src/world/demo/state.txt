@@ -1,0 +1,36 @@
+# just-tui: settings each recipe was last submitted with.
+# Written automatically — edit .just-tui-cluster-config instead.
+
+[align::depth]
+skip       = align::index
+
+[align::index]
+partition  = compute
+cpus       = 1
+mem        = 4G
+time       = 00:10:00
+
+[align::reads]
+partition  = compute
+cpus       = 8
+mem        = 16G
+time       = 01:00:00
+
+[align::sort]
+partition  = compute
+cpus       = 4
+mem        = 8G
+time       = 00:30:00
+
+[fetch-reference]
+partition  = short
+cpus       = 1
+mem        = 2G
+time       = 00:10:00
+
+[simulate-reads]
+partition  = compute
+cpus       = 2
+mem        = 4G
+time       = 00:30:00
+args       = 4000

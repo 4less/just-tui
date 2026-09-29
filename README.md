@@ -553,8 +553,10 @@ The fixtures are not invented. The demo's justfile aligns simulated reads to the
 genome with [minibwa](https://github.com/lh3/minibwa), and its logs were captured by running
 that pipeline: `curl`'s transfer table, minibwa's mapping progress, `samtools flagstat`'s
 table, and minibwa's own `ABORT!` against a reference that had not been indexed. A job's `.out` and `.err` are genuinely different files, because minimap2 and
-samtools genuinely write to different streams. `src/tests/demo.rs` checks all of that without a
-browser.
+samtools genuinely write to different streams. The queue ends in a chain: the alignment running,
+the sort and the depth report waiting behind it with `--dependency`, and `s` on `align::depth`
+opens the chooser with the index already unchecked. `src/tests/demo.rs` checks all of that without
+a browser.
 
 ```sh
 rustup target add wasm32-unknown-unknown && cargo install trunk

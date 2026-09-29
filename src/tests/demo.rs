@@ -85,3 +85,63 @@ fn the_queue_parses_into_the_jobs_it_describes() {
     assert!(used.mem_percent(running).is_some_and(|pct| pct > 0.0));
     assert!(used.cpu_percent(running).is_some_and(|pct| pct > 0.0));
 }
+
+#[test]
+fn the_demo_pipeline_is_a_chain() {
+    use crate::chain::Chain;
+    use crate::history::Record;
+    use crate::tree::Tree;
+
+    let justfile: crate::model::Justfile = serde_json::from_str(demo::DUMP).unwrap();
+    let source = crate::just::Loaded {
+        justfile,
+        working_dir: Path::new(BASE).to_path_buf(),
+        path: Some(Path::new(BASE).join("justfile")),
+        explicit_file: None,
+        label: "phix".to_owned(),
+        global: false,
+    };
+    let tree = Tree::build(&[source], &mut crate::source::SourceCache::default());
+    let depth = tree.find_namepath(0, "align::depth").unwrap();
+    let chain = Chain::build(&tree, 0, depth).unwrap();
+    let names: Vec<&str> = chain.links.iter().map(|l| l.namepath.as_str()).collect();
+    assert_eq!(
+        names,
+        [
+            "align::index",
+            "align::reads",
+            "align::sort",
+            "align::depth"
+        ],
+        "the dump declares the same edges the module file shows"
+    );
+    assert!(read("align/align.just").contains("depth: sort"));
+
+    // The history explains the two pending jobs in the queue.
+    let records: Vec<Record> = demo::HISTORY
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("a record per line"))
+        .collect();
+    let sort = records.iter().find(|r| r.job_id == "418826").unwrap();
+    assert_eq!(
+        sort.after,
+        ["418823"],
+        "sort waits on the running alignment"
+    );
+    assert_eq!(sort.chain, "418823");
+    let depth = records.iter().find(|r| r.job_id == "418827").unwrap();
+    assert_eq!(depth.after, ["418826"]);
+    assert!(depth.command.contains("--no-deps align::depth"));
+
+    // And the state file leaves the index unchecked next time.
+    let state = crate::config::ConfigFile::parse(Path::new("state"), demo::STATE);
+    assert_eq!(state.skips["align::depth"], ["align::index"]);
+    assert!(state.recipes["align::reads"].configured());
+    assert!(
+        state
+            .recipes
+            .get("align::depth")
+            .is_none_or(|depth| !depth.configured()),
+        "depth still has to be asked about"
+    );
+}

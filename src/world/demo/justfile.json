@@ -70,12 +70,17 @@
        "/depth.tsv"
       ]
      ],
-     "dependencies": [],
+     "dependencies": [
+      {
+       "arguments": [],
+       "recipe": "sort"
+      }
+     ],
      "doc": "Depth across the genome, one line per position",
      "name": "depth",
      "namepath": "align::depth",
      "parameters": [],
-     "priors": 0,
+     "priors": 1,
      "private": false,
      "quiet": false,
      "shebang": false
@@ -169,7 +174,12 @@
        "/aln.sam"
       ]
      ],
-     "dependencies": [],
+     "dependencies": [
+      {
+       "arguments": [],
+       "recipe": "index"
+      }
+     ],
      "doc": "Align the reads to the reference, then count what mapped",
      "name": "reads",
      "namepath": "align::reads",
@@ -181,7 +191,7 @@
        "name": "threads"
       }
      ],
-     "priors": 0,
+     "priors": 1,
      "private": false,
      "quiet": false,
      "shebang": false
@@ -221,12 +231,17 @@
        "/aln.bam"
       ]
      ],
-     "dependencies": [],
+     "dependencies": [
+      {
+       "arguments": [],
+       "recipe": "reads"
+      }
+     ],
      "doc": "Sort and index the alignments",
      "name": "sort",
      "namepath": "align::sort",
      "parameters": [],
-     "priors": 0,
+     "priors": 1,
      "private": false,
      "quiet": false,
      "shebang": false

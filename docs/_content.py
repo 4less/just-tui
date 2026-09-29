@@ -415,6 +415,68 @@ Every task of an array gets the <strong>same</strong> <code>--mem</code>, <code>
 <code>--time</code>, so this suits work that is uniform across inputs. Rerunning a few failed tasks
 means resubmitting with <code>--array=3,7,19</code> rather than pressing <kbd>s</kbd>.
 </div>
+
+<h2 id="chain">Dependencies as a chain of jobs</h2>
+
+<p><code>just align</code> runs <code>align</code>'s dependencies first, in one process. Submitted
+as one job they all share one allocation: a 4&nbsp;GB fetch and a 256&nbsp;GB alignment get the
+biggest request. So <kbd>s</kbd> on a recipe with dependencies opens a <strong>chooser</strong>
+instead of the form, and submits one job per recipe, ordered by Slurm:</p>
+
+{code('''
+╭ Submit align::depth and what it runs with ──────────────────────────────╮
+│   [ ]  1  align::index   last run     compute · cpu 1 · mem 4G          │
+│   [x]  2  align::reads   last run     compute · cpu 8 · mem 16G         │
+│   [x]  3  align::sort    last run     compute · cpu 4 · mem 8G          │
+│          ↳ after 2                                                      │
+│ ▸ [x]  4  align::depth   no settings  will ask                          │
+│          ↳ after 3                                                      │
+│                                                                         │
+│   3 of 4 jobs · 1 needs settings   unchecked = already done, not waited for │
+╰ space toggle · a all · n none · f open form · ⏎ continue · esc ────────╯
+''')}
+
+<p>The justfile is the only source: prior dependencies (<code>align: fetch index</code>) and
+subsequent ones (<code>align: fetch &amp;&amp; report</code>) are both in the chain, a recipe reached
+twice is one row, and <code>(fetch "hg38")</code> puts <code>hg38</code> in that job's
+<code>args</code>. Rows are in submission order; the <code>↳ after</code> line names which rows a job
+waits on.</p>
+
+<p><strong>Unchecking</strong> a row means "already done, do not run it": the jobs that waited on it
+simply lose that wait. The chooser remembers what was unchecked, per recipe, in
+<code>.just-tui-cluster-state</code> (<code>skip = …</code>), so the next <kbd>s</kbd> opens the way
+it was left.</p>
+
+<p><strong>Continuing</strong> walks the checked rows that have no settings — nothing for partition,
+cpus, mem or time from any config or previous run — and opens the ordinary form for each, titled
+<code>step 4 of 4 · align::depth · waits on sort</code>. <kbd>Enter</kbd> accepts a row's values,
+<kbd>Esc</kbd> goes back to the chooser, and <kbd>F2</kbd>/<kbd>F3</kbd>/<kbd>F4</kbd> save defaults
+as they always did. <kbd>f</kbd> opens the form for any row.</p>
+
+<p><strong>Submitting</strong> shows every <code>sbatch</code> line in order and takes a
+<kbd>y</kbd>:</p>
+
+{code('''
+sbatch … --wrap "just --no-deps align::reads"                                  → 418823
+sbatch … --dependency=afterok:418823 --kill-on-invalid-dep=yes \\
+       --wrap "just --no-deps align::sort"                                     → 418826
+sbatch … --dependency=afterok:418826 --kill-on-invalid-dep=yes \\
+       --wrap "just --no-deps align::depth"                                    → 418827
+''')}
+
+<p>Every job runs <code>just --no-deps</code>, or <code>sort</code> would run <code>reads</code> again
+inside its own allocation. <code>afterok</code> releases a job only when everything it waits on
+exited 0, and <code>--kill-on-invalid-dep=yes</code> cancels the rest of the chain when something
+upstream fails, rather than leaving it pending as <code>DependencyNeverSatisfied</code> until someone
+notices.</p>
+
+<div class="note">
+In the job browser a chained job shows <code>↳</code> before its name, a pending one says
+<code>waits on reads</code>, and one whose upstream failed says <code>upstream failed</code>.
+<kbd>s</kbd> on any of them submits that job alone, still with <code>--no-deps</code>. The
+<a href="demo/">demo</a> queue is exactly this: an alignment running, with the sort and the depth
+report waiting behind it.
+</div>
 """
 
 # ==================================================================== jobs ===

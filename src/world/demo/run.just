@@ -15,18 +15,18 @@ index:
 # flagstat table that follows lands in its .out.
 [doc("Align the reads to the reference, then count what mapped")]
 [group('2. align')]
-reads threads="8":
+reads threads="8": index
     mkdir -p {{results}}
     minibwa map -t {{threads}} {{data}}/phix.fa {{data}}/reads.fq > {{results}}/aln.sam
     samtools flagstat {{results}}/aln.sam
 
 # Sort and index the alignments
 [group('2. align')]
-sort:
+sort: reads
     samtools sort -o {{results}}/aln.bam {{results}}/aln.sam
     samtools index {{results}}/aln.bam
 
 # Depth across the genome, one line per position
 [group('3. report')]
-depth:
+depth: sort
     samtools depth -a {{results}}/aln.bam > {{results}}/depth.tsv

@@ -44,6 +44,19 @@ const INDEX_ERR: &str = include_str!("demo/index.err");
 const FETCH_ERR: &str = include_str!("demo/fetch.err");
 const FETCH_OUT: &str = include_str!("demo/fetch.out");
 
+/// `.just-tui-cluster-history`: every job in the queue, as it was submitted.
+/// The last three went out as one chain, so the browser can show what waits
+/// on what.
+pub const HISTORY: &str = include_str!("demo/history.txt");
+/// `.just-tui-cluster-state`: what each recipe was last submitted with.
+/// `align::depth` has no settings of its own, only the link it skipped, so
+/// the chooser has one row to ask about.
+pub const STATE: &str = include_str!("demo/state.txt");
+
+/// The job id the next `sbatch` hands back. A chain submits several, and
+/// each has to differ for the waits to read sensibly.
+static NEXT_JOB: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(23_475_207);
+
 /// Answer a read of the cluster.
 pub fn capture(program: &str, args: &[&str]) -> Option<String> {
     let joined = args.join(" ");
@@ -64,7 +77,9 @@ pub fn capture(program: &str, args: &[&str]) -> Option<String> {
 /// Nothing is really submitted; the id is the one a queue would hand back.
 pub fn capture_in(program: &str, _args: &[&str]) -> std::result::Result<String, String> {
     match program {
-        "sbatch" => Ok("23475207".to_owned()),
+        "sbatch" => Ok(NEXT_JOB
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            .to_string()),
         other => Err(format!("{other} is not available in the browser demo")),
     }
 }
@@ -84,6 +99,8 @@ pub fn read(path: &Path) -> Result<String> {
     let text = match () {
         _ if name.ends_with("align.just") => RUN_JUST,
         _ if name.ends_with("justfile") => JUSTFILE,
+        _ if name.ends_with(crate::history::HISTORY_NAME) => HISTORY,
+        _ if name.ends_with(crate::config::STATE_NAME) => STATE,
         // The job that failed: the reads were not there yet.
         _ if name.contains("418820") => match err {
             true => FAILED_ERR,

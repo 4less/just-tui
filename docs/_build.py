@@ -40,6 +40,7 @@ NAV = [
         ("slurm.html#config", "Config files"),
         ("slurm.html#logs", "Where logs go"),
         ("slurm.html#batch", "One recipe, many inputs"),
+        ("slurm.html#chain", "Dependencies as a chain"),
     ]),
     ("Jobs", [
         ("jobs.html", "The job browser"),
