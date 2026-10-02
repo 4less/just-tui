@@ -209,3 +209,83 @@ fn htslib_style_failures_are_picked_out_too() {
         "[M::worker_pipeline::0.034*2.43] mapped 600000 bp in 4000 sequences"
     ));
 }
+
+#[test]
+fn an_active_record_for_a_job_that_left_the_queue_is_not_shown_as_waiting() {
+    // sacct still says PENDING for 4300 ("runaway job"), squeue no longer has it.
+    let squeue = "4210|nightly-run|RUNNING|p|s|s|00:12:33|node07|/work|64|128G";
+    let sacct = "4300|denovo|PENDING|p|s|None|Unknown|00:00:00|0:0|None assigned|/work|32|64G";
+    let list = slurm::merge_jobs(Some(squeue), Some(sacct), 7);
+    let stale = list.jobs.iter().find(|job| job.id == "4300").unwrap();
+
+    assert_eq!(stale.state_word(), "UNKNOWN");
+    assert!(!stale.active() && !stale.live);
+    assert!(stale.nodes.contains("left the queue"), "the row says why");
+}
+
+#[test]
+fn without_squeue_an_active_record_is_taken_at_its_word() {
+    let sacct = "4300|denovo|PENDING|p|s|None|Unknown|00:00:00|0:0|None assigned|/work|32|64G";
+    let list = slurm::merge_jobs(None, Some(sacct), 7);
+    assert!(list.jobs[0].pending(), "nothing says it has left");
+}
+
+#[test]
+fn a_shrinking_array_is_still_queued() {
+    // The remainder's id moves on as tasks start; sacct may still carry the old one.
+    let squeue = "\
+500_[5-74%20]|denovo|PENDING|p|s|N/A|0:00|(JobArrayTaskLimit)|/work|32|64G
+500_3|denovo|RUNNING|p|s|s|00:01:00|node01|/work|32|64G";
+    let sacct =
+        "500_[0-74%20]|denovo|PENDING|p|s|None|Unknown|00:00:00|0:0|None assigned|/work|32|64G";
+    let list = slurm::merge_jobs(Some(squeue), Some(sacct), 7);
+    let ids: Vec<&str> = list.jobs.iter().map(|job| job.id.as_str()).collect();
+
+    assert!(ids.contains(&"500_[5-74%20]") && ids.contains(&"500_3"));
+    assert!(
+        !ids.contains(&"500_[0-74%20]"),
+        "the older remainder is not listed twice"
+    );
+    assert!(list.jobs.iter().all(|job| job.state_word() != "UNKNOWN"));
+}
+
+#[test]
+fn a_job_leaving_the_queue_asks_for_its_final_state() {
+    use crate::app::JobsView;
+
+    let squeue = "\
+4211|greet|PENDING|p|s|N/A|0:00|(Resources)|/work|8|16G
+4210|nightly-run|RUNNING|p|s|s|00:12:33|node07|/work|64|128G";
+    let mut app = super::fixture_app();
+    app.jobs = Some(JobsView::with(slurm::merge_jobs(Some(squeue), None, 7)));
+
+    // Only 4210 is still queued: 4211 ended, and only sacct knows how.
+    let fresh = vec![
+        app.jobs
+            .as_ref()
+            .unwrap()
+            .list
+            .jobs
+            .iter()
+            .find(|j| j.id == "4210")
+            .unwrap()
+            .clone(),
+    ];
+    assert!(
+        app.merge_queue(Some(fresh.clone())),
+        "a reload is asked for"
+    );
+    let gone = app
+        .jobs
+        .as_ref()
+        .unwrap()
+        .list
+        .jobs
+        .iter()
+        .find(|j| j.id == "4211")
+        .unwrap();
+    assert!(!gone.live);
+
+    // The kept row does not ask again, so the timer cannot loop on sacct.
+    assert!(!app.merge_queue(Some(fresh)));
+}

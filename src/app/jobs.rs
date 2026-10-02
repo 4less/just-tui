@@ -502,6 +502,7 @@ impl App {
         }
 
         let mut listed = false;
+        let mut ended = false;
         for fetched in landed {
             match fetched {
                 Fetched::Listing(list) => {
@@ -514,7 +515,7 @@ impl App {
                     listed = true;
                 }
                 Fetched::Queue(fresh) => {
-                    self.merge_queue(fresh);
+                    ended |= self.merge_queue(fresh);
                     listed = true;
                 }
                 Fetched::Usage(usage) => {
@@ -530,32 +531,46 @@ impl App {
             self.restore_cursor();
             self.refresh_usage();
         }
+        if ended {
+            self.refresh_jobs();
+        }
         self.clamp_job_scroll();
         self.note_task_args();
         // The cursor has usually moved on by the time an answer arrives.
         self.request_job_log();
     }
 
-    /// Fold a fresh `squeue` into the rows already on screen.
-    fn merge_queue(&mut self, fresh: Option<Vec<Job>>) {
+    /// Fold a fresh `squeue` into the rows already on screen. Returns whether
+    /// a job that was waiting or running has left the queue: only `sacct`
+    /// knows how it ended, so the caller asks for a full listing.
+    pub(crate) fn merge_queue(&mut self, fresh: Option<Vec<Job>>) -> bool {
         let Some(view) = self.jobs.as_mut() else {
-            return;
+            return false;
         };
         view.fetching = false;
         let Some(mut jobs) = fresh else {
-            return;
+            return false;
         };
-        // Anything that has left the queue since the last look keeps the row
-        // sacct gave it, but stops being live.
+        let queue = jobs.clone();
+        let mut ended = false;
         for old in &view.list.jobs {
-            if !jobs.iter().any(|job| job.id == old.id) {
-                let mut old = old.clone();
-                old.live = false;
-                jobs.push(old);
+            // Still queued, possibly under a fresher id: an array's remainder
+            // shrinks (`_[0-74]` → `_[5-74]`) as tasks start.
+            if old.held_by(&queue) {
+                continue;
             }
+            let mut old = old.clone();
+            // Only a job seen live in the last queue: a row kept from an
+            // earlier look must not ask again on every tick.
+            if old.live && old.active() {
+                ended = true;
+            }
+            old.live = false;
+            jobs.push(old);
         }
         jobs.sort_by_key(|job| std::cmp::Reverse(job.order()));
         view.list.jobs = jobs;
+        ended
     }
 
     /// Apply a log that has been read, unless the cursor has left the job it

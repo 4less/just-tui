@@ -92,6 +92,34 @@ impl Job {
         matches!(self.state_word(), "PENDING" | "CONFIGURING" | "REQUEUED")
     }
 
+    /// The job without its array part: `123_[0-74%20]` and `123_7` are `123`.
+    pub fn base_id(&self) -> &str {
+        self.id.split('_').next().unwrap_or(&self.id)
+    }
+
+    /// The not-yet-started remainder of an array, `123_[0-74%20]`. Its id
+    /// shrinks as tasks start, so it is matched by [`Self::base_id`].
+    fn array_remainder(&self) -> bool {
+        self.id.contains("_[")
+    }
+
+    /// Whether `queue` still holds this job. An array remainder counts as held
+    /// while anything of the same array is queued: a remainder with another
+    /// range, or tasks that have started.
+    pub fn held_by(&self, queue: &[Job]) -> bool {
+        queue.iter().any(|queued| {
+            queued.id == self.id || (self.array_remainder() && queued.base_id() == self.base_id())
+        })
+    }
+
+    /// Accounting still calls the job active, but the controller has let go
+    /// of it: shown as `UNKNOWN` rather than a `PENDING` that never moves.
+    pub fn mark_left_queue(&mut self) {
+        self.nodes = format!("left the queue; sacct still says {}", self.state_word());
+        self.state = "UNKNOWN".to_owned();
+        self.live = false;
+    }
+
     pub fn active(&self) -> bool {
         self.pending()
             || matches!(
@@ -208,12 +236,19 @@ pub fn merge(queued: Option<&str>, history: Option<&str>, days: u32) -> JobList 
     if let Some(raw) = queued {
         list.jobs.extend(raw.lines().filter_map(parse_squeue));
     }
+    let queue = list.jobs.clone();
     if let Some(raw) = history {
-        for job in raw.lines().filter_map(parse_sacct) {
+        for mut job in raw.lines().filter_map(parse_sacct) {
             // squeue is the fresher source for anything still in the queue.
-            if !list.jobs.iter().any(|existing| existing.id == job.id) {
-                list.jobs.push(job);
+            if job.held_by(&queue) {
+                continue;
             }
+            // An active record for a job the controller no longer has is a
+            // stale accounting row (a "runaway job"), not a job that waits.
+            if queued.is_some() && job.active() {
+                job.mark_left_queue();
+            }
+            list.jobs.push(job);
         }
     } else {
         list.note = Some("sacct unavailable — only queued jobs are listed".to_owned());
