@@ -147,14 +147,8 @@ fn draw_body(frame: &mut Frame, app: &mut App, area: Rect) {
 
 /// `just <path>` on the left, counts on the right.
 fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
-    let path = app
-        .project()
-        .path
-        .as_ref()
-        .map(|p| shorten_home(&p.display().to_string()))
-        .unwrap_or_else(|| "<no justfile>".to_owned());
-
-    let left = Line::from(vec![
+    let project = app.project();
+    let mut left = vec![
         Span::styled(
             " just ",
             Style::default()
@@ -163,8 +157,28 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" "),
-        Span::styled(path, Style::default().fg(theme::FG)),
-    ]);
+    ];
+    if project.global {
+        // Only global libraries loaded: say so, rather than showing a
+        // library's path as if it were this directory's justfile.
+        // The note goes first so a long path cannot push it out of view.
+        left.push(Span::styled(
+            "global recipes only · no justfile in ",
+            Style::default().fg(theme::ALIAS),
+        ));
+        left.push(Span::styled(
+            shorten_home(&project.working_dir.display().to_string()),
+            Style::default().fg(theme::FG),
+        ));
+    } else {
+        let path = project
+            .path
+            .as_ref()
+            .map(|p| shorten_home(&p.display().to_string()))
+            .unwrap_or_else(|| "<no justfile>".to_owned());
+        left.push(Span::styled(path, Style::default().fg(theme::FG)));
+    }
+    let left = Line::from(left);
 
     let modules = app.tree.count_modules();
     let globals = app.sources.iter().filter(|s| s.global).count();

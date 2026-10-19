@@ -22,6 +22,12 @@ pub struct Loaded {
     pub global: bool,
 }
 
+/// Whether a [`load`] failed only because there is no justfile to find,
+/// rather than because one exists and is broken.
+pub fn is_missing_justfile(err: &anyhow::Error) -> bool {
+    err.to_string().contains("No justfile found")
+}
+
 /// Ask `just` to describe a justfile as JSON.
 #[cfg(not(target_arch = "wasm32"))]
 fn dump(dir: &Path, explicit_file: Option<&Path>) -> Result<String> {
@@ -97,9 +103,11 @@ pub fn global_dir(override_dir: Option<&Path>) -> Option<PathBuf> {
 /// justfile when one exists. Each becomes its own root in the explorer.
 ///
 /// `run_dir` is where these recipes will execute — the directory just-tui was
-/// started in, not the directory the files live in.
-pub fn load_globals(dir: Option<&Path>, run_dir: &Path) -> Vec<Loaded> {
+/// started in, not the directory the files live in. A file `just` cannot read
+/// is left out, and why goes into the returned warnings.
+pub fn load_globals(dir: Option<&Path>, run_dir: &Path) -> (Vec<Loaded>, Vec<String>) {
     let mut loaded = Vec::new();
+    let mut warnings = Vec::new();
 
     if let Some(dir) = dir {
         let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
@@ -116,8 +124,12 @@ pub fn load_globals(dir: Option<&Path>, run_dir: &Path) -> Vec<Loaded> {
         files.sort();
 
         for file in files {
-            let Ok(mut source) = load(run_dir, Some(&file)) else {
-                continue;
+            let mut source = match load(run_dir, Some(&file)) {
+                Ok(source) => source,
+                Err(err) => {
+                    warnings.push(format!("skipped {}: {err}", file.display()));
+                    continue;
+                }
             };
             source.label = file
                 .file_stem()
@@ -142,7 +154,7 @@ pub fn load_globals(dir: Option<&Path>, run_dir: &Path) -> Vec<Loaded> {
         loaded.push(source);
     }
 
-    loaded
+    (loaded, warnings)
 }
 
 /// The file `just -g` would use, if it exists.

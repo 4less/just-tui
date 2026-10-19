@@ -74,14 +74,26 @@ pub fn main() -> Result<()> {
         .clone()
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
-    let sources = load_sources(&cli, &dir)?;
+    let (sources, warnings) = load_sources(&cli, &dir)?;
     let mut cache = SourceCache::default();
 
     if cli.list {
+        for warning in &warnings {
+            eprintln!("just-tui: {warning}");
+        }
         return list_recipes(&sources, &mut cache, cli.private);
     }
 
     let mut app = App::new(sources, cache);
+    // The terminal is about to be taken over, so stderr would be lost.
+    if !warnings.is_empty() {
+        // The status line holds one line; just's own errors run to several.
+        let first_lines: Vec<&str> = warnings
+            .iter()
+            .map(|w| w.lines().next().unwrap_or_default())
+            .collect();
+        app.error(first_lines.join("; "));
+    }
     app.show_private = cli.private;
     app.refresh_visible();
 
@@ -99,26 +111,49 @@ pub fn main() -> Result<()> {
 }
 
 /// The project justfile first, then any global recipe files. Either may be
-/// missing, but not both.
-fn load_sources(cli: &Cli, dir: &Path) -> Result<Vec<Loaded>> {
+/// missing, but not both. Problems worth knowing about that did not stop the
+/// load come back as warnings.
+fn load_sources(cli: &Cli, dir: &Path) -> Result<(Vec<Loaded>, Vec<String>)> {
+    // Otherwise `just` cannot even be started there, which reads as `just`
+    // not being installed.
+    if !dir.is_dir() {
+        bail!("{} is not a directory", dir.display());
+    }
+
     let mut sources = Vec::new();
+    let mut warnings = Vec::new();
 
     match just::load(dir, cli.justfile.as_deref()) {
         Ok(project) => sources.push(project),
         Err(err) if cli.no_global => return Err(err),
-        // Without a project justfile the global library is still worth showing.
-        Err(err) => eprintln!("just-tui: {err}"),
+        // No justfile here is the normal case for running global recipes;
+        // the header says so. A justfile that is there but broken is not.
+        Err(err) if just::is_missing_justfile(&err) => {}
+        Err(err) => warnings.push(err.to_string()),
     }
 
+    let global_dir = just::global_dir(cli.global_dir.as_deref());
     if !cli.no_global {
-        let global_dir = just::global_dir(cli.global_dir.as_deref());
-        sources.extend(just::load_globals(global_dir.as_deref(), dir));
+        let (globals, skipped) = just::load_globals(global_dir.as_deref(), dir);
+        sources.extend(globals);
+        warnings.extend(skipped);
     }
 
     if sources.is_empty() {
-        bail!("no justfile here, and no global recipes in ~/.just-tui");
+        let where_ = global_dir
+            .map(|d| ui::shorten_home(&d.display().to_string()))
+            .unwrap_or_else(|| "~/.just-tui".to_owned());
+        let mut message = format!(
+            "no justfile in {}, and no global recipes in {where_}",
+            ui::shorten_home(&dir.display().to_string())
+        );
+        for warning in &warnings {
+            message.push_str("\n  ");
+            message.push_str(warning);
+        }
+        bail!(message);
     }
-    Ok(sources)
+    Ok((sources, warnings))
 }
 
 /// `--list`: one line per recipe, global ones marked with `~`.

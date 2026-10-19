@@ -607,3 +607,25 @@ fn hiding_the_log_gives_the_queue_the_window() {
     let text = rendered(&mut app, 110, 24);
     assert!(text.contains("stderr"), "and back again");
 }
+
+#[test]
+fn the_header_says_when_only_global_recipes_are_loaded() {
+    let mut globals_only = crate::app::App::new(
+        vec![super::global_source()],
+        crate::source::SourceCache::default(),
+    );
+    let header = rendered(&mut globals_only, 120, 30);
+    let header = header.lines().next().unwrap();
+    assert!(header.contains("global recipes only"), "{header}");
+    assert!(header.contains("/tmp/cwd"), "{header}");
+    assert!(!header.contains("git.just"), "{header}");
+
+    let header = rendered(&mut fixture_app(), 120, 30);
+    assert!(
+        !header
+            .lines()
+            .next()
+            .unwrap()
+            .contains("global recipes only")
+    );
+}

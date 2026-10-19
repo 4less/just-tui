@@ -281,3 +281,11 @@ fn a_module_no_group_divides_is_left_alone() {
     let compile = flat.nodes.iter().find(|n| n.name == "compile").unwrap();
     assert_eq!(compile.depth, 1, "back to sitting under the module");
 }
+
+#[test]
+fn a_missing_justfile_is_told_apart_from_a_broken_one() {
+    let missing = anyhow::anyhow!("error: No justfile found");
+    let broken = anyhow::anyhow!("error: Unterminated interpolation");
+    assert!(crate::just::is_missing_justfile(&missing));
+    assert!(!crate::just::is_missing_justfile(&broken));
+}
