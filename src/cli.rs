@@ -50,7 +50,7 @@ struct Cli {
     #[arg(long)]
     no_global: bool,
 
-    /// Directory holding global `.just` files (default: ~/.justx).
+    /// Directory holding global `.just` files (default: ~/.just-tui).
     #[arg(long, value_name = "DIR")]
     global_dir: Option<PathBuf>,
 
@@ -116,7 +116,7 @@ fn load_sources(cli: &Cli, dir: &Path) -> Result<Vec<Loaded>> {
     }
 
     if sources.is_empty() {
-        bail!("no justfile here, and no global recipes in ~/.justx");
+        bail!("no justfile here, and no global recipes in ~/.just-tui");
     }
     Ok(sources)
 }

@@ -69,14 +69,14 @@ a global <code>git.just</code> library and <code>/gitlog</code> finds one recipe
 
 <h2 id="global">Global recipes</h2>
 
-<p>Every <code>.just</code> file in <code>~/.justx/</code> becomes its own root, marked
+<p>Every <code>.just</code> file in <code>~/.just-tui/</code> becomes its own root, marked
 <code>⌂</code>, below the project. <code>just --global-justfile</code>'s file is picked up too if
 you have one. They are browsed, documented, searched, run and submitted exactly like project
 recipes; global libraries start collapsed, and just-tui still opens if there is no justfile here at
 all.</p>
 
 <div class="note warn">
-<strong>Global recipes run in your current directory</strong>, not in <code>~/.justx</code>:
+<strong>Global recipes run in your current directory</strong>, not in <code>~/.just-tui</code>:
 just-tui passes <code>--working-directory</code>, so <code>git::log</code> acts on the repository
 you are standing in.
 </div>

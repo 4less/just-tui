@@ -186,8 +186,8 @@ fn a_global_recipe_runs_in_the_current_directory() {
         args,
         vec![
             "--justfile",
-            "/home/u/.justx/git.just",
-            // Without this, `just` would run the recipe in ~/.justx.
+            "/home/u/.just-tui/git.just",
+            // Without this, `just` would run the recipe in ~/.just-tui.
             "--working-directory",
             "/tmp/cwd",
         ]

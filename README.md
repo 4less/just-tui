@@ -58,22 +58,22 @@ just-tui --global-dir ~/recipes
 
 ## Global recipes
 
-Every `.just` file in `~/.justx/` becomes its own root in the explorer, marked `⌂`, below
+Every `.just` file in `~/.just-tui/` becomes its own root in the explorer, marked `⌂`, below
 the project. `just --global-justfile`'s file (`~/.config/just/justfile` or `~/.user.justfile`)
 is picked up too, if you have one.
 
 ```
 │▾ just-tui/                    ← the project, open by default
 ││ • build  Build the debug binary
-│⌂ ▸ docker/                    ← ~/.justx/docker.just
-│⌂ ▾ git/                       ← ~/.justx/git.just
+│⌂ ▸ docker/                    ← ~/.just-tui/docker.just
+│⌂ ▾ git/                       ← ~/.just-tui/git.just
 ││ • log ★  Show a compact log of the last commits
 ```
 
 Searching matches the file name too, so `/git` narrows to the git library and `/gitlog`
 finds that one recipe.
 
-**Global recipes run in your current directory**, not in `~/.justx` — just-tui passes
+**Global recipes run in your current directory**, not in `~/.just-tui` — just-tui passes
 `--working-directory`, so `git::log` acts on the repo you are standing in. They are browsed,
 documented, searched, run and submitted exactly like project recipes.
 

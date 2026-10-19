@@ -85,11 +85,11 @@ pub fn load(dir: &Path, explicit_file: Option<&Path>) -> Result<Loaded> {
     })
 }
 
-/// Where global recipe files live, `~/.justx` unless overridden.
+/// Where global recipe files live, `~/.just-tui` unless overridden.
 pub fn global_dir(override_dir: Option<&Path>) -> Option<PathBuf> {
     match override_dir {
         Some(dir) => Some(dir.to_path_buf()),
-        None => std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".justx")),
+        None => std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".just-tui")),
     }
 }
 

@@ -46,7 +46,7 @@ pub struct Node {
     pub alias_target: Option<String>,
     pub source: Option<PathBuf>,
     /// What a search matches against. Usually the namepath, but recipes in a
-    /// global file get its name in front, so `git` finds `~/.justx/git.just`.
+    /// global file get its name in front, so `git` finds `~/.just-tui/git.just`.
     pub search_path: String,
     /// Which loaded source this node belongs to.
     pub root_index: usize,

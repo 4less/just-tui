@@ -68,7 +68,7 @@ pub fn fixture_source() -> just::Loaded {
     }
 }
 
-/// A second source standing in for `~/.justx/git.just`.
+/// A second source standing in for `~/.just-tui/git.just`.
 pub fn global_source() -> just::Loaded {
     let mut file = Justfile::default();
     file.recipes.insert(
@@ -83,8 +83,8 @@ pub fn global_source() -> just::Loaded {
     just::Loaded {
         justfile: file,
         working_dir: PathBuf::from("/tmp/cwd"),
-        path: Some(PathBuf::from("/home/u/.justx/git.just")),
-        explicit_file: Some(PathBuf::from("/home/u/.justx/git.just")),
+        path: Some(PathBuf::from("/home/u/.just-tui/git.just")),
+        explicit_file: Some(PathBuf::from("/home/u/.just-tui/git.just")),
         label: "git".to_owned(),
         global: true,
     }
