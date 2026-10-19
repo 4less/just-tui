@@ -56,6 +56,14 @@ just-tui --no-global     # project recipes only
 just-tui --global-dir ~/recipes
 ```
 
+### Arguments
+
+`Enter` on a recipe with parameters opens a form in the middle of the screen, one row per
+parameter, with each default shown beside its row. Leave a row empty to keep its default;
+`Enter` runs, `Esc` cancels. What you typed is remembered per recipe in `.just-tui-run-args`,
+so the form opens the way you left it. `a` opens the form for any recipe — one without
+parameters gets a single free row for whatever should follow its name.
+
 ## Global recipes
 
 Every `.just` file in `~/.just-tui/` becomes its own root in the explorer, marked `⌂`, below
@@ -603,5 +611,7 @@ regenerates them from `docs/_content.py`; `just docs-serve` previews them locall
 | `slurm/` | cluster detection, settings, `sbatch`, `squeue`/`sacct` |
 | `config.rs`, `submit.rs` | `.just-tui-cluster-config`, the submit form |
 | `history.rs` | `.just-tui-cluster-history`, every submission ever made |
+| `params.rs` | the argument form, and `.just-tui-run-args` |
+| `batch.rs`, `chain.rs` | `each` expansions, and dependencies as a chain of jobs |
 | `terminal.rs`, `snapshot.rs` | the real terminal, and rendering without one |
 # just-tui

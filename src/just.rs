@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 
 use crate::model::Justfile;
 
@@ -47,7 +47,7 @@ fn dump(dir: &Path, explicit_file: Option<&Path>) -> Result<String> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let message = stderr.trim();
-        return Err(anyhow!(if message.is_empty() {
+        return Err(anyhow::anyhow!(if message.is_empty() {
             "`just --dump` failed".to_owned()
         } else {
             message.to_owned()
