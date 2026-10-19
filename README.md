@@ -599,8 +599,9 @@ just demo-build && just demo-serve
 
 ### The documentation site
 
-`docs/` is plain HTML served by GitHub Pages from `main` — no CI, no build step, so it cannot
-break in a workflow. A landing page, then five documentation pages behind it. `just docs`
+`docs/` is plain HTML, published by GitHub Pages together with the browser demo, which the
+Pages workflow compiles from the same commit on every push to `main`. A landing page, then
+five documentation pages behind it. `just docs`
 regenerates them from `docs/_content.py`; `just docs-serve` previews them locally. See
 [`docs/README.md`](docs/README.md).
 
