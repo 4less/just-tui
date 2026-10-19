@@ -53,8 +53,7 @@ just-tui                 # browse the justfile found from the current directory
 just-tui ../other        # browse another project
 just-tui -f build.just
 just-tui --list          # plain listing, no TUI
-just-tui --no-global     # project recipes only
-just-tui --global-dir ~/recipes
+just-tui --no-global     # project recipes only, without just's global justfile
 ```
 
 ### Arguments
@@ -67,24 +66,36 @@ parameters gets a single free row for whatever should follow its name.
 
 ## Global recipes
 
-Every `.just` file in `~/.just-tui/` becomes its own root in the explorer, marked `⌂`, below
-the project. `just --global-justfile`'s file (`~/.config/just/justfile` or `~/.user.justfile`)
-is picked up too, if you have one.
+just-tui's global recipes are just's own: whatever `just --global-justfile` (`just -g`) sees,
+usually `~/.config/just/justfile`. just-tui asks `just` for it, shows it as one more root
+marked `⌂` below the project, and runs a recipe from it as `just --global-justfile <recipe>`
+from the directory you started in — exactly what typing `just -g <recipe>` there would do.
+Anything you can see under `⌂` you can also run from a shell, and the other way round.
+
+Libraries are modules of that justfile. Mark their recipes `[no-cd]`, or `just` runs them in
+`~/.config/just` rather than in the repository you are standing in:
+
+```just
+# ~/.config/just/justfile
+mod git                       # ~/.config/just/git.just
+
+# ~/.config/just/git.just
+[no-cd]
+log:
+    git log --oneline -20
+```
 
 ```
 │▾ just-tui/                    ← the project, open by default
 ││ • build  Build the debug binary
-│⌂ ▸ docker/                    ← ~/.just-tui/docker.just
-│⌂ ▾ git/                       ← ~/.just-tui/git.just
-││ • log ★  Show a compact log of the last commits
+│⌂ ▾ global/                    ← ~/.config/just/justfile
+││ ▾ git/                       ← mod git
+││ │ • log  Show a compact log   ← just -g git::log
 ```
 
-Searching matches the file name too, so `/git` narrows to the git library and `/gitlog`
-finds that one recipe.
-
-**Global recipes run in your current directory**, not in `~/.just-tui` — just-tui passes
-`--working-directory`, so `git::log` acts on the repo you are standing in. They are browsed,
-documented, searched, run and submitted exactly like project recipes.
+`just-tui --list` prints them as `~ git::log`, the path `just -g` takes. Searching matches the
+root's name too, so `/global` narrows to the global recipes. The global root starts collapsed,
+and just-tui still opens if there is no justfile here at all — you get the global root alone.
 
 **What just-tui remembers about them lives in `~/.just-tui`**, not in the directory you ran
 them from: the last Slurm settings, the last run arguments, the submission history, and the
@@ -92,9 +103,6 @@ job logs. A global recipe run in twenty directories leaves no files behind in an
 and opens with the same remembered settings in each. Hand-written
 `.just-tui-cluster-config` files still apply as usual, so a project's `account` or
 `partition` reaches a global recipe run inside it.
-
-Global libraries start collapsed, and just-tui still opens if there is no justfile here at
-all — you get the global roots alone.
 
 ## Keys
 
@@ -537,7 +545,7 @@ be located in its file the body is rebuilt from just's own dump and marked
 
 ## Versions
 
-Releases use the global `git` recipes in `~/.just-tui/git.just`, the same in every
+Releases use the global `git` recipes in `~/.config/just/git.just`, the same in every
 repository. `main` only takes changes through pull requests, so a release is a pull request
 too:
 

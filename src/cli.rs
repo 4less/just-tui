@@ -46,13 +46,9 @@ struct Cli {
     #[arg(short = 'p', long)]
     private: bool,
 
-    /// Do not load the global recipe library.
+    /// Do not load just's global justfile (the one `just -g` uses).
     #[arg(long)]
     no_global: bool,
-
-    /// Directory holding global `.just` files (default: ~/.just-tui).
-    #[arg(long, value_name = "DIR")]
-    global_dir: Option<PathBuf>,
 
     /// List recipes to stdout and exit, without starting the TUI.
     #[arg(long)]
@@ -86,7 +82,7 @@ pub fn main() -> Result<()> {
 
     let mut app = App::new(sources, cache);
     if !cli.no_global {
-        app.set_global_dir(just::global_dir(cli.global_dir.as_deref()));
+        app.set_global_dir(just::memory_dir());
     }
     // The terminal is about to be taken over, so stderr would be lost.
     if !warnings.is_empty() {
@@ -135,19 +131,16 @@ fn load_sources(cli: &Cli, dir: &Path) -> Result<(Vec<Loaded>, Vec<String>)> {
         Err(err) => warnings.push(err.to_string()),
     }
 
-    let global_dir = just::global_dir(cli.global_dir.as_deref());
     if !cli.no_global {
-        let (globals, skipped) = just::load_globals(global_dir.as_deref(), dir);
-        sources.extend(globals);
-        warnings.extend(skipped);
+        match just::load_global(dir) {
+            Ok(global) => sources.extend(global),
+            Err(err) => warnings.push(format!("global justfile: {err}")),
+        }
     }
 
     if sources.is_empty() {
-        let where_ = global_dir
-            .map(|d| ui::shorten_home(&d.display().to_string()))
-            .unwrap_or_else(|| "~/.just-tui".to_owned());
         let mut message = format!(
-            "no justfile in {}, and no global recipes in {where_}",
+            "no justfile in {}, and no global justfile (~/.config/just/justfile)",
             ui::shorten_home(&dir.display().to_string())
         );
         for warning in &warnings {
@@ -159,7 +152,8 @@ fn load_sources(cli: &Cli, dir: &Path) -> Result<(Vec<Loaded>, Vec<String>)> {
     Ok((sources, warnings))
 }
 
-/// `--list`: one line per recipe, global ones marked with `~`.
+/// `--list`: one line per recipe, by the path `just` runs it as; global ones
+/// are marked with `~`, and run as `just -g <path>`.
 fn list_recipes(sources: &[Loaded], cache: &mut SourceCache, private: bool) -> Result<()> {
     let tree = tree::Tree::build(sources, cache);
     let mut out = io::stdout().lock();
@@ -168,11 +162,18 @@ fn list_recipes(sources: &[Loaded], cache: &mut SourceCache, private: bool) -> R
         if node.kind != tree::Kind::Recipe || (node.private && !private) {
             continue;
         }
+        // The full path, as `just` wants it typed: `demo::greet`, not `greet`.
         let signature = node
             .info
             .as_ref()
-            .map(|info| info.recipe.signature())
-            .unwrap_or_else(|| node.name.clone());
+            .map(|info| {
+                let signature = info.recipe.signature();
+                match signature.strip_prefix(&info.recipe.name) {
+                    Some(params) => format!("{}{params}", node.namepath),
+                    None => signature,
+                }
+            })
+            .unwrap_or_else(|| node.namepath.clone());
         let doc = node.summary.clone().unwrap_or_default();
         let mark = if node.global { "~ " } else { "  " };
 

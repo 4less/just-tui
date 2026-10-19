@@ -132,7 +132,7 @@ fn source_extraction_grabs_comments_and_body() {
 }
 
 #[test]
-fn a_global_library_is_searchable_by_its_file_name() {
+fn global_recipes_are_searchable_under_the_global_root() {
     let tree = Tree::build(
         &[fixture_source(), global_source()],
         &mut SourceCache::default(),
@@ -144,11 +144,11 @@ fn a_global_library_is_searchable_by_its_file_name() {
             .collect::<Vec<_>>()
     };
 
-    // `st` lives in git.just, so both `git` and `git st` should find it.
-    assert_eq!(visible("git"), vec!["git", "st"]);
-    assert_eq!(visible("gitst"), vec!["git", "st"]);
+    // `st` sits in the global justfile, so `global` and `global st` find it.
+    assert_eq!(visible("global"), vec!["global", "st"]);
+    assert_eq!(visible("globalst"), vec!["global", "st"]);
     // A project-only match leaves the global root out entirely.
-    assert!(!visible("hello").contains(&"git".to_owned()));
+    assert!(!visible("hello").contains(&"global".to_owned()));
 }
 
 #[test]
@@ -167,9 +167,9 @@ fn global_sources_become_extra_roots() {
     );
     assert!(
         global.global && !global.expanded,
-        "a global library starts closed"
+        "the global root starts closed"
     );
-    assert_eq!(global.name, "git");
+    assert_eq!(global.name, "global");
 
     // The same recipe name in two sources resolves to the right one.
     let st = tree.find_namepath(1, "st").expect("global recipe");
@@ -182,16 +182,9 @@ fn global_sources_become_extra_roots() {
 fn a_global_recipe_runs_in_the_current_directory() {
     let global = global_source();
     let args = just::file_args(&global);
-    assert_eq!(
-        args,
-        vec![
-            "--justfile",
-            "/home/u/.just-tui/git.just",
-            // Without this, `just` would run the recipe in ~/.just-tui.
-            "--working-directory",
-            "/tmp/cwd",
-        ]
-    );
+    // Exactly `just -g <recipe>`, typed where just-tui was started: just then
+    // decides the directory itself, `[no-cd]` and all.
+    assert_eq!(args, vec!["--global-justfile"]);
 
     // A project source needs neither flag: just finds the file itself.
     assert!(just::file_args(&fixture_source()).is_empty());
@@ -288,4 +281,23 @@ fn a_missing_justfile_is_told_apart_from_a_broken_one() {
     let broken = anyhow::anyhow!("error: Unterminated interpolation");
     assert!(crate::just::is_missing_justfile(&missing));
     assert!(!crate::just::is_missing_justfile(&broken));
+}
+
+#[test]
+fn running_a_global_recipe_is_just_g_from_where_just_tui_started() {
+    let mut app = crate::app::App::new(
+        vec![fixture_source(), global_source()],
+        crate::source::SourceCache::default(),
+    );
+    assert!(app.select_namepath("st"));
+    let crate::app::Action::Run { commands, dir, .. } =
+        app.handle_key(crate::input::KeyEvent::new(
+            crate::input::KeyCode::Char('r'),
+            crate::input::KeyModifiers::empty(),
+        ))
+    else {
+        panic!("a run");
+    };
+    assert_eq!(commands, [["--global-justfile", "st"]]);
+    assert_eq!(dir, std::path::Path::new("/tmp/cwd"));
 }

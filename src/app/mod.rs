@@ -261,7 +261,13 @@ impl App {
 
         let mut reloaded = Vec::with_capacity(self.sources.len());
         for source in &self.sources {
-            match just::load(&source.working_dir, source.explicit_file.as_deref()) {
+            let fresh = match source.global {
+                true => just::load_global(&source.working_dir).and_then(|global| {
+                    global.ok_or_else(|| anyhow::anyhow!("the global justfile is gone"))
+                }),
+                false => just::load(&source.working_dir, source.explicit_file.as_deref()),
+            };
+            match fresh {
                 Ok(mut fresh) => {
                     fresh.label = source.label.clone();
                     fresh.global = source.global;
