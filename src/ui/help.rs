@@ -25,7 +25,7 @@ const KEYS: &[(&str, &str)] = &[
     ("v / f", "in that view: hide the log, filter by state"),
     ("s / x / X", "in that view: rerun, kill, or kill and rerun"),
     ("H", "past submissions, to reuse settings"),
-    ("a", "run with extra arguments"),
+    ("a", "fill in arguments, then run"),
     ("n", "dry run (just --dry-run)"),
     ("/", "fuzzy search recipes and docs"),
     ("Tab / Shift-Tab", "cycle pane focus"),

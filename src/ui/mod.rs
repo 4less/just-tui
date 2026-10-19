@@ -4,6 +4,7 @@ mod code;
 mod doc;
 mod help;
 mod jobs;
+mod params;
 mod recall;
 mod submit;
 mod tree;
@@ -93,6 +94,9 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     }
     if app.mode == Mode::JobFilter {
         jobs::draw_filter(frame, app, frame.area());
+    }
+    if app.mode == Mode::Args {
+        params::draw(frame, app, frame.area());
     }
     if app.mode == Mode::History {
         recall::draw(frame, app, frame.area());
@@ -221,13 +225,6 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
             "",
             &app.search,
             "Enter accept · Esc clear",
-        ),
-        Mode::Args => prompt(
-            " args ",
-            theme::MODULE,
-            &format!("just {} ", app.run_target().unwrap_or_default()),
-            &app.args_input,
-            "Enter run · Esc cancel",
         ),
         _ => match &app.status {
             Some((message, kind)) => {

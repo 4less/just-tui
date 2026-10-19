@@ -124,7 +124,7 @@ impl App {
                     }
                     Action::None
                 } else {
-                    self.build_run("", false)
+                    self.run_or_ask(false)
                 }
             }
             KeyCode::Tab => {
@@ -140,14 +140,12 @@ impl App {
                 self.focus = Pane::Tree;
                 Action::None
             }
-            KeyCode::Char('r') => self.build_run("", false),
-            KeyCode::Char('n') => self.build_run("", true),
+            KeyCode::Char('r') => self.run_or_ask(false),
+            KeyCode::Char('n') => self.run_or_ask(true),
             KeyCode::Char('a') => {
-                if self.run_target().is_some() {
-                    self.args_input.clear();
-                    self.mode = Mode::Args;
-                } else {
-                    self.error("select a recipe first");
+                match self.param_form() {
+                    Some(form) => self.open_params(form, false),
+                    None => self.error("select a recipe first"),
                 }
                 Action::None
             }
@@ -428,26 +426,28 @@ impl App {
     }
 
     fn handle_args_key(&mut self, key: KeyEvent) -> Action {
-        match key.code {
-            KeyCode::Esc => {
-                self.mode = Mode::Normal;
-                Action::None
-            }
-            KeyCode::Enter => {
-                self.mode = Mode::Normal;
-                let extra = self.args_input.clone();
-                self.build_run(&extra, false)
-            }
-            KeyCode::Backspace => {
-                self.args_input.pop();
-                Action::None
-            }
-            KeyCode::Char(c) => {
-                self.args_input.push(c);
-                Action::None
-            }
-            _ => Action::None,
+        if key.code == KeyCode::Enter {
+            return self.run_params();
         }
+        if key.code == KeyCode::Esc {
+            self.params = None;
+            self.mode = Mode::Normal;
+            return Action::None;
+        }
+        let Some(form) = self.params.as_mut() else {
+            self.mode = Mode::Normal;
+            return Action::None;
+        };
+        match key.code {
+            KeyCode::Up | KeyCode::BackTab => form.move_cursor(-1),
+            KeyCode::Down | KeyCode::Tab => form.move_cursor(1),
+            KeyCode::Delete => form.clear(),
+            KeyCode::Backspace => form.pop_char(),
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => form.clear(),
+            KeyCode::Char(c) => form.push_char(c),
+            _ => {}
+        }
+        Action::None
     }
 
     /// The job browser. Up and down move through jobs; the log pane is paged

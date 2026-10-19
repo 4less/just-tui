@@ -36,7 +36,10 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Clear, popup);
     frame.render_widget(
         Paragraph::new(lines).block(overlay_block(
-            &format!(" Run {target} "),
+            &match app.params_dry {
+                true => format!(" Dry run {target} "),
+                false => format!(" Run {target} "),
+            },
             " ↑↓ field · del clear · ⏎ run · esc cancel ",
             theme::MODULE,
         )),

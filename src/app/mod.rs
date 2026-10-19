@@ -15,6 +15,7 @@ use ratatui::widgets::ListState;
 use crate::config::Configs;
 use crate::history::History;
 use crate::just::{self, Loaded};
+use crate::params::{ParamForm, RunArgs, quote};
 use crate::slurm::Cluster;
 use crate::source::SourceCache;
 use crate::submit::{ChainForm, SubmitForm};
@@ -111,7 +112,12 @@ pub struct App {
     pub focus: Pane,
     pub mode: Mode,
     pub search: String,
-    pub args_input: String,
+    /// The run-with-arguments form, while it is open.
+    pub params: Option<ParamForm>,
+    /// The open form was asked for by a dry run.
+    pub params_dry: bool,
+    /// What each recipe's form held when it was last run.
+    pub run_args: RunArgs,
     pub show_private: bool,
     /// Show `[group('x')]` folders inside modules that are divided by one.
     pub group_layer: bool,
@@ -150,6 +156,7 @@ impl App {
         let tree = Tree::build(&sources, &mut cache);
         let configs = Configs::new(&sources[0].working_dir);
         let history = History::load(&sources[0].working_dir);
+        let run_args = RunArgs::load(&sources[0].working_dir);
         let mut app = Self {
             sources,
             tree,
@@ -160,7 +167,9 @@ impl App {
             focus: Pane::Tree,
             mode: Mode::Normal,
             search: String::new(),
-            args_input: String::new(),
+            params: None,
+            params_dry: false,
+            run_args,
             show_private: false,
             group_layer: true,
             doc_scroll: 0,
@@ -235,6 +244,7 @@ impl App {
             self.refresh_visible();
         }
         self.configs = Configs::new(&self.project().working_dir);
+        self.run_args = RunArgs::load(&self.project().working_dir);
         self.history.reload();
         self.refresh_form();
         self.info("reloaded");
@@ -261,6 +271,77 @@ impl App {
     /// Run the selected recipe. One with dependencies goes through the chain
     /// chooser first, so the ones already done can be left out; the run then
     /// happens when the chooser is confirmed.
+    /// Run the selected recipe, or open its argument form first when it has
+    /// a parameter it cannot run without.
+    pub(super) fn run_or_ask(&mut self, dry: bool) -> Action {
+        match self.param_form() {
+            Some(form) if form.needs_input() => {
+                self.open_params(form, dry);
+                Action::None
+            }
+            _ => self.build_run("", dry),
+        }
+    }
+
+    /// The argument form for the selected recipe, filled the way it was left
+    /// last time. A recipe without parameters gets one free-text row.
+    pub(super) fn param_form(&self) -> Option<ParamForm> {
+        let target = self.run_target()?;
+        let root = self.selected()?.root_index;
+        let id = self.tree.find_namepath(root, &target)?;
+        let recipe = &self.tree.nodes[id].info.as_ref()?.recipe;
+        let mut form = match recipe.parameters.is_empty() {
+            true => ParamForm::free_text(),
+            false => ParamForm::from_recipe(recipe),
+        };
+        if let Some(values) = self.run_args_key().and_then(|key| self.run_args.get(&key)) {
+            form.restore(values);
+        }
+        Some(form)
+    }
+
+    pub(super) fn open_params(&mut self, form: ParamForm, dry: bool) {
+        self.params = Some(form);
+        self.params_dry = dry;
+        self.mode = Mode::Args;
+    }
+
+    /// Run with what the form holds, remembering it for next time. A
+    /// required row left empty keeps the form open.
+    pub(super) fn run_params(&mut self) -> Action {
+        let Some(form) = self.params.as_ref() else {
+            return Action::None;
+        };
+        let args = match form.args() {
+            Ok(args) => args,
+            Err(problem) => {
+                self.error(problem);
+                return Action::None;
+            }
+        };
+        let values = form.values.clone();
+        self.params = None;
+        self.mode = Mode::Normal;
+        if let Some(key) = self.run_args_key()
+            && let Err(err) = self.run_args.remember(&key, &values)
+        {
+            self.error(format!("could not save the arguments: {err}"));
+        }
+        let line: Vec<String> = args.iter().map(|a| quote(a)).collect();
+        self.build_run(&line.join(" "), self.params_dry)
+    }
+
+    /// What the selected recipe's arguments are kept under. A global
+    /// library's recipes are told apart from the project's by their file.
+    fn run_args_key(&self) -> Option<String> {
+        let target = self.run_target()?;
+        let source = self.selected_source();
+        Some(match source.global {
+            true => format!("~{}::{target}", source.label),
+            false => target,
+        })
+    }
+
     pub(super) fn build_run(&mut self, extra: &str, dry: bool) -> Action {
         let Some(target) = self.run_target() else {
             self.error("select a recipe to run");
@@ -285,11 +366,8 @@ impl App {
     }
 }
 
-/// Extra arguments typed at the prompt, one per word.
+/// An argument line as the words a shell would make of it, so a value
+/// quoted by the form arrives as one argument.
 pub(crate) fn split_args(extra: &str) -> Vec<String> {
-    extra
-        .split_whitespace()
-        .filter(|s| !s.is_empty())
-        .map(str::to_owned)
-        .collect()
+    crate::params::split_words(extra)
 }

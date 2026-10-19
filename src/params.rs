@@ -277,3 +277,69 @@ pub fn quote(word: &str) -> String {
     }
     format!("'{}'", word.replace('\'', "'\\''"))
 }
+
+pub const RUN_ARGS_NAME: &str = ".just-tui-run-args";
+
+/// What each recipe's rows held the last time it was run with arguments, so
+/// the form opens the way it was left. Kept beside the root justfile, like
+/// the Slurm state file, as one JSON object of recipe → row values.
+#[derive(Debug, Default)]
+pub struct RunArgs {
+    path: std::path::PathBuf,
+    values: std::collections::BTreeMap<String, Vec<String>>,
+}
+
+impl RunArgs {
+    pub fn load(base: &std::path::Path) -> Self {
+        let path = base.join(RUN_ARGS_NAME);
+        let values = crate::world::read(&path)
+            .ok()
+            .and_then(|text| serde_json::from_str(&text).ok())
+            .unwrap_or_default();
+        Self { path, values }
+    }
+
+    /// The rows as they were left, or nothing for a recipe never run here.
+    pub fn get(&self, key: &str) -> Option<&[String]> {
+        self.values.get(key).map(Vec::as_slice)
+    }
+
+    pub fn remember(&mut self, key: &str, values: &[String]) -> std::io::Result<()> {
+        self.values.insert(key.to_owned(), values.to_vec());
+        let text = serde_json::to_string_pretty(&self.values).unwrap_or_default();
+        crate::world::write(&self.path, &text)
+    }
+}
+
+impl ParamForm {
+    /// Fill the rows with values kept from an earlier run. Ignored when the
+    /// recipe's parameters have changed in number since.
+    pub fn restore(&mut self, values: &[String]) {
+        if values.len() == self.values.len() {
+            self.values = values.to_vec();
+        }
+    }
+
+    /// One free row for a recipe that declares no parameters, so `a` can
+    /// still pass whatever just should see after the recipe name.
+    pub fn free_text() -> Self {
+        Self {
+            params: vec![Param {
+                name: "args".to_owned(),
+                kind: ParamKind::Star,
+                default: None,
+                default_text: None,
+            }],
+            values: vec![String::new()],
+            cursor: 0,
+        }
+    }
+
+    /// A parameter has neither a default nor the freedom to be left empty,
+    /// so running without the form would only fail.
+    pub fn needs_input(&self) -> bool {
+        self.params
+            .iter()
+            .any(|p| p.default_text.is_none() && p.kind != ParamKind::Star)
+    }
+}

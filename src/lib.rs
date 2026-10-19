@@ -13,6 +13,7 @@ pub mod history;
 pub mod input;
 pub mod just;
 pub mod model;
+pub mod params;
 pub mod slurm;
 pub mod snapshot;
 pub mod source;

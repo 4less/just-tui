@@ -8,6 +8,7 @@ mod demo;
 mod highlight;
 mod jobs;
 mod justfile;
+mod params;
 
 use std::path::PathBuf;
 

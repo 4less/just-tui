@@ -87,9 +87,9 @@ all — you get the global roots alone.
 | `j` `k` `↑` `↓` | move in the focused pane |
 | `J` `K` | next / previous recipe, skipping modules |
 | `h` `l` `←` `→` | collapse / expand a module |
-| `Enter` `Space` | run a recipe, toggle a module, follow an alias |
+| `Enter` `Space` | run a recipe (asking for required arguments first), toggle a module, follow an alias |
 | `r` | run the selected recipe |
-| `a` | run it with extra arguments |
+| `a` | fill in its arguments, then run — the form remembers them |
 | `n` | dry run (`just --dry-run`) |
 | `/` | fuzzy search names, literal search in docs |
 | `Tab` `Shift-Tab` | cycle pane focus |
