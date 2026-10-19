@@ -529,14 +529,17 @@ be located in its file the body is rebuilt from just's own dump and marked
 ## Versions
 
 ```sh
-just bump          # 0.2.0 -> 0.2.1, committed and tagged
-just bump minor    # 0.2.0 -> 0.3.0
-git push --follow-tags
+just bump          # 0.3.0 -> 0.3.1 on branch release/v0.3.1, pushed, pull request opened
+just bump minor    # 0.3.0 -> 0.4.0
+# merge the pull request on GitHub, then:
+just tag           # tags the merged main as v0.4.0 and pushes the tag
 ```
 
-`bump` edits `Cargo.toml`, refreshes `Cargo.lock`, commits and tags — and refuses on a dirty
-tree or off `main`, since the tag is meant to name a state you could go back to. Nothing is
-pushed; look at the tag first.
+`main` only takes changes through pull requests, so a release is two steps. `bump` edits
+`Cargo.toml`, refreshes `Cargo.lock`, commits that on a `release/vX.Y.Z` branch, pushes it and
+opens the pull request (with `gh`; without it, the link is printed). It refuses on a dirty
+tree, off `main`, or when `main` differs from `origin/main`. `tag` pulls the merged `main` and
+tags it with the version now in `Cargo.toml`.
 
 The binary stamps itself with the commit it was built from, which is what tells two installs
 apart:

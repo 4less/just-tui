@@ -44,17 +44,23 @@ fmt:
 fmt-check:
     cargo fmt --check
 
-# `just bump` raises the patch; `just bump minor` the minor. Nothing is pushed:
-# check the tag, then `git push --follow-tags`.
+# `main` is protected: nothing reaches it except through a pull request. So a
+# release is two steps. `just bump` (or `just bump minor`) puts the version
+# change on a `release/vX.Y.Z` branch, pushes it, and opens the pull request
+# (with `gh`, or prints the link). Merge it on GitHub, then `just tag` tags
+# the merged commit on main and pushes the tag.
 #
-# Refuses on a dirty tree or off main, since the tag is meant to name a state
-# you could go back to.
-[doc("Cut a version: bump the number, commit it, and tag it")]
+# Refuses on a dirty tree, off main, or behind origin, so the release is cut
+# from exactly what is on GitHub.
+[doc("Cut a version: bump the number on a release branch and open its pull request")]
 bump level="patch":
     #!/usr/bin/env bash
     set -euo pipefail
     test -z "$(git status --porcelain)" || { echo "working tree is dirty"; exit 1; }
     test "$(git branch --show-current)" = "main" || { echo "not on main"; exit 1; }
+    git fetch --quiet origin main
+    test "$(git rev-parse main)" = "$(git rev-parse origin/main)" \
+      || { echo "main differs from origin/main — pull or push first"; exit 1; }
 
     current=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
     IFS=. read -r major minor patch <<< "$current"
@@ -65,13 +71,44 @@ bump level="patch":
       *) echo "level must be major, minor or patch"; exit 1 ;;
     esac
     next="$major.$minor.$patch"
+    branch="release/v$next"
 
+    git switch --quiet -c "$branch"
     sed -i "0,/^version = \".*\"/s//version = \"$next\"/" Cargo.toml
     cargo check --quiet          # so Cargo.lock follows the bump
     git add Cargo.toml Cargo.lock
-    git commit -m "Release $next"
-    git tag -a "v$next" -m "Release $next"
-    echo "tagged v$next — push with: git push --follow-tags"
+    git commit --quiet -m "Release $next"
+    git push --quiet -u origin "$branch"
+    git switch --quiet main
+
+    if command -v gh >/dev/null; then
+      gh pr create --base main --head "$branch" --title "Release $next" --body "Version $next."
+    else
+      repo=$(git remote get-url origin | sed -E 's#^(git@|https://)github.com[:/]##; s#\.git$##')
+      echo "open the pull request: https://github.com/$repo/compare/main...$branch?expand=1"
+    fi
+    echo "once it is merged: just tag"
+
+# Tag what is on main now with the version in Cargo.toml, and push the tag.
+# Run after the release pull request is merged; the merge, not the branch
+# commit, is what the tag should name.
+[doc("Tag the merged release on main and push the tag")]
+tag:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    test -z "$(git status --porcelain)" || { echo "working tree is dirty"; exit 1; }
+    test "$(git branch --show-current)" = "main" || { echo "not on main"; exit 1; }
+    git pull --quiet --ff-only origin main
+
+    version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+    if git rev-parse --quiet --verify "refs/tags/v$version" >/dev/null; then
+      echo "v$version is already tagged — was the release pull request merged?"
+      exit 1
+    fi
+    git tag -a "v$version" -m "Release $version"
+    git push --quiet origin "v$version"
+    git branch --quiet -D "release/v$version" 2>/dev/null || true
+    echo "tagged and pushed v$version"
 
 # Show what this build is: version, commit, and date
 version:
