@@ -48,6 +48,8 @@ pub struct SubmitForm {
     pub scope_dir: PathBuf,
     /// Directory the job runs in, and under which `logs/` is written.
     pub base: PathBuf,
+    /// Put before the recipe in the job's `just` call, to name the justfile.
+    pub just_args: Vec<String>,
     /// Config scopes this recipe answers to, for the edit chooser.
     pub scopes: Vec<(&'static str, PathBuf)>,
     pub scope_index: usize,
@@ -75,6 +77,7 @@ impl SubmitForm {
             cursor: 0,
             scope_dir,
             base,
+            just_args: Vec::new(),
             scopes,
             scope_index: 0,
             plan: None,
@@ -280,6 +283,8 @@ pub struct ChainRow {
     pub edited: bool,
     /// Directory the job runs in.
     pub base: PathBuf,
+    /// Put before the recipe in the job's `just` call, to name the justfile.
+    pub just_args: Vec<String>,
     /// Directory of the module the recipe lives in, for the form's saves.
     pub scope_dir: PathBuf,
 }
@@ -304,6 +309,7 @@ impl ChainRow {
             settings,
             edited: false,
             base,
+            just_args: Vec::new(),
             scope_dir,
         }
     }

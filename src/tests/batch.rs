@@ -184,6 +184,7 @@ fn an_expansion_submits_as_one_array() {
     let manifest = Path::new("logs/count-245df667.args");
     let args = slurm::build_command(
         Path::new("/work"),
+        &[],
         "count",
         &settings,
         Some((manifest, 37)),

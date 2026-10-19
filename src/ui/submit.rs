@@ -268,6 +268,7 @@ fn summary(
     let (out, _) = slurm::log_paths(&form.namepath, &form.settings);
     let command = slurm::preview_command(
         &form.base,
+        &form.just_args,
         &form.namepath,
         &form.settings,
         form.batch(),
@@ -576,6 +577,7 @@ pub fn draw_chain_confirm(frame: &mut Frame, app: &App, area: Rect) {
             .map(|plan| (plan.manifest.as_path(), plan.count()));
         let command = slurm::preview_command(
             &row.base,
+            &row.just_args,
             &row.link.namepath,
             &row.settings,
             batch,

@@ -102,6 +102,7 @@ fn builds_an_sbatch_command() {
     };
     let args = slurm::build_command(
         Path::new("/work/proj"),
+        &[],
         "level3::db::tree",
         &settings,
         None,

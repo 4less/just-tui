@@ -349,7 +349,7 @@ fn literal_args(from: &str, dependency: &Dependency) -> Result<Vec<String>, Stri
 }
 
 /// A literal with a space in it has to survive the shell the job runs under.
-fn quote(text: &str) -> String {
+pub fn quote(text: &str) -> String {
     match text.chars().any(char::is_whitespace) {
         true => format!("'{}'", text.replace('\'', "'\\''")),
         false => text.to_owned(),

@@ -149,7 +149,14 @@ fn a_chained_job_waits_with_afterok_and_runs_without_deps() {
         ..Default::default()
     };
     let after = ["23474901".to_owned(), "23474903".to_owned()];
-    let args = slurm::build_command(Path::new("/work"), "align", &settings, None, Some(&after));
+    let args = slurm::build_command(
+        Path::new("/work"),
+        &[],
+        "align",
+        &settings,
+        None,
+        Some(&after),
+    );
 
     assert!(
         args.contains(&"--dependency=afterok:23474901:23474903".to_owned()),
@@ -163,12 +170,12 @@ fn a_chained_job_waits_with_afterok_and_runs_without_deps() {
     assert_eq!(args[wrap + 1], "just --no-deps align");
 
     // The first link of a chain waits on nothing but still skips its deps.
-    let first = slurm::build_command(Path::new("/work"), "fetch", &settings, None, Some(&[]));
+    let first = slurm::build_command(Path::new("/work"), &[], "fetch", &settings, None, Some(&[]));
     assert!(!first.iter().any(|a| a.starts_with("--dependency")));
     assert!(first.contains(&"just --no-deps fetch".to_owned()));
 
     // A job submitted alone is untouched.
-    let alone = slurm::build_command(Path::new("/work"), "align", &settings, None, None);
+    let alone = slurm::build_command(Path::new("/work"), &[], "align", &settings, None, None);
     assert!(alone.contains(&"just align".to_owned()));
     assert!(!alone.iter().any(|a| a.contains("no-deps")));
 }
@@ -686,4 +693,70 @@ fn a_skipped_step_of_an_all_is_not_waited_through() {
     assert_eq!(chooser.waits_on(c), [b]);
     chooser.rows[b].checked = false;
     assert!(chooser.waits_on(c).is_empty());
+}
+
+/// The pipeline as a file in the global library, opened from `/tmp/cwd`.
+fn global_pipeline_app() -> App {
+    let mut source = pipeline();
+    source.working_dir = "/tmp/cwd".into();
+    source.path = Some("/home/u/.just-tui/pipeline.just".into());
+    source.explicit_file = Some("/home/u/.just-tui/pipeline.just".into());
+    source.global = true;
+    let mut app = App::new(vec![source], SourceCache::default());
+    app.cluster = Some(test_cluster());
+    app
+}
+
+#[test]
+fn a_global_recipe_is_submitted_with_its_justfile() {
+    let expected = [
+        "--justfile",
+        "/home/u/.just-tui/pipeline.just",
+        "--working-directory",
+        "/tmp/cwd",
+    ]
+    .map(str::to_owned);
+
+    // Alone: straight to the form.
+    let mut app = global_pipeline_app();
+    assert!(app.select_namepath("solo"));
+    app.open_submit();
+    let form = app.form.as_ref().expect("form is open");
+    assert_eq!(form.just_args, expected);
+    assert_eq!(
+        form.base,
+        Path::new("/tmp/cwd"),
+        "runs where just-tui started"
+    );
+
+    // In a chain: every link, and the form opened for one of them.
+    let mut app = global_pipeline_app();
+    assert!(app.select_namepath("align"));
+    app.open_submit();
+    let chain = app.chain.as_ref().expect("chooser is open");
+    assert!(chain.rows.iter().all(|row| row.just_args == expected));
+    app.open_chain_step(0);
+    assert_eq!(app.form.as_ref().unwrap().just_args, expected);
+}
+
+#[test]
+fn the_job_names_the_justfile_before_the_recipe() {
+    let just_args = ["--justfile", "/home/u/my lib/git.just"].map(str::to_owned);
+    let wrap = |chain: Option<&[String]>| {
+        let args = slurm::build_command(
+            Path::new("/tmp/cwd"),
+            &just_args,
+            "st",
+            &Settings::default(),
+            None,
+            chain,
+        );
+        args.last().unwrap().clone()
+    };
+    // Quoted, since sbatch hands the line to a shell.
+    assert_eq!(wrap(None), "just --justfile '/home/u/my lib/git.just' st");
+    assert_eq!(
+        wrap(Some(&[])),
+        "just --justfile '/home/u/my lib/git.just' --no-deps st"
+    );
 }

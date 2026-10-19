@@ -882,7 +882,14 @@ impl App {
         // its dependencies were jobs of their own. The waits are not kept,
         // since the jobs they named are long gone.
         let link = record.chained().then_some(&[][..]);
-        match slurm::submit(&base, &record.namepath, &record.settings, batch, link) {
+        match slurm::submit(
+            &base,
+            &record.just_args,
+            &record.namepath,
+            &record.settings,
+            batch,
+            link,
+        ) {
             slurm::Submission::Failed { message } => Err(format!("sbatch: {message}")),
             slurm::Submission::Ok { job_id } => {
                 let (out, err) =

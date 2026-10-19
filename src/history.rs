@@ -40,6 +40,9 @@ pub struct Record {
     /// Directory the job ran in, so it can be submitted again from there.
     /// Empty in records written before this was kept.
     pub base: String,
+    /// Arguments before the recipe in the job's `just` call, naming the
+    /// justfile for a global recipe. Empty for a project recipe.
+    pub just_args: Vec<String>,
     /// For an expansion, the manifest of argument lines, one per array task.
     pub manifest: String,
     /// How many tasks that expansion came to; 0 for an ordinary job.

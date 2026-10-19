@@ -72,6 +72,7 @@ impl App {
             self.start_detecting();
         }
         let base = self.selected_source().working_dir.clone();
+        let just_args = just::file_args(self.selected_source());
         let rows: Vec<ChainRow> = chain
             .links
             .into_iter()
@@ -79,7 +80,9 @@ impl App {
                 let module_dirs = self.tree.module_dirs(link.id);
                 let scope_dir = module_dirs.last().cloned().unwrap_or_else(|| base.clone());
                 let resolved = self.resolve_settings(link.id, &link.namepath);
-                ChainRow::new(link, resolved, base.clone(), scope_dir)
+                let mut row = ChainRow::new(link, resolved, base.clone(), scope_dir);
+                row.just_args = just_args.clone();
+                row
             })
             .collect();
         let skipped = self.configs.skipped(namepath).to_vec();
@@ -104,7 +107,9 @@ impl App {
         let scope_dir = module_dirs.last().cloned().unwrap_or_else(|| base.clone());
         let resolved = self.resolve_settings(id, &namepath);
 
-        self.form = Some(SubmitForm::new(namepath, resolved, base, scope_dir));
+        let mut form = SubmitForm::new(namepath, resolved, base, scope_dir);
+        form.just_args = just::file_args(self.selected_source());
+        self.form = Some(form);
         self.mode = Mode::Submit;
     }
 
@@ -134,6 +139,7 @@ impl App {
             entry.base.clone(),
             entry.scope_dir.clone(),
         );
+        form.just_args = entry.just_args.clone();
         form.adopt(entry.settings.clone());
         chain.step = Some(row);
         chain.cursor = row;
@@ -282,7 +288,14 @@ impl App {
             .as_ref()
             .map(|plan| (plan.manifest.as_path(), plan.count()));
 
-        let job_id = match slurm::submit(&row.base, namepath, settings, batch, Some(after)) {
+        let job_id = match slurm::submit(
+            &row.base,
+            &row.just_args,
+            namepath,
+            settings,
+            batch,
+            Some(after),
+        ) {
             slurm::Submission::Ok { job_id } => job_id,
             slurm::Submission::Failed { message } => return Err(format!("sbatch: {message}")),
         };
@@ -296,8 +309,16 @@ impl App {
             when: history::timestamp(),
             out,
             err,
-            command: slurm::preview_command(&row.base, namepath, settings, batch, Some(after)),
+            command: slurm::preview_command(
+                &row.base,
+                &row.just_args,
+                namepath,
+                settings,
+                batch,
+                Some(after),
+            ),
             base: row.base.display().to_string(),
+            just_args: row.just_args.clone(),
             manifest: plan
                 .as_ref()
                 .map(|plan| plan.manifest.display().to_string())
@@ -362,6 +383,7 @@ impl App {
 
         match slurm::submit(
             &form.base,
+            &form.just_args,
             &form.namepath,
             &form.settings,
             form.batch(),
@@ -379,12 +401,14 @@ impl App {
                     err,
                     command: slurm::preview_command(
                         &form.base,
+                        &form.just_args,
                         &form.namepath,
                         &form.settings,
                         form.batch(),
                         None,
                     ),
                     base: form.base.display().to_string(),
+                    just_args: form.just_args.clone(),
                     manifest: form
                         .plan
                         .as_ref()
