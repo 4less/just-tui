@@ -1,7 +1,8 @@
 # The documentation site
 
-Plain HTML, served by GitHub Pages straight out of this directory. There is no
-build step in CI: what is committed here is what is published.
+Plain HTML, published by GitHub Pages from this directory. The pages are
+committed; the browser demo is not — `.github/workflows/pages.yml` compiles it
+from the same commit and publishes both on every push to `main`.
 
 ## Publishing it
 
@@ -9,12 +10,11 @@ Once, in **Settings → Pages** on GitHub:
 
 | | |
 | --- | --- |
-| Source | **Deploy from a branch** |
-| Branch | `main` |
-| Folder | `/docs` |
+| Source | **GitHub Actions** |
 
-Save, and the site appears at `https://4less.github.io/just-tui/` within a
-minute or two. Every push to `main` that touches `docs/` republishes it.
+Every push to `main` then runs the Pages workflow, and the site appears at
+`https://4less.github.io/just-tui/` a few minutes later. **Actions → Pages →
+Run workflow** republishes it without a push.
 
 ## Editing it
 
@@ -31,8 +31,8 @@ After editing:
 just docs        # regenerates the six pages
 ```
 
-Commit what it writes. The generated HTML is committed deliberately: Pages
-serves it without running anything, which is why the site cannot break in CI.
+Commit what it writes. CI regenerates the pages too and fails when they differ
+from what is committed, so an edit to `_content.py` cannot go out without them.
 
 `.nojekyll` turns off Jekyll, which would otherwise try to process the site and
 ignore files beginning with an underscore.
@@ -52,8 +52,9 @@ just demo-build     # writes docs/demo/
 just demo-serve     # http://localhost:8000/just-tui/demo/
 ```
 
-The built files are committed, like the rest of the site: GitHub Pages serves them without
-running anything. `just demo-serve` copies the site under a `just-tui/` prefix because the
+The built files are not committed (`docs/demo/` is gitignored): the Pages workflow builds
+them from the commit it publishes, so the demo always matches `main` and reports its
+version. `just demo-serve` copies the site under a `just-tui/` prefix because the
 bundle is built with that public path, which is where Pages will serve it from.
 
 ## Checking it before pushing

@@ -27,3 +27,7 @@ jobs:
         run: cargo test
       - name: The crate still packages and builds on its own
         run: cargo package --locked
+      - name: Documentation pages match their source
+        run: |
+          cd docs && python3 _content.py >/dev/null
+          git diff --exit-code -- . ':!demo'
