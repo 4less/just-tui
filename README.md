@@ -237,6 +237,14 @@ ones (`align: fetch && report`) are both in the chain, a recipe reached twice is
 `(fetch "hg38")` puts `hg38` in that job's `args`. Rows are in submission order; the `↳ after`
 line names which rows a job waits on.
 
+A recipe named **`all`**, at the top or in any module, is the one exception to "only declared
+edges": its prior dependencies run **in sequence**, each waiting on the one before it, as
+`just all` runs them. A module cannot depend on a sibling module, so `all: setup::all qc::all`
+in the root justfile is the only place to say that `qc` comes after `setup`; with the rule,
+`qc::all` waits on `setup::all` while the recipes inside each module keep their own edges.
+Unchecking a step of an `all` works as for any row: the next step simply stops waiting, it
+does not wait on the step before instead.
+
 **Unchecking** a row means "already done, do not run it": the jobs that waited on it simply
 lose that wait. The chooser remembers what was unchecked, per recipe, in
 `.just-tui-cluster-state` (`skip = …`), so the next `s` opens the way it was left. A

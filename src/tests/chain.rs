@@ -474,3 +474,216 @@ fn running_a_recipe_with_dependencies_goes_through_the_chooser_too() {
     assert_eq!(commands, [vec!["solo"]]);
     assert!(app.chain.is_none());
 }
+
+/// One recipe of a dump, depending on `deps` by their bare names as
+/// `just --dump` writes them.
+fn recipe_json(namepath: &str, deps: &[&str]) -> serde_json::Value {
+    let name = namepath.rsplit("::").next().unwrap();
+    serde_json::json!({
+        "attributes": [], "body": [[format!("echo {name}")]],
+        "dependencies": deps.iter().map(|d| serde_json::json!({"arguments": [], "recipe": d}))
+            .collect::<Vec<_>>(),
+        "doc": null, "name": name, "namepath": namepath, "parameters": [],
+        "priors": deps.len(), "private": false, "quiet": false, "shebang": false
+    })
+}
+
+fn module_json(recipes: &[serde_json::Value], modules: serde_json::Value) -> serde_json::Value {
+    let recipes: serde_json::Map<String, serde_json::Value> = recipes
+        .iter()
+        .map(|r| (r["name"].as_str().unwrap().to_owned(), r.clone()))
+        .collect();
+    serde_json::json!({
+        "aliases": {}, "assignments": {}, "first": null, "doc": null,
+        "modules": modules, "recipes": recipes, "settings": {},
+        "source": "/tmp/does-not-exist/justfile"
+    })
+}
+
+/// `mod setup`, `mod qc` and a root `all: setup::all qc::all`, the shape the
+/// project template uses. `setup::all: a b c`, `setup::other: a b`, and
+/// `qc::all: x`. The dump names the root's dependencies `all` and `all`, so
+/// the header is put back the way the justfile writes it.
+fn modules_tree() -> Tree {
+    let setup = module_json(
+        &[
+            recipe_json("setup::all", &["a", "b", "c"]),
+            recipe_json("setup::other", &["a", "b"]),
+            recipe_json("setup::a", &[]),
+            recipe_json("setup::b", &[]),
+            recipe_json("setup::c", &[]),
+        ],
+        serde_json::json!({}),
+    );
+    let qc = module_json(
+        &[recipe_json("qc::all", &["x"]), recipe_json("qc::x", &[])],
+        serde_json::json!({}),
+    );
+    let root = module_json(
+        &[recipe_json("all", &["all", "all"])],
+        serde_json::json!({"setup": setup, "qc": qc}),
+    );
+    let justfile: Justfile = serde_json::from_value(root).expect("fixture parses");
+    let loaded = just::Loaded {
+        justfile,
+        working_dir: std::path::PathBuf::from("/tmp/does-not-exist"),
+        path: Some(std::path::PathBuf::from("/tmp/does-not-exist/justfile")),
+        explicit_file: None,
+        label: "does-not-exist".to_owned(),
+        global: false,
+    };
+    let mut tree = Tree::build(&[loaded], &mut SourceCache::default());
+    let all = tree.find_namepath(0, "all").unwrap();
+    let info = tree.nodes[all].info.as_mut().unwrap();
+    info.code = "# Everything, in order\nall: setup::all qc::all  # setup first".to_owned();
+    info.exact = true;
+    tree
+}
+
+/// What each link waits on, by label, in chain order.
+fn waits(chain: &Chain) -> Vec<(String, Vec<String>)> {
+    chain
+        .links
+        .iter()
+        .map(|link| {
+            let after = link.after.iter().map(|&i| chain.links[i].label()).collect();
+            (link.label(), after)
+        })
+        .collect()
+}
+
+fn wait(label: &str, after: &[&str]) -> (String, Vec<String>) {
+    (
+        label.to_owned(),
+        after.iter().map(|a| (*a).to_owned()).collect(),
+    )
+}
+
+#[test]
+fn an_all_in_a_module_runs_its_dependencies_in_sequence() {
+    let tree = modules_tree();
+    let all = tree.find_namepath(0, "setup::all").unwrap();
+    let chain = Chain::build(&tree, 0, all).unwrap();
+    assert_eq!(
+        waits(&chain),
+        [
+            wait("setup::a", &[]),
+            wait("setup::b", &["setup::a"]),
+            wait("setup::c", &["setup::b"]),
+            wait("setup::all", &["setup::a", "setup::b", "setup::c"]),
+        ]
+    );
+}
+
+#[test]
+fn a_recipe_not_named_all_keeps_its_dependencies_parallel() {
+    let tree = modules_tree();
+    let other = tree.find_namepath(0, "setup::other").unwrap();
+    let chain = Chain::build(&tree, 0, other).unwrap();
+    assert_eq!(
+        waits(&chain),
+        [
+            wait("setup::a", &[]),
+            wait("setup::b", &[]),
+            wait("setup::other", &["setup::a", "setup::b"]),
+        ]
+    );
+}
+
+#[test]
+fn the_root_all_orders_one_module_after_the_other() {
+    let tree = modules_tree();
+    let all = tree.find_namepath(0, "all").unwrap();
+    let chain = Chain::build(&tree, 0, all).expect("the header names the modules");
+    assert_eq!(
+        waits(&chain),
+        [
+            wait("setup::a", &[]),
+            wait("setup::b", &["setup::a"]),
+            wait("setup::c", &["setup::b"]),
+            wait("setup::all", &["setup::a", "setup::b", "setup::c"]),
+            wait("qc::x", &[]),
+            wait("qc::all", &["setup::all", "qc::x"]),
+            wait("all", &["setup::all", "qc::all"]),
+        ],
+        "qc::all waits on setup::all; qc::x, which qc::all runs first, does not"
+    );
+}
+
+#[test]
+fn a_root_all_runs_its_own_recipes_in_sequence() {
+    // `all: a b c` with every recipe at the top level, no source needed.
+    let root = module_json(
+        &[
+            recipe_json("all", &["a", "b", "c"]),
+            recipe_json("a", &[]),
+            recipe_json("b", &[]),
+            recipe_json("c", &[]),
+        ],
+        serde_json::json!({}),
+    );
+    let mut loaded = pipeline();
+    loaded.justfile = serde_json::from_value(root).unwrap();
+    let tree = Tree::build(&[loaded], &mut SourceCache::default());
+    let all = tree.find_namepath(0, "all").unwrap();
+    let chain = Chain::build(&tree, 0, all).unwrap();
+    assert_eq!(
+        waits(&chain),
+        [
+            wait("a", &[]),
+            wait("b", &["a"]),
+            wait("c", &["b"]),
+            wait("all", &["a", "b", "c"]),
+        ]
+    );
+}
+
+#[test]
+fn a_sequence_never_turns_an_existing_edge_around() {
+    // `all: a b` with `a: b`: just runs b, then a, and b is already done.
+    // Making b wait on a as well would be a cycle.
+    let root = module_json(
+        &[
+            recipe_json("all", &["a", "b"]),
+            recipe_json("a", &["b"]),
+            recipe_json("b", &[]),
+        ],
+        serde_json::json!({}),
+    );
+    let mut loaded = pipeline();
+    loaded.justfile = serde_json::from_value(root).unwrap();
+    let tree = Tree::build(&[loaded], &mut SourceCache::default());
+    let all = tree.find_namepath(0, "all").unwrap();
+    let chain = Chain::build(&tree, 0, all).expect("no cycle");
+    assert_eq!(
+        waits(&chain),
+        [wait("b", &[]), wait("a", &["b"]), wait("all", &["b", "a"])]
+    );
+}
+
+#[test]
+fn a_skipped_step_of_an_all_is_not_waited_through() {
+    // Unchecking a row declares it done, so the step after it is free to go,
+    // exactly as for a declared dependency.
+    let tree = modules_tree();
+    let all = tree.find_namepath(0, "setup::all").unwrap();
+    let chain = Chain::build(&tree, 0, all).unwrap();
+    use crate::submit::{ChainForm, ChainRow, Purpose};
+    let rows = chain
+        .links
+        .into_iter()
+        .map(|link| ChainRow::new(link, Default::default(), "/w".into(), "/w".into()))
+        .collect();
+    let mut chooser = ChainForm::new("setup::all".into(), Purpose::Submit, rows, &[]);
+    let at = |name: &str| {
+        chooser
+            .rows
+            .iter()
+            .position(|row| row.link.namepath == name)
+            .unwrap()
+    };
+    let (b, c) = (at("setup::b"), at("setup::c"));
+    assert_eq!(chooser.waits_on(c), [b]);
+    chooser.rows[b].checked = false;
+    assert!(chooser.waits_on(c).is_empty());
+}

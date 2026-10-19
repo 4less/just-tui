@@ -215,6 +215,15 @@ twice is one row, and <code>(fetch "hg38")</code> puts <code>hg38</code> in that
 <code>args</code>. Rows are in submission order; the <code>↳ after</code> line names which rows a job
 waits on.</p>
 
+<p>A recipe named <strong><code>all</code></strong>, at the top or in any module, is the one
+exception to "only declared edges": its prior dependencies run <strong>in sequence</strong>, each
+waiting on the one before it, as <code>just all</code> runs them. A module cannot depend on a
+sibling module, so <code>all: setup::all qc::all</code> in the root justfile is the only place to
+say that <code>qc</code> comes after <code>setup</code>; with the rule, <code>qc::all</code> waits
+on <code>setup::all</code> while the recipes inside each module keep their own edges. Unchecking a
+step of an <code>all</code> works as for any row: the next step simply stops waiting, it does not
+wait on the step before instead.</p>
+
 <p><strong>Unchecking</strong> a row means "already done, do not run it": the jobs that waited on it
 simply lose that wait. The chooser remembers what was unchecked, per recipe, in
 <code>.just-tui-cluster-state</code> (<code>skip = …</code>), so the next <kbd>s</kbd> opens the way
