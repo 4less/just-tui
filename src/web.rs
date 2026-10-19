@@ -150,7 +150,7 @@ fn run() -> Result<(), String> {
             .size(canvas_size()),
     )
     .map_err(|err| format!("no terminal in the page: {err}"))?;
-    let mut terminal = Terminal::new(backend).map_err(|err| err.to_string())?;
+    let terminal = Terminal::new(backend).map_err(|err| err.to_string())?;
 
     show(&format!(
         "{} ({})",

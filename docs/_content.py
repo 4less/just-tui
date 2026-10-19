@@ -224,6 +224,15 @@ Groups are display only. A namepath never contains one, so running, submitting a
 are unaffected.
 </div>
 
+<h2 id="arguments">Arguments</h2>
+
+<p><kbd>Enter</kbd> on a recipe with parameters opens a form in the middle of the screen, one row
+per parameter, with each default shown beside its row. Leave a row empty to keep its default;
+<kbd>Enter</kbd> runs, <kbd>Esc</kbd> cancels. What you typed is remembered per recipe in
+<code>.just-tui-run-args</code>, so the form opens the way you left it. <kbd>a</kbd> opens the form
+for any recipe — one without parameters gets a single free row for whatever should follow its
+name. <a href="demo/">Try it in the demo</a> on <code>simulate-reads</code>.</p>
+
 <h2 id="search">Search</h2>
 
 <p><kbd>/</kbd> matches recipe names as a fuzzy subsequence and documentation literally, and
