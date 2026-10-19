@@ -87,7 +87,8 @@ bump level="patch":
       repo=$(git remote get-url origin | sed -E 's#^(git@|https://)github.com[:/]##; s#\.git$##')
       echo "open the pull request: https://github.com/$repo/compare/main...$branch?expand=1"
     fi
-    echo "once it is merged: just tag"
+    echo "then merge it and tag the release:"
+    echo "  gh pr merge $branch --squash --delete-branch && just tag"
 
 # Tag what is on main now with the version in Cargo.toml, and push the tag.
 # Run after the release pull request is merged; the merge, not the branch
@@ -100,10 +101,24 @@ tag:
     test "$(git branch --show-current)" = "main" || { echo "not on main"; exit 1; }
     git pull --quiet --ff-only origin main
 
+    # A release branch still on GitHub means its pull request is not merged,
+    # and main still carries the previous, already tagged, version.
+    pending=$(git ls-remote --heads origin 'release/v*' | sed 's#.*refs/heads/##')
+    if [ -n "$pending" ]; then
+      echo "not merged yet: $pending"
+      echo "  gh pr merge $pending --squash --delete-branch && just tag"
+      exit 1
+    fi
+
     version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
     if git rev-parse --quiet --verify "refs/tags/v$version" >/dev/null; then
-      echo "v$version is already tagged — was the release pull request merged?"
-      exit 1
+      if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
+        echo "v$version is already tagged and pushed — nothing to do"
+        exit 0
+      fi
+      git push --quiet origin "v$version"
+      echo "v$version was tagged here but not on GitHub — pushed it"
+      exit 0
     fi
     git tag -a "v$version" -m "Release $version"
     git push --quiet origin "v$version"
