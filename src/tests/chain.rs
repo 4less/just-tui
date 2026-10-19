@@ -712,12 +712,12 @@ fn a_skipped_step_of_an_all_is_not_waited_through() {
     assert!(chooser.waits_on(c).is_empty());
 }
 
-/// The pipeline as a file in the global library, opened from `/tmp/cwd`.
+/// The pipeline as just's global justfile, opened from `/tmp/cwd`.
 fn global_pipeline_app() -> App {
     let mut source = pipeline();
     source.working_dir = "/tmp/cwd".into();
-    source.path = Some("/home/u/.just-tui/pipeline.just".into());
-    source.explicit_file = Some("/home/u/.just-tui/pipeline.just".into());
+    source.path = Some("/home/u/.config/just/justfile".into());
+    source.explicit_file = None;
     source.global = true;
     let mut app = App::new(vec![source], SourceCache::default());
     app.cluster = Some(test_cluster());
@@ -726,13 +726,7 @@ fn global_pipeline_app() -> App {
 
 #[test]
 fn a_global_recipe_is_submitted_with_its_justfile() {
-    let expected = [
-        "--justfile",
-        "/home/u/.just-tui/pipeline.just",
-        "--working-directory",
-        "/tmp/cwd",
-    ]
-    .map(str::to_owned);
+    let expected = ["--global-justfile".to_owned()];
 
     // Alone: straight to the form.
     let mut app = global_pipeline_app();

@@ -242,16 +242,27 @@ a global <code>git.just</code> library and <code>/gitlog</code> finds one recipe
 
 <h2 id="global">Global recipes</h2>
 
-<p>Every <code>.just</code> file in <code>~/.just-tui/</code> becomes its own root, marked
-<code>⌂</code>, below the project. <code>just --global-justfile</code>'s file is picked up too if
-you have one. They are browsed, documented, searched, run and submitted exactly like project
-recipes; global libraries start collapsed, and just-tui still opens if there is no justfile here at
-all.</p>
+<p>just-tui's global recipes are just's own: whatever <code>just --global-justfile</code>
+(<code>just -g</code>) sees, usually <code>~/.config/just/justfile</code>. They appear as one more
+root, marked <code>⌂</code>, below the project, and run as <code>just --global-justfile
+&lt;recipe&gt;</code> from the directory you started in — exactly what typing <code>just -g</code>
+there would do. Anything you can see under <code>⌂</code> you can also run from a shell. The global
+root starts collapsed, and just-tui still opens if there is no justfile here at all.</p>
+
+<p>Libraries are modules of that justfile:</p>
+
+{code("""# ~/.config/just/justfile
+mod git                       # ~/.config/just/git.just
+
+# ~/.config/just/git.just
+[no-cd]
+log:
+    git log --oneline -20""")}
 
 <div class="note warn">
-<strong>Global recipes run in your current directory</strong>, not in <code>~/.just-tui</code>:
-just-tui passes <code>--working-directory</code>, so <code>git::log</code> acts on the repository
-you are standing in.
+<strong>Mark global recipes <code>[no-cd]</code></strong>, or <code>just</code> runs them in
+<code>~/.config/just</code> rather than in the repository you are standing in. just-tui does not
+change that: it runs them the way <code>just -g</code> does.
 </div>
 
 <p>What just-tui remembers about global recipes lives in <code>~/.just-tui</code>, not in the

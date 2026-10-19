@@ -46,7 +46,7 @@ pub struct Node {
     pub alias_target: Option<String>,
     pub source: Option<PathBuf>,
     /// What a search matches against. Usually the namepath, but recipes in a
-    /// global file get its name in front, so `git` finds `~/.just-tui/git.just`.
+    /// global justfile get `global` in front, so `/global` finds them all.
     pub search_path: String,
     /// Which loaded source this node belongs to.
     pub root_index: usize,
@@ -248,7 +248,7 @@ impl Tree {
             variables: assignments(file),
             is_root: true,
         });
-        // Global recipes are reached as `git log`, so searches should be too.
+        // The global root is searched by its name too, as `global log`.
         let search_prefix = match source.global {
             true => source.label.clone(),
             false => String::new(),

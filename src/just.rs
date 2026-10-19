@@ -10,34 +10,34 @@ use crate::model::Justfile;
 pub struct Loaded {
     pub justfile: Justfile,
     /// Directory the recipes should be run from. For a project this is the
-    /// justfile's own directory; for a global library it is wherever the user
-    /// started just-tui, so `git::st` acts on the repo they are standing in.
+    /// justfile's own directory; for the global justfile it is wherever the
+    /// user started just-tui, exactly where `just -g` would be typed.
     pub working_dir: PathBuf,
     /// Path of the root justfile, when just reported one.
     pub path: Option<PathBuf>,
     pub explicit_file: Option<PathBuf>,
     /// Name shown on the tree's root row.
     pub label: String,
-    /// Came from the global library rather than the current project.
+    /// just's global justfile (`just --global-justfile`), not the project's.
     pub global: bool,
 }
 
-/// Whether a [`load`] failed only because there is no justfile to find,
-/// rather than because one exists and is broken.
+/// Whether a load failed only because there is no justfile to find, rather
+/// than because one exists and is broken.
 pub fn is_missing_justfile(err: &anyhow::Error) -> bool {
-    err.to_string().contains("No justfile found")
+    let message = err.to_string();
+    message.contains("No justfile found") || message.contains("Global justfile not found")
 }
 
-/// Ask `just` to describe a justfile as JSON.
+/// Ask `just` to describe a justfile as JSON. `args` choose which one, the
+/// same way they will choose it when a recipe is run.
 #[cfg(not(target_arch = "wasm32"))]
-fn dump(dir: &Path, explicit_file: Option<&Path>) -> Result<String> {
+fn dump(dir: &Path, args: &[String]) -> Result<String> {
     use std::process::Command;
 
     let mut cmd = Command::new("just");
     cmd.current_dir(dir);
-    if let Some(file) = explicit_file {
-        cmd.arg("--justfile").arg(file);
-    }
+    cmd.args(args);
     cmd.args(["--dump", "--dump-format", "json"]);
 
     let output = cmd
@@ -58,13 +58,17 @@ fn dump(dir: &Path, explicit_file: Option<&Path>) -> Result<String> {
 
 /// The demo carries one justfile, already dumped.
 #[cfg(target_arch = "wasm32")]
-fn dump(_dir: &Path, _explicit_file: Option<&Path>) -> Result<String> {
+fn dump(_dir: &Path, _args: &[String]) -> Result<String> {
     Ok(crate::world::demo::DUMP.to_owned())
 }
 
 /// Run `just --dump --dump-format json` and parse the result.
 pub fn load(dir: &Path, explicit_file: Option<&Path>) -> Result<Loaded> {
-    let dump = dump(dir, explicit_file)?;
+    let args: Vec<String> = match explicit_file {
+        Some(file) => vec!["--justfile".into(), file.display().to_string()],
+        None => Vec::new(),
+    };
+    let dump = dump(dir, &args)?;
     let justfile: Justfile =
         serde_json::from_str(&dump).context("could not parse `just --dump` output")?;
 
@@ -91,95 +95,45 @@ pub fn load(dir: &Path, explicit_file: Option<&Path>) -> Result<Loaded> {
     })
 }
 
-/// Where global recipe files live, `~/.just-tui` unless overridden.
-pub fn global_dir(override_dir: Option<&Path>) -> Option<PathBuf> {
-    match override_dir {
-        Some(dir) => Some(dir.to_path_buf()),
-        None => std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".just-tui")),
-    }
+/// Where just-tui keeps what it remembers about global recipes: their last
+/// Slurm settings, run arguments, history and logs. Not recipes — those come
+/// from just's own global justfile.
+pub fn memory_dir() -> Option<PathBuf> {
+    std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".just-tui"))
 }
 
-/// Load every `.just` file in the global directory, plus just's own global
-/// justfile when one exists. Each becomes its own root in the explorer.
-///
-/// `run_dir` is where these recipes will execute — the directory just-tui was
-/// started in, not the directory the files live in. A file `just` cannot read
-/// is left out, and why goes into the returned warnings.
-pub fn load_globals(dir: Option<&Path>, run_dir: &Path) -> (Vec<Loaded>, Vec<String>) {
-    let mut loaded = Vec::new();
-    let mut warnings = Vec::new();
-
-    if let Some(dir) = dir {
-        let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
-            .into_iter()
-            .flatten()
-            .flatten()
-            .map(|entry| entry.path())
-            .filter(|path| {
-                path.is_file()
-                    && (path.extension().is_some_and(|e| e == "just")
-                        || path.file_name().is_some_and(|n| n == "justfile"))
-            })
-            .collect();
-        files.sort();
-
-        for file in files {
-            let mut source = match load(run_dir, Some(&file)) {
-                Ok(source) => source,
-                Err(err) => {
-                    warnings.push(format!("skipped {}: {err}", file.display()));
-                    continue;
-                }
-            };
-            source.label = file
-                .file_stem()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_else(|| "global".to_owned());
-            source.working_dir = run_dir.to_path_buf();
-            source.global = true;
-            loaded.push(source);
-        }
-    }
-
-    // `just --global-justfile`, for people who use that instead.
-    if let Some(path) = just_global_justfile()
-        && !loaded
-            .iter()
-            .any(|l| l.path.as_deref() == Some(path.as_path()))
-        && let Ok(mut source) = load(run_dir, Some(&path))
-    {
-        source.label = "global".to_owned();
-        source.working_dir = run_dir.to_path_buf();
-        source.global = true;
-        loaded.push(source);
-    }
-
-    (loaded, warnings)
-}
-
-/// The file `just -g` would use, if it exists.
-fn just_global_justfile() -> Option<PathBuf> {
-    let home = PathBuf::from(std::env::var_os("HOME")?);
-    let xdg = std::env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| home.join(".config"));
-
-    [xdg.join("just/justfile"), home.join(".user.justfile")]
-        .into_iter()
-        .find(|p| p.is_file())
-}
-
-/// Argument prefix that pins later invocations to the same justfile.
-pub fn file_args(loaded: &Loaded) -> Vec<String> {
-    let Some(file) = &loaded.explicit_file else {
-        return Vec::new();
+/// just's global justfile, the one `just --global-justfile` uses, asked of
+/// `just` itself so the search is exactly its own. `Ok(None)` when there is
+/// none. Its recipes run from `run_dir`, the directory just-tui was started
+/// in, as they would if `just -g` were typed there.
+pub fn load_global(run_dir: &Path) -> Result<Option<Loaded>> {
+    let dump = match dump(run_dir, &["--global-justfile".to_owned()]) {
+        Ok(dump) => dump,
+        Err(err) if is_missing_justfile(&err) => return Ok(None),
+        Err(err) => return Err(err),
     };
-    let mut args = vec!["--justfile".into(), file.display().to_string()];
-    // `--justfile` alone would move just into the file's own directory, which
-    // is wrong for a global recipe meant to act on the current project.
+    let justfile: Justfile =
+        serde_json::from_str(&dump).context("could not parse `just --dump` output")?;
+    Ok(Some(Loaded {
+        path: justfile.source.as_ref().map(PathBuf::from),
+        justfile,
+        working_dir: run_dir.to_path_buf(),
+        explicit_file: None,
+        label: "global".to_owned(),
+        global: true,
+    }))
+}
+
+/// Argument prefix that pins later invocations to the same justfile. A
+/// global recipe runs as `just --global-justfile <recipe>` from the directory
+/// just-tui was started in: exactly what typing `just -g` there would do,
+/// `[no-cd]` and all.
+pub fn file_args(loaded: &Loaded) -> Vec<String> {
     if loaded.global {
-        args.push("--working-directory".into());
-        args.push(loaded.working_dir.display().to_string());
+        return vec!["--global-justfile".into()];
     }
-    args
+    match &loaded.explicit_file {
+        Some(file) => vec!["--justfile".into(), file.display().to_string()],
+        None => Vec::new(),
+    }
 }
