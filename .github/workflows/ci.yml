@@ -25,3 +25,5 @@ jobs:
         run: cargo clippy --target wasm32-unknown-unknown -- -D warnings
       - name: Tests
         run: cargo test
+      - name: The crate still packages and builds on its own
+        run: cargo package --locked

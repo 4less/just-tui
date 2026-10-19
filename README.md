@@ -39,7 +39,8 @@ above its real source.
 ## Install
 
 ```sh
-cargo install --path .
+cargo install just-tui      # the latest release, from crates.io
+cargo install --path .      # or from a checkout, with whatever is on it
 ```
 
 Requires `just` on `PATH` — just-tui reads `just --dump --dump-format json` and the
@@ -544,7 +545,12 @@ too:
 git::bump minor              # 0.4.0 -> 0.5.0 on branch release/v0.5.0, pull request opened
 git::merge release/v0.5.0    # waits for CI, squash-merges
 git::tag                     # tags the merged main as v0.5.0 and pushes the tag
+cargo publish                # puts that release on crates.io
 ```
+
+`cargo publish` runs on the tagged `main` and needs a crates.io token once (`cargo login`).
+A published version can never be replaced, only yanked, so publish only what is tagged. CI
+runs `cargo package` on every pull request, so the crate stays publishable in between.
 
 The binary stamps itself with the commit it was built from, which is what tells two installs
 apart:
@@ -614,4 +620,10 @@ regenerates them from `docs/_content.py`; `just docs-serve` previews them locall
 | `params.rs` | the argument form, and `.just-tui-run-args` |
 | `batch.rs`, `chain.rs` | `each` expansions, and dependencies as a chain of jobs |
 | `terminal.rs`, `snapshot.rs` | the real terminal, and rendering without one |
-# just-tui
+
+## License
+
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
+[MIT license](LICENSE-MIT), at your option. Unless you explicitly state otherwise, any
+contribution intentionally submitted for inclusion in just-tui, as defined in the Apache-2.0
+license, shall be dual licensed as above, without any additional terms or conditions.

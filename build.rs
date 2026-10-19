@@ -1,6 +1,7 @@
 //! Stamps the build with the commit it came from, so a binary on a cluster
 //! can say what it is. Everything here is best-effort: a build from a tarball
-//! with no git around still compiles, it just says `unknown`.
+//! with no git around still compiles, it just says `unknown`. A build of the
+//! published crate is the release itself, and says so.
 
 use std::process::Command;
 
@@ -19,8 +20,26 @@ fn main() {
     // an unstaged edit moves none of the files watched above. The stamp is
     // therefore exact for a committed tree — which is what gets deployed —
     // and may lag behind uncommitted local edits.
-    let commit = git(&["describe", "--tags", "--always", "--dirty"]);
-    let date = git(&["log", "-1", "--format=%cs"]);
+    //
+    // Outside a checkout — `cargo install just-tui` builds from crates.io —
+    // git would describe whatever repository happens to enclose the build
+    // directory, so it is not asked at all.
+    let checkout = std::path::Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default())
+        .join(".git")
+        .exists();
+    let (commit, date) = match checkout {
+        true => (
+            git(&["describe", "--tags", "--always", "--dirty"]),
+            git(&["log", "-1", "--format=%cs"]),
+        ),
+        false => (
+            format!(
+                "v{}",
+                std::env::var("CARGO_PKG_VERSION").unwrap_or_default()
+            ),
+            "crates.io".to_owned(),
+        ),
+    };
 
     println!("cargo:rustc-env=JUST_TUI_COMMIT={commit}");
     println!("cargo:rustc-env=JUST_TUI_DATE={date}");
