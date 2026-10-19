@@ -118,6 +118,13 @@ pub struct App {
     pub params_dry: bool,
     /// What each recipe's form held when it was last run.
     pub run_args: RunArgs,
+    /// The global library's directory. Global recipes keep their state,
+    /// run arguments, history and logs there, so the same memory follows
+    /// them into every directory. `None` keeps them with the project's.
+    pub global_dir: Option<PathBuf>,
+    /// [`Self::configs`] with the global library's state file.
+    pub global_configs: Configs,
+    pub global_run_args: RunArgs,
     pub show_private: bool,
     /// Show `[group('x')]` folders inside modules that are divided by one.
     pub group_layer: bool,
@@ -170,6 +177,9 @@ impl App {
             params: None,
             params_dry: false,
             run_args,
+            global_dir: None,
+            global_configs: Configs::default(),
+            global_run_args: RunArgs::default(),
             show_private: false,
             group_layer: true,
             doc_scroll: 0,
@@ -202,6 +212,36 @@ impl App {
     /// The project source; config files and state live beside it.
     pub fn project(&self) -> &Loaded {
         &self.sources[0]
+    }
+
+    /// Keep global recipes' memory in `dir` from now on. Only worth doing
+    /// when a global library is loaded.
+    pub fn set_global_dir(&mut self, dir: Option<PathBuf>) {
+        let base = self.project().working_dir.clone();
+        self.global_dir = dir.filter(|_| self.sources.iter().any(|s| s.global));
+        if let Some(dir) = &self.global_dir {
+            // Only just's own global justfile may be loaded, with no library
+            // directory yet for its memory to go in.
+            let _ = crate::world::create_dir_all(dir);
+            self.global_configs = Configs::new_at(&base, dir);
+            self.global_run_args = RunArgs::load(dir);
+        }
+        self.history = History::load(&base).with_global(self.global_dir.as_deref());
+    }
+
+    /// The global library's directory, when this source's memory lives there
+    /// rather than with the project.
+    pub fn global_home(&self, source: &Loaded) -> Option<&PathBuf> {
+        self.global_dir.as_ref().filter(|_| source.global)
+    }
+
+    /// The config chain and state for a recipe from the global library
+    /// (`true`) or the project.
+    pub fn configs_for(&mut self, global: bool) -> &mut Configs {
+        match global && self.global_dir.is_some() {
+            true => &mut self.global_configs,
+            false => &mut self.configs,
+        }
     }
 
     /// The source the selected node came from.
@@ -245,7 +285,7 @@ impl App {
         }
         self.configs = Configs::new(&self.project().working_dir);
         self.run_args = RunArgs::load(&self.project().working_dir);
-        self.history.reload();
+        self.set_global_dir(self.global_dir.clone());
         self.refresh_form();
         self.info("reloaded");
     }
@@ -271,11 +311,11 @@ impl App {
     /// Run the selected recipe. One with dependencies goes through the chain
     /// chooser first, so the ones already done can be left out; the run then
     /// happens when the chooser is confirmed.
-    /// Run the selected recipe, or open its argument form first when it has
-    /// a parameter it cannot run without.
+    /// Run the selected recipe, or open its argument form first when it
+    /// declares parameters, defaults or not, so they can be seen and changed.
     pub(super) fn run_or_ask(&mut self, dry: bool) -> Action {
         match self.param_form() {
-            Some(form) if form.needs_input() => {
+            Some(form) if !form.free => {
                 self.open_params(form, dry);
                 Action::None
             }
@@ -294,7 +334,10 @@ impl App {
             true => ParamForm::free_text(),
             false => ParamForm::from_recipe(recipe),
         };
-        if let Some(values) = self.run_args_key().and_then(|key| self.run_args.get(&key)) {
+        if let Some(values) = self
+            .run_args_key()
+            .and_then(|key| self.run_args_for_selected().get(&key))
+        {
             form.restore(values);
         }
         Some(form)
@@ -322,13 +365,27 @@ impl App {
         let values = form.values.clone();
         self.params = None;
         self.mode = Mode::Normal;
-        if let Some(key) = self.run_args_key()
-            && let Err(err) = self.run_args.remember(&key, &values)
+        let global = self.global_home(self.selected_source()).is_some();
+        let key = self.run_args_key();
+        let store = match global {
+            true => &mut self.global_run_args,
+            false => &mut self.run_args,
+        };
+        if let Some(key) = key
+            && let Err(err) = store.remember(&key, &values)
         {
             self.error(format!("could not save the arguments: {err}"));
         }
         let line: Vec<String> = args.iter().map(|a| quote(a)).collect();
         self.build_run(&line.join(" "), self.params_dry)
+    }
+
+    /// Where the selected recipe's run arguments are kept.
+    fn run_args_for_selected(&self) -> &RunArgs {
+        match self.global_home(self.selected_source()) {
+            Some(_) => &self.global_run_args,
+            None => &self.run_args,
+        }
     }
 
     /// What the selected recipe's arguments are kept under. A global

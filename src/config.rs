@@ -198,7 +198,13 @@ pub struct Configs {
 impl Configs {
     /// `base` is the directory of the root justfile; the state file lives there.
     pub fn new(base: &Path) -> Self {
-        let state_path = base.join(STATE_NAME);
+        Self::new_at(base, base)
+    }
+
+    /// Like [`Self::new`], with the state file in `state_dir` instead: the
+    /// global library keeps what its recipes were submitted with.
+    pub fn new_at(base: &Path, state_dir: &Path) -> Self {
+        let state_path = state_dir.join(STATE_NAME);
         let state = crate::world::read(&state_path)
             .map(|text| ConfigFile::parse(&state_path, &text))
             .unwrap_or_else(|_| ConfigFile {

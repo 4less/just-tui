@@ -50,6 +50,11 @@ pub struct SubmitForm {
     pub base: PathBuf,
     /// Put before the recipe in the job's `just` call, to name the justfile.
     pub just_args: Vec<String>,
+    /// Directory `logs/` goes under: `base`, or the global library for a
+    /// global recipe.
+    pub logs: PathBuf,
+    /// A global recipe, whose state and history live in the global library.
+    pub global: bool,
     /// Config scopes this recipe answers to, for the edit chooser.
     pub scopes: Vec<(&'static str, PathBuf)>,
     pub scope_index: usize,
@@ -76,8 +81,10 @@ impl SubmitForm {
             field: 0,
             cursor: 0,
             scope_dir,
+            logs: base.clone(),
             base,
             just_args: Vec::new(),
+            global: false,
             scopes,
             scope_index: 0,
             plan: None,
@@ -87,9 +94,18 @@ impl SubmitForm {
         form
     }
 
+    /// Run this as a global recipe: named by `just_args`, with its logs and
+    /// manifest under `logs` rather than where it runs.
+    pub fn place(&mut self, just_args: Vec<String>, logs: PathBuf, global: bool) {
+        self.just_args = just_args;
+        self.logs = logs;
+        self.global = global;
+        self.refresh_plan();
+    }
+
     /// Re-expand `each`. Cheap when it is empty, which is the common case.
     pub fn refresh_plan(&mut self) {
-        match batch::plan(&self.base, &self.namepath, &self.settings) {
+        match batch::plan(&self.base, &self.logs, &self.namepath, &self.settings) {
             Ok(plan) => {
                 self.plan = plan;
                 self.plan_error = None;
@@ -285,6 +301,9 @@ pub struct ChainRow {
     pub base: PathBuf,
     /// Put before the recipe in the job's `just` call, to name the justfile.
     pub just_args: Vec<String>,
+    /// Directory `logs/` goes under, as in [`SubmitForm::logs`].
+    pub logs: PathBuf,
+    pub global: bool,
     /// Directory of the module the recipe lives in, for the form's saves.
     pub scope_dir: PathBuf,
 }
@@ -308,8 +327,10 @@ impl ChainRow {
             resolved,
             settings,
             edited: false,
+            logs: base.clone(),
             base,
             just_args: Vec::new(),
+            global: false,
             scope_dir,
         }
     }

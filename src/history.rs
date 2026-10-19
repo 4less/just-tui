@@ -55,6 +55,13 @@ pub struct Record {
     /// for a job submitted alone.
     pub chain: String,
     pub settings: Settings,
+    /// Directory the logs and any manifest were written under, when that is
+    /// not `base`: a global recipe keeps them in the global library.
+    pub logs: String,
+    /// Read from the global library's history rather than the project's.
+    /// Where it was read from says so; it is not written into the line.
+    #[serde(skip)]
+    pub global: bool,
 }
 
 impl Record {
@@ -77,21 +84,32 @@ impl Record {
     }
 }
 
-/// Every submission made from this project, oldest first on disk.
+/// Every submission made from this project, oldest first on disk, and
+/// those of global recipes, which are kept in the global library instead.
 #[derive(Debug, Default)]
 pub struct History {
     path: PathBuf,
+    global_path: Option<PathBuf>,
+    /// Both files, merged in submission order.
     records: Vec<Record>,
 }
 
 impl History {
     /// The file lives beside the root justfile, like the state file.
     pub fn load(base: &Path) -> Self {
-        let path = base.join(HISTORY_NAME);
-        let records = crate::world::read(&path)
-            .map(|text| parse(&text))
-            .unwrap_or_default();
-        Self { path, records }
+        let mut history = Self {
+            path: base.join(HISTORY_NAME),
+            ..Default::default()
+        };
+        history.reload();
+        history
+    }
+
+    /// Also read, and write global recipes' submissions to, `dir`'s file.
+    pub fn with_global(mut self, dir: Option<&Path>) -> Self {
+        self.global_path = dir.map(|dir| dir.join(HISTORY_NAME));
+        self.reload();
+        self
     }
 
     /// Newest first — the order every list in the UI wants.
@@ -112,25 +130,39 @@ impl History {
             .find(|r| r.job_id == job_id || r.job_id == root)
     }
 
-    /// Append one submission, trimming the file when it has grown too long.
-    pub fn append(&mut self, record: Record) -> std::io::Result<()> {
+    /// Append one submission to the file it belongs in, trimming that file
+    /// when it has grown too long.
+    pub fn append(&mut self, mut record: Record) -> std::io::Result<()> {
+        // Without a global library there is only the project's file.
+        record.global &= self.global_path.is_some();
+        let global = record.global;
         self.records.push(record);
-        if self.records.len() > TRIM_AT {
-            self.records.drain(..self.records.len() - KEEP);
-            return self.rewrite();
+
+        let count = self.records.iter().filter(|r| r.global == global).count();
+        if count > TRIM_AT {
+            let mut excess = count - KEEP;
+            self.records.retain(|r| {
+                let drop = r.global == global && excess > 0;
+                excess -= usize::from(drop);
+                !drop
+            });
         }
-        self.rewrite()
+        self.rewrite(global)
     }
 
-    fn rewrite(&self) -> std::io::Result<()> {
+    fn rewrite(&self, global: bool) -> std::io::Result<()> {
+        let path = match (&self.global_path, global) {
+            (Some(path), true) => path,
+            _ => &self.path,
+        };
         let mut text = String::new();
-        for record in &self.records {
+        for record in self.records.iter().filter(|r| r.global == global) {
             if let Ok(line) = serde_json::to_string(record) {
                 text.push_str(&line);
                 text.push('\n');
             }
         }
-        crate::world::write(&self.path, &text)
+        crate::world::write(path, &text)
     }
 
     /// Add a record without touching the disk, for tests.
@@ -139,11 +171,24 @@ impl History {
         self.records.push(record);
     }
 
-    /// Re-read the file, so a run from another window shows up.
+    /// Re-read both files, so a run from another window shows up.
     pub fn reload(&mut self) {
-        self.records = crate::world::read(&self.path)
-            .map(|text| parse(&text))
-            .unwrap_or_default();
+        let read = |path: &Path| {
+            crate::world::read(path)
+                .map(|text| parse(&text))
+                .unwrap_or_default()
+        };
+        self.records = read(&self.path);
+        if let Some(path) = &self.global_path {
+            self.records
+                .extend(read(path).into_iter().map(|mut record| {
+                    record.global = true;
+                    record
+                }));
+            // Stable, so records from one second keep the order they were
+            // written in.
+            self.records.sort_by_key(|record| record.at);
+        }
     }
 }
 

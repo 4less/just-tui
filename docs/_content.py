@@ -244,6 +244,11 @@ all.</p>
 just-tui passes <code>--working-directory</code>, so <code>git::log</code> acts on the repository
 you are standing in.
 </div>
+
+<p>What just-tui remembers about global recipes lives in <code>~/.just-tui</code>, not in the
+directory you ran them from: the last Slurm settings, the last run arguments, the submission
+history and the job logs. A global recipe run in twenty directories leaves no files behind in
+any of them. Hand-written <code>.just-tui-cluster-config</code> files still apply as usual.</p>
 """
 
 # =================================================================== slurm ===
@@ -611,7 +616,7 @@ KEYS = f"""
 <tr><td><kbd>j</kbd> <kbd>k</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td>move in the focused pane</td></tr>
 <tr><td><kbd>J</kbd> <kbd>K</kbd></td><td>next / previous recipe, skipping modules</td></tr>
 <tr><td><kbd>h</kbd> <kbd>l</kbd> <kbd>←</kbd> <kbd>→</kbd></td><td>collapse / expand a module</td></tr>
-<tr><td><kbd>Enter</kbd> <kbd>Space</kbd></td><td>run a recipe (asking for required arguments first), toggle a module, follow an alias</td></tr>
+<tr><td><kbd>Enter</kbd> <kbd>Space</kbd></td><td>run a recipe (asking for its arguments first, if it has any), toggle a module, follow an alias</td></tr>
 <tr><td><kbd>r</kbd></td><td>run the selected recipe</td></tr>
 <tr><td><kbd>a</kbd></td><td>fill in its arguments, then run — the form remembers them</td></tr>
 <tr><td><kbd>n</kbd></td><td>dry run (<code>just --dry-run</code>)</td></tr>
@@ -675,7 +680,10 @@ KEYS = f"""
 <tr><td><code>.just-tui-cluster-history</code></td><td>just-tui</td><td>Every submission ever made, one JSON line each. Gitignored, trimmed to 500.</td></tr>
 <tr><td><code>logs/…</code></td><td>Slurm</td><td>Job output, mirroring the module tree. Gitignored.</td></tr>
 <tr><td><code>logs/….args</code></td><td>just-tui</td><td>An expansion's manifest, one line of arguments per array task.</td></tr>
+<tr><td><code>.just-tui-run-args</code></td><td>just-tui</td><td>What each recipe's argument form held when it was last run. Gitignored.</td></tr>
 </table>
+<p>All of these sit beside the root justfile, except for global recipes: theirs go in
+<code>~/.just-tui</code>, whichever directory the recipe was run from.</p>
 """
 
 write("index.html", landing(

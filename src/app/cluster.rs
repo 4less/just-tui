@@ -6,6 +6,8 @@ use crate::chain::Chain;
 use crate::config;
 use crate::history::{self, Record};
 use crate::just;
+use std::path::Path;
+
 use crate::slurm::{self, Cluster, Settings};
 use crate::submit::{ChainForm, ChainRow, Purpose, SaveScope, SubmitForm};
 
@@ -72,7 +74,7 @@ impl App {
             self.start_detecting();
         }
         let base = self.selected_source().working_dir.clone();
-        let just_args = just::file_args(self.selected_source());
+        let (just_args, logs, global) = self.job_place();
         let rows: Vec<ChainRow> = chain
             .links
             .into_iter()
@@ -82,10 +84,12 @@ impl App {
                 let resolved = self.resolve_settings(link.id, &link.namepath);
                 let mut row = ChainRow::new(link, resolved, base.clone(), scope_dir);
                 row.just_args = just_args.clone();
+                row.logs = logs.clone();
+                row.global = global;
                 row
             })
             .collect();
-        let skipped = self.configs.skipped(namepath).to_vec();
+        let skipped = self.configs_for(global).skipped(namepath).to_vec();
 
         self.chain = Some(ChainForm::new(namepath.to_owned(), purpose, rows, &skipped));
         self.mode = Mode::Chain;
@@ -108,7 +112,8 @@ impl App {
         let resolved = self.resolve_settings(id, &namepath);
 
         let mut form = SubmitForm::new(namepath, resolved, base, scope_dir);
-        form.just_args = just::file_args(self.selected_source());
+        let (just_args, logs, global) = self.job_place();
+        form.place(just_args, logs, global);
         self.form = Some(form);
         self.mode = Mode::Submit;
     }
@@ -122,6 +127,18 @@ impl App {
             crate::world::spawn(move || {
                 let _ = sender.send(Cluster::detect());
             });
+        }
+    }
+
+    /// How the selected recipe's jobs go out: the `just` arguments naming its
+    /// justfile, the directory `logs/` goes under, and whether its memory
+    /// lives in the global library.
+    fn job_place(&self) -> (Vec<String>, std::path::PathBuf, bool) {
+        let source = self.selected_source();
+        let just_args = just::file_args(source);
+        match self.global_home(source) {
+            Some(home) => (just_args, home.clone(), true),
+            None => (just_args, source.working_dir.clone(), false),
         }
     }
 
@@ -139,7 +156,7 @@ impl App {
             entry.base.clone(),
             entry.scope_dir.clone(),
         );
-        form.just_args = entry.just_args.clone();
+        form.place(entry.just_args.clone(), entry.logs.clone(), entry.global);
         form.adopt(entry.settings.clone());
         chain.step = Some(row);
         chain.cursor = row;
@@ -207,7 +224,11 @@ impl App {
         let dir = source.working_dir.clone();
         let commands = chain.run_commands(&just::file_args(source));
         let dry = matches!(chain.purpose, Purpose::Run { dry: true, .. });
-        if let Err(err) = self.configs.remember_skipped(&chain.head, &chain.skipped()) {
+        let global = chain.rows.first().is_some_and(|row| row.global);
+        if let Err(err) = self
+            .configs_for(global)
+            .remember_skipped(&chain.head, &chain.skipped())
+        {
             self.error(format!("could not save the chooser: {err}"));
         }
         Action::Run { commands, dir, dry }
@@ -255,7 +276,11 @@ impl App {
             }
         }
 
-        if let Err(err) = self.configs.remember_skipped(&chain.head, &chain.skipped()) {
+        let global = chain.rows.first().is_some_and(|row| row.global);
+        if let Err(err) = self
+            .configs_for(global)
+            .remember_skipped(&chain.head, &chain.skipped())
+        {
             self.error(format!("submitted, but could not save the chooser: {err}"));
             return;
         }
@@ -277,7 +302,7 @@ impl App {
     ) -> Result<String, String> {
         let namepath = &row.link.namepath;
         let settings: &Settings = &row.settings;
-        let plan = batch::plan(&row.base, namepath, settings)
+        let plan = batch::plan(&row.base, &row.logs, namepath, settings)
             .map_err(|problem| format!("each: {problem}"))?;
         if let Some(plan) = plan.as_ref()
             && let Err(err) = batch::write(&row.base, plan)
@@ -290,6 +315,7 @@ impl App {
 
         let job_id = match slurm::submit(
             &row.base,
+            &row.logs,
             &row.just_args,
             namepath,
             settings,
@@ -300,7 +326,8 @@ impl App {
             slurm::Submission::Failed { message } => return Err(format!("sbatch: {message}")),
         };
 
-        let (out, err) = slurm::resolved_log_paths(namepath, settings, &job_id);
+        let (out, err) =
+            slurm::resolved_log_paths(&row.base, &row.logs, namepath, settings, &job_id);
         let record = Record {
             job_id: job_id.clone(),
             namepath: namepath.clone(),
@@ -311,6 +338,7 @@ impl App {
             err,
             command: slurm::preview_command(
                 &row.base,
+                &row.logs,
                 &row.just_args,
                 namepath,
                 settings,
@@ -319,6 +347,8 @@ impl App {
             ),
             base: row.base.display().to_string(),
             just_args: row.just_args.clone(),
+            logs: logs_field(&row.base, &row.logs),
+            global: row.global,
             manifest: plan
                 .as_ref()
                 .map(|plan| plan.manifest.display().to_string())
@@ -331,7 +361,7 @@ impl App {
             },
             settings: settings.clone(),
         };
-        self.configs
+        self.configs_for(row.global)
             .remember(namepath, settings)
             .and_then(|()| self.history.append(record))
             .map_err(|err| format!("queued as {job_id}, but could not save settings: {err}"))?;
@@ -341,7 +371,8 @@ impl App {
     /// Merge the config chain for one recipe.
     fn resolve_settings(&mut self, id: usize, namepath: &str) -> config::Resolved {
         let dirs = config::scope_dirs(&self.project().working_dir, &self.tree.module_dirs(id));
-        self.configs.resolve(&dirs, namepath)
+        let global = self.tree.nodes[id].global;
+        self.configs_for(global).resolve(&dirs, namepath)
     }
 
     /// Re-read the config files and refresh the open form from them.
@@ -356,6 +387,7 @@ impl App {
         };
 
         self.configs.invalidate();
+        self.global_configs.invalidate();
         let resolved = self.resolve_settings(id, &namepath);
         if let Some(form) = self.form.as_mut() {
             form.reset_to(resolved);
@@ -383,6 +415,7 @@ impl App {
 
         match slurm::submit(
             &form.base,
+            &form.logs,
             &form.just_args,
             &form.namepath,
             &form.settings,
@@ -390,7 +423,13 @@ impl App {
             None,
         ) {
             slurm::Submission::Ok { job_id } => {
-                let (out, err) = slurm::resolved_log_paths(&form.namepath, &form.settings, &job_id);
+                let (out, err) = slurm::resolved_log_paths(
+                    &form.base,
+                    &form.logs,
+                    &form.namepath,
+                    &form.settings,
+                    &job_id,
+                );
                 let record = Record {
                     job_id: job_id.clone(),
                     namepath: form.namepath.clone(),
@@ -401,6 +440,7 @@ impl App {
                     err,
                     command: slurm::preview_command(
                         &form.base,
+                        &form.logs,
                         &form.just_args,
                         &form.namepath,
                         &form.settings,
@@ -409,6 +449,8 @@ impl App {
                     ),
                     base: form.base.display().to_string(),
                     just_args: form.just_args.clone(),
+                    logs: logs_field(&form.base, &form.logs),
+                    global: form.global,
                     manifest: form
                         .plan
                         .as_ref()
@@ -423,7 +465,7 @@ impl App {
                 let tasks = record.tasks;
 
                 let saved = self
-                    .configs
+                    .configs_for(form.global)
                     .remember(&form.namepath, &form.settings)
                     .and_then(|()| self.history.append(record));
                 match saved {
@@ -465,5 +507,14 @@ impl App {
     pub(super) fn save_scope_action(&mut self, scope: SaveScope) -> Action {
         self.save_scope(scope);
         Action::None
+    }
+}
+
+/// What a record keeps of where the logs went: nothing when they are under
+/// the job's own directory, as most are.
+fn logs_field(base: &Path, logs: &Path) -> String {
+    match logs == base {
+        true => String::new(),
+        false => logs.display().to_string(),
     }
 }

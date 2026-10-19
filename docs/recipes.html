@@ -81,6 +81,11 @@ just-tui passes <code>--working-directory</code>, so <code>git::log</code> acts 
 you are standing in.
 </div>
 
+<p>What just-tui remembers about global recipes lives in <code>~/.just-tui</code>, not in the
+directory you ran them from: the last Slurm settings, the last run arguments, the submission
+history and the job logs. A global recipe run in twenty directories leaves no files behind in
+any of them. Hand-written <code>.just-tui-cluster-config</code> files still apply as usual.</p>
+
     <nav class="pager"><a href="docs.html"><span>Previous</span>← Introduction</a><a class="next" href="slurm.html"><span>Next</span>Submitting a recipe →</a></nav>
   </main>
   <aside class="rail">

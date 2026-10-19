@@ -268,6 +268,7 @@ fn summary(
     let (out, _) = slurm::log_paths(&form.namepath, &form.settings);
     let command = slurm::preview_command(
         &form.base,
+        &form.logs,
         &form.just_args,
         &form.namepath,
         &form.settings,
@@ -569,7 +570,7 @@ pub fn draw_chain_confirm(frame: &mut Frame, app: &App, area: Rect) {
             continue;
         }
         let placeholders = chain.placeholder_ids(index);
-        let plan = crate::batch::plan(&row.base, &row.link.namepath, &row.settings)
+        let plan = crate::batch::plan(&row.base, &row.logs, &row.link.namepath, &row.settings)
             .ok()
             .flatten();
         let batch = plan
@@ -577,6 +578,7 @@ pub fn draw_chain_confirm(frame: &mut Frame, app: &App, area: Rect) {
             .map(|plan| (plan.manifest.as_path(), plan.count()));
         let command = slurm::preview_command(
             &row.base,
+            &row.logs,
             &row.just_args,
             &row.link.namepath,
             &row.settings,

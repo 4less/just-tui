@@ -76,7 +76,13 @@ fn job_names_carry_the_arguments() {
 #[test]
 fn resolves_log_paths_once_a_job_has_an_id() {
     let plain = Settings::default();
-    let (out, err) = slurm::resolved_log_paths("demo::greet", &plain, "12345");
+    let (out, err) = slurm::resolved_log_paths(
+        Path::new("/w"),
+        Path::new("/w"),
+        "demo::greet",
+        &plain,
+        "12345",
+    );
     assert_eq!(out, "logs/demo/greet-12345.out");
     assert_eq!(err, "logs/demo/greet-12345.err");
 
@@ -85,7 +91,13 @@ fn resolves_log_paths_once_a_job_has_an_id() {
         array: "0-3".into(),
         ..Default::default()
     };
-    let (out, _) = slurm::resolved_log_paths("demo::greet", &array, "12345");
+    let (out, _) = slurm::resolved_log_paths(
+        Path::new("/w"),
+        Path::new("/w"),
+        "demo::greet",
+        &array,
+        "12345",
+    );
     assert_eq!(out, "logs/demo/greet-12345_*.out");
 }
 
@@ -101,6 +113,7 @@ fn builds_an_sbatch_command() {
         ..Default::default()
     };
     let args = slurm::build_command(
+        Path::new("/work/proj"),
         Path::new("/work/proj"),
         &[],
         "level3::db::tree",

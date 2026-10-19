@@ -32,7 +32,7 @@ fn each(pattern: &str, args: &str) -> Settings {
 #[test]
 fn a_glob_becomes_one_line_per_match() {
     let dir = inputs("glob");
-    let plan = batch::plan(&dir, "count", &each("data/*.txt", "{}"))
+    let plan = batch::plan(&dir, &dir, "count", &each("data/*.txt", "{}"))
         .unwrap()
         .expect("an expansion");
 
@@ -56,14 +56,14 @@ fn a_glob_becomes_one_line_per_match() {
 #[test]
 fn wildcards_work_in_any_component() {
     let dir = inputs("nested");
-    let plan = batch::plan(&dir, "count", &each("data/*/one.txt", "{}"))
+    let plan = batch::plan(&dir, &dir, "count", &each("data/*/one.txt", "{}"))
         .unwrap()
         .expect("an expansion");
     assert_eq!(plan.lines, ["data/runs/one.txt"]);
 
     // A pattern nothing matches is a mistake worth reporting, not an empty
     // array submitted silently.
-    let missing = batch::plan(&dir, "count", &each("data/*.fna", "{}"));
+    let missing = batch::plan(&dir, &dir, "count", &each("data/*.fna", "{}"));
     assert!(missing.unwrap_err().contains("matched nothing"));
 
     let _ = std::fs::remove_dir_all(&dir);
@@ -78,7 +78,7 @@ fn a_file_supplies_the_lines_instead() {
     )
     .unwrap();
 
-    let plan = batch::plan(&dir, "run", &each("@runs.txt", ""))
+    let plan = batch::plan(&dir, &dir, "run", &each("@runs.txt", ""))
         .unwrap()
         .expect("an expansion");
     assert_eq!(
@@ -97,6 +97,7 @@ fn a_comma_separated_list_is_taken_as_written() {
     // Values need not exist on disk: they are arguments, not paths.
     let plan = batch::plan(
         &dir,
+        &dir,
         "run",
         &each("tgt_filt_peel, cong_filt_peel force=1,focal,", ""),
     )
@@ -109,7 +110,7 @@ fn a_comma_separated_list_is_taken_as_written() {
     );
 
     // A list of only commas is a mistake, like a glob that matches nothing.
-    let empty = batch::plan(&dir, "run", &each(" , ,", ""));
+    let empty = batch::plan(&dir, &dir, "run", &each(" , ,", ""));
     assert!(empty.unwrap_err().contains("matched nothing"));
 
     let _ = std::fs::remove_dir_all(&dir);
@@ -119,14 +120,19 @@ fn a_comma_separated_list_is_taken_as_written() {
 fn each_value_lands_where_the_placeholder_is() {
     let dir = inputs("placeholder");
 
-    let with = batch::plan(&dir, "count", &each("data/*.txt", "input={} mode=peel"))
-        .unwrap()
-        .unwrap();
+    let with = batch::plan(
+        &dir,
+        &dir,
+        "count",
+        &each("data/*.txt", "input={} mode=peel"),
+    )
+    .unwrap()
+    .unwrap();
     assert_eq!(with.lines[0], "input=data/alpha.txt mode=peel");
 
     // No placeholder: the value is appended, which is how `just` takes a
     // positional parameter.
-    let without = batch::plan(&dir, "count", &each("data/*.txt", "--verbose"))
+    let without = batch::plan(&dir, &dir, "count", &each("data/*.txt", "--verbose"))
         .unwrap()
         .unwrap();
     assert_eq!(without.lines[0], "--verbose data/alpha.txt");
@@ -139,7 +145,7 @@ fn the_manifest_is_named_after_what_it_holds() {
     let dir = inputs("manifest");
     let settings = each("data/*.txt", "{}");
 
-    let plan = batch::plan(&dir, "level3::run::count", &settings)
+    let plan = batch::plan(&dir, &dir, "level3::run::count", &settings)
         .unwrap()
         .unwrap();
     assert!(
@@ -149,7 +155,7 @@ fn the_manifest_is_named_after_what_it_holds() {
     );
 
     // The same expansion names the same file, so resubmitting is harmless.
-    let again = batch::plan(&dir, "level3::run::count", &settings)
+    let again = batch::plan(&dir, &dir, "level3::run::count", &settings)
         .unwrap()
         .unwrap();
     assert_eq!(plan.manifest, again.manifest);
@@ -157,7 +163,7 @@ fn the_manifest_is_named_after_what_it_holds() {
     // A different one never overwrites a manifest an array may still be
     // reading its way through.
     std::fs::write(dir.join("data/delta.txt"), "x").unwrap();
-    let changed = batch::plan(&dir, "level3::run::count", &settings)
+    let changed = batch::plan(&dir, &dir, "level3::run::count", &settings)
         .unwrap()
         .unwrap();
     assert_ne!(plan.manifest, changed.manifest);
@@ -183,6 +189,7 @@ fn an_expansion_submits_as_one_array() {
     };
     let manifest = Path::new("logs/count-245df667.args");
     let args = slurm::build_command(
+        Path::new("/work"),
         Path::new("/work"),
         &[],
         "count",

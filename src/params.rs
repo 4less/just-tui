@@ -78,6 +78,8 @@ pub struct ParamForm {
     pub params: Vec<Param>,
     pub values: Vec<String>,
     pub cursor: usize,
+    /// The single free row of [`Self::free_text`], not declared parameters.
+    pub free: bool,
 }
 
 impl ParamForm {
@@ -87,6 +89,7 @@ impl ParamForm {
             values: vec![String::new(); params.len()],
             params,
             cursor: 0,
+            free: false,
         }
     }
 
@@ -332,14 +335,7 @@ impl ParamForm {
             }],
             values: vec![String::new()],
             cursor: 0,
+            free: true,
         }
-    }
-
-    /// A parameter has neither a default nor the freedom to be left empty,
-    /// so running without the form would only fail.
-    pub fn needs_input(&self) -> bool {
-        self.params
-            .iter()
-            .any(|p| p.default_text.is_none() && p.kind != ParamKind::Star)
     }
 }

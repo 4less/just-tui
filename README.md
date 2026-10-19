@@ -77,6 +77,13 @@ finds that one recipe.
 `--working-directory`, so `git::log` acts on the repo you are standing in. They are browsed,
 documented, searched, run and submitted exactly like project recipes.
 
+**What just-tui remembers about them lives in `~/.just-tui`**, not in the directory you ran
+them from: the last Slurm settings, the last run arguments, the submission history, and the
+job logs. A global recipe run in twenty directories leaves no files behind in any of them,
+and opens with the same remembered settings in each. Hand-written
+`.just-tui-cluster-config` files still apply as usual, so a project's `account` or
+`partition` reaches a global recipe run inside it.
+
 Global libraries start collapsed, and just-tui still opens if there is no justfile here at
 all — you get the global roots alone.
 
@@ -87,7 +94,7 @@ all — you get the global roots alone.
 | `j` `k` `↑` `↓` | move in the focused pane |
 | `J` `K` | next / previous recipe, skipping modules |
 | `h` `l` `←` `→` | collapse / expand a module |
-| `Enter` `Space` | run a recipe (asking for required arguments first), toggle a module, follow an alias |
+| `Enter` `Space` | run a recipe (asking for its arguments first, if it has any), toggle a module, follow an alias |
 | `r` | run the selected recipe |
 | `a` | fill in its arguments, then run — the form remembers them |
 | `n` | dry run (`just --dry-run`) |

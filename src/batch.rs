@@ -34,8 +34,14 @@ impl Plan {
 }
 
 /// Work out what a recipe expands to, without writing anything. `Ok(None)`
-/// means the recipe is an ordinary single job.
-pub fn plan(base: &Path, namepath: &str, settings: &Settings) -> Result<Option<Plan>, String> {
+/// means the recipe is an ordinary single job. Globs are matched in `base`;
+/// the manifest goes under `logs`, beside the job's logs.
+pub fn plan(
+    base: &Path,
+    logs: &Path,
+    namepath: &str,
+    settings: &Settings,
+) -> Result<Option<Plan>, String> {
     let each = settings.each.trim();
     if each.is_empty() {
         return Ok(None);
@@ -61,6 +67,7 @@ pub fn plan(base: &Path, namepath: &str, settings: &Settings) -> Result<Option<P
     let stem = crate::slurm::log_stem(namepath, settings);
     let manifest =
         log_dir(Path::new(""), namepath, settings).join(format!("{stem}-{}.args", digest(&lines)));
+    let manifest = crate::slurm::in_logs(base, logs, &manifest);
 
     Ok(Some(Plan { lines, manifest }))
 }

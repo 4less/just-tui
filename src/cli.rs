@@ -85,6 +85,9 @@ pub fn main() -> Result<()> {
     }
 
     let mut app = App::new(sources, cache);
+    if !cli.no_global {
+        app.set_global_dir(just::global_dir(cli.global_dir.as_deref()));
+    }
     // The terminal is about to be taken over, so stderr would be lost.
     if !warnings.is_empty() {
         // The status line holds one line; just's own errors run to several.

@@ -151,6 +151,7 @@ fn a_chained_job_waits_with_afterok_and_runs_without_deps() {
     let after = ["23474901".to_owned(), "23474903".to_owned()];
     let args = slurm::build_command(
         Path::new("/work"),
+        Path::new("/work"),
         &[],
         "align",
         &settings,
@@ -170,12 +171,28 @@ fn a_chained_job_waits_with_afterok_and_runs_without_deps() {
     assert_eq!(args[wrap + 1], "just --no-deps align");
 
     // The first link of a chain waits on nothing but still skips its deps.
-    let first = slurm::build_command(Path::new("/work"), &[], "fetch", &settings, None, Some(&[]));
+    let first = slurm::build_command(
+        Path::new("/work"),
+        Path::new("/work"),
+        &[],
+        "fetch",
+        &settings,
+        None,
+        Some(&[]),
+    );
     assert!(!first.iter().any(|a| a.starts_with("--dependency")));
     assert!(first.contains(&"just --no-deps fetch".to_owned()));
 
     // A job submitted alone is untouched.
-    let alone = slurm::build_command(Path::new("/work"), &[], "align", &settings, None, None);
+    let alone = slurm::build_command(
+        Path::new("/work"),
+        Path::new("/work"),
+        &[],
+        "align",
+        &settings,
+        None,
+        None,
+    );
     assert!(alone.contains(&"just align".to_owned()));
     assert!(!alone.iter().any(|a| a.contains("no-deps")));
 }
@@ -744,6 +761,7 @@ fn the_job_names_the_justfile_before_the_recipe() {
     let just_args = ["--justfile", "/home/u/my lib/git.just"].map(str::to_owned);
     let wrap = |chain: Option<&[String]>| {
         let args = slurm::build_command(
+            Path::new("/tmp/cwd"),
             Path::new("/tmp/cwd"),
             &just_args,
             "st",

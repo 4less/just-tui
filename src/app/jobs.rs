@@ -430,7 +430,8 @@ impl App {
     /// waiting on `scontrol` and walking a large `logs/` tree, neither of
     /// which the cursor should have to wait for.
     pub fn request_job_log(&mut self) {
-        let hints = vec![self.project().working_dir.clone()];
+        let mut hints = vec![self.project().working_dir.clone()];
+        hints.extend(self.global_dir.clone());
         let Some(view) = self.jobs.as_mut() else {
             return;
         };
@@ -864,10 +865,14 @@ impl App {
             true => self.project().working_dir.clone(),
             false => PathBuf::from(&record.base),
         };
+        let logs = match record.logs.is_empty() {
+            true => base.clone(),
+            false => PathBuf::from(&record.logs),
+        };
 
         // Re-expand: the inputs may have changed since, and the manifest is
         // named after its contents, so an unchanged one writes the same file.
-        let plan = crate::batch::plan(&base, &record.namepath, &record.settings)
+        let plan = crate::batch::plan(&base, &logs, &record.namepath, &record.settings)
             .map_err(|problem| format!("each: {problem}"))?;
         if let Some(plan) = plan.as_ref()
             && let Err(err) = crate::batch::write(&base, plan)
@@ -884,6 +889,7 @@ impl App {
         let link = record.chained().then_some(&[][..]);
         match slurm::submit(
             &base,
+            &logs,
             &record.just_args,
             &record.namepath,
             &record.settings,
@@ -892,8 +898,13 @@ impl App {
         ) {
             slurm::Submission::Failed { message } => Err(format!("sbatch: {message}")),
             slurm::Submission::Ok { job_id } => {
-                let (out, err) =
-                    slurm::resolved_log_paths(&record.namepath, &record.settings, &job_id);
+                let (out, err) = slurm::resolved_log_paths(
+                    &base,
+                    &logs,
+                    &record.namepath,
+                    &record.settings,
+                    &job_id,
+                );
                 let again = Record {
                     job_id: job_id.clone(),
                     at: crate::history::now(),

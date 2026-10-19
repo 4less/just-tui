@@ -104,8 +104,15 @@ pub fn log_paths(namepath: &str, settings: &Settings) -> (PathBuf, PathBuf) {
 
 /// The log paths with Slurm's patterns filled in, for a job that now has an
 /// id. `%a` stays a glob: only the running task knows its own number.
-pub fn resolved_log_paths(namepath: &str, settings: &Settings, job_id: &str) -> (String, String) {
+pub fn resolved_log_paths(
+    base: &Path,
+    logs: &Path,
+    namepath: &str,
+    settings: &Settings,
+    job_id: &str,
+) -> (String, String) {
     let (out, err) = log_paths(namepath, settings);
+    let (out, err) = (in_logs(base, logs, &out), in_logs(base, logs, &err));
     let fill = |p: PathBuf| {
         p.display()
             .to_string()
@@ -116,6 +123,16 @@ pub fn resolved_log_paths(namepath: &str, settings: &Settings, job_id: &str) -> 
     (fill(out), fill(err))
 }
 
+/// `relative`, a path under `logs/`, as the job should be told it: as is
+/// when the logs go under the directory it runs in, and absolute when they
+/// go somewhere else, as a global recipe's do.
+pub fn in_logs(base: &Path, logs: &Path, relative: &Path) -> PathBuf {
+    match logs == base {
+        true => relative.to_path_buf(),
+        false => logs.join(relative),
+    }
+}
+
 /// The full `sbatch` argument list for a recipe. `chain` is `None` for a job
 /// submitted alone; in a chain it names the job ids this one waits on, empty
 /// for the first link, and the job runs `just --no-deps` so the dependencies
@@ -123,8 +140,10 @@ pub fn resolved_log_paths(namepath: &str, settings: &Settings, job_id: &str) -> 
 ///
 /// `just_args` come before the recipe, as [`crate::just::file_args`] gives
 /// them: without `--justfile` a global recipe could not be found on the node.
+/// `logs` is the directory `logs/` goes under, usually `base` itself.
 pub fn build_command(
     base: &Path,
+    logs: &Path,
     just_args: &[String],
     namepath: &str,
     settings: &Settings,
@@ -132,6 +151,7 @@ pub fn build_command(
     chain: Option<&[String]>,
 ) -> Vec<String> {
     let (out, err) = log_paths(namepath, settings);
+    let (out, err) = (in_logs(base, logs, &out), in_logs(base, logs, &err));
     let mut args = vec![
         "--parsable".to_owned(),
         format!("--chdir={}", base.display()),
@@ -224,6 +244,7 @@ fn wrap_command(
 /// flags are shown elsewhere in the form.
 pub fn preview_command(
     base: &Path,
+    logs: &Path,
     just_args: &[String],
     namepath: &str,
     settings: &Settings,
@@ -237,7 +258,7 @@ pub fn preview_command(
         "--output=",
         "--error=",
     ];
-    let shown: Vec<String> = build_command(base, just_args, namepath, settings, batch, chain)
+    let shown: Vec<String> = build_command(base, logs, just_args, namepath, settings, batch, chain)
         .into_iter()
         .filter(|arg| !skip.iter().any(|prefix| arg.starts_with(prefix)))
         .collect();
@@ -270,20 +291,21 @@ pub enum Submission {
 /// Create the log directory, then hand the job to sbatch.
 pub fn submit(
     base: &Path,
+    logs: &Path,
     just_args: &[String],
     namepath: &str,
     settings: &Settings,
     batch: Option<(&Path, usize)>,
     chain: Option<&[String]>,
 ) -> Submission {
-    let dir = log_dir(base, namepath, settings);
+    let dir = log_dir(logs, namepath, settings);
     if let Err(err) = std::fs::create_dir_all(&dir) {
         return Submission::Failed {
             message: format!("could not create {}: {err}", dir.display()),
         };
     }
 
-    let args = build_command(base, just_args, namepath, settings, batch, chain);
+    let args = build_command(base, logs, just_args, namepath, settings, batch, chain);
     let borrowed: Vec<&str> = args.iter().map(String::as_str).collect();
 
     match super::cluster::capture_in("sbatch", &borrowed, base) {

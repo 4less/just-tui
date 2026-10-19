@@ -1,6 +1,7 @@
 /target
 .just-tui-cluster-state
 .just-tui-cluster-history
+.just-tui-run-args
 logs/
 __pycache__/
 /.demo-serve
