@@ -33,6 +33,7 @@ NAV = [
         ("recipes.html", "The explorer"),
         ("recipes.html#groups", "Groups"),
         ("recipes.html#arguments", "Arguments"),
+        ("recipes.html#variables", "Variables"),
         ("recipes.html#search", "Search"),
         ("recipes.html#global", "Global recipes"),
     ]),

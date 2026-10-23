@@ -10,6 +10,7 @@ mod jobs;
 mod justfile;
 mod memory;
 mod params;
+mod vars;
 
 use std::path::PathBuf;
 

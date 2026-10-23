@@ -7,6 +7,7 @@ mod jobs;
 mod keys;
 mod navigate;
 mod recall;
+mod vars;
 
 use std::path::PathBuf;
 
@@ -21,6 +22,7 @@ use crate::source::SourceCache;
 use crate::submit::{ChainForm, SubmitForm};
 use crate::tree::{Filter, Kind, Tree};
 use crate::ui::Panes;
+use crate::vars::{Explorer, Overrides, VarsForm};
 
 pub use jobs::{JobsView, LogKind, PendingAction};
 pub use recall::HistoryPick;
@@ -71,6 +73,10 @@ pub enum Mode {
     JobFilter,
     /// Browsing past submissions, to load one back into the form.
     History,
+    /// A module's variables, to override one.
+    Vars,
+    /// The full-screen directory explorer, picking a variable's path.
+    Explorer,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -125,6 +131,12 @@ pub struct App {
     /// [`Self::configs`] with the global library's state file.
     pub global_configs: Configs,
     pub global_run_args: RunArgs,
+    /// Variables set with `--set` on every run: the project's, and the
+    /// global justfile's, kept with the global memory.
+    pub overrides: Overrides,
+    pub global_overrides: Overrides,
+    pub vars: Option<VarsForm>,
+    pub explorer: Option<Explorer>,
     pub show_private: bool,
     /// Show `[group('x')]` folders inside modules that are divided by one.
     pub group_layer: bool,
@@ -164,6 +176,7 @@ impl App {
         let configs = Configs::new(&sources[0].working_dir);
         let history = History::load(&sources[0].working_dir);
         let run_args = RunArgs::load(&sources[0].working_dir);
+        let overrides = Overrides::load(&sources[0].working_dir);
         let mut app = Self {
             sources,
             tree,
@@ -180,6 +193,10 @@ impl App {
             global_dir: None,
             global_configs: Configs::default(),
             global_run_args: RunArgs::default(),
+            overrides,
+            global_overrides: Overrides::default(),
+            vars: None,
+            explorer: None,
             show_private: false,
             group_layer: true,
             doc_scroll: 0,
@@ -225,6 +242,7 @@ impl App {
             let _ = crate::world::create_dir_all(dir);
             self.global_configs = Configs::new_at(&base, dir);
             self.global_run_args = RunArgs::load(dir);
+            self.global_overrides = Overrides::load(dir);
         }
         self.history = History::load(&base).with_global(self.global_dir.as_deref());
     }
@@ -291,6 +309,7 @@ impl App {
         }
         self.configs = Configs::new(&self.project().working_dir);
         self.run_args = RunArgs::load(&self.project().working_dir);
+        self.overrides = Overrides::load(&self.project().working_dir);
         self.set_global_dir(self.global_dir.clone());
         self.refresh_form();
         self.info("reloaded");
@@ -415,7 +434,7 @@ impl App {
         }
         let source = self.selected_source();
         let dir = source.working_dir.clone();
-        let mut args = just::file_args(source);
+        let mut args = self.just_args(source);
         if dry {
             args.push("--dry-run".into());
         }

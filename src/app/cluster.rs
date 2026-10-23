@@ -5,7 +5,6 @@ use crate::batch;
 use crate::chain::Chain;
 use crate::config;
 use crate::history::{self, Record};
-use crate::just;
 use std::path::Path;
 
 use crate::slurm::{self, Cluster, Settings};
@@ -135,7 +134,7 @@ impl App {
     /// lives in the global library.
     fn job_place(&self) -> (Vec<String>, std::path::PathBuf, bool) {
         let source = self.selected_source();
-        let just_args = just::file_args(source);
+        let just_args = self.just_args(source);
         match self.global_home(source) {
             Some(home) => (just_args, home.clone(), true),
             None => (just_args, source.working_dir.clone(), false),
@@ -222,7 +221,7 @@ impl App {
         self.mode = Mode::Normal;
         let source = self.selected_source();
         let dir = source.working_dir.clone();
-        let commands = chain.run_commands(&just::file_args(source));
+        let commands = chain.run_commands(&self.just_args(source));
         let dry = matches!(chain.purpose, Purpose::Run { dry: true, .. });
         let global = chain.rows.first().is_some_and(|row| row.global);
         if let Err(err) = self

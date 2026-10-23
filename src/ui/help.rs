@@ -26,6 +26,7 @@ const KEYS: &[(&str, &str)] = &[
     ("s / x / X", "in that view: rerun, kill, or kill and rerun"),
     ("H", "past submissions, to reuse settings"),
     ("a", "fill in arguments, then run"),
+    ("V", "override variables, pick a path"),
     ("n", "dry run (just --dry-run)"),
     ("/", "fuzzy search recipes and docs"),
     ("Tab / Shift-Tab", "cycle pane focus"),

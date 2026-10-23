@@ -21,6 +21,8 @@ impl App {
             Mode::ConfirmJob => return self.handle_confirm_key(key),
             Mode::JobFilter => return self.handle_job_filter_key(key),
             Mode::History => return self.handle_history_key(key),
+            Mode::Vars => return self.handle_vars_key(key),
+            Mode::Explorer => return self.handle_explorer_key(key),
             Mode::Help => {
                 self.mode = Mode::Normal;
                 return Action::None;
@@ -207,6 +209,10 @@ impl App {
             }
             KeyCode::Char('s') => {
                 self.open_submit();
+                Action::None
+            }
+            KeyCode::Char('V') => {
+                self.open_vars();
                 Action::None
             }
             KeyCode::Char('S') => {

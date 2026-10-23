@@ -26,7 +26,7 @@
 </div>
 
 <div class="shell">
-  <aside class="sidebar"><p class="sidebar-label">All pages</p><h2>Getting started</h2><ul><li><a href="docs.html">Introduction</a></li><li><a href="docs.html#install">Installing</a></li><li><a href="docs.html#quickstart">Quickstart</a></li><li><a href="docs.html#panes">What the panes show</a></li></ul><h2>Browsing recipes</h2><ul><li><a href="recipes.html" aria-current="page">The explorer</a></li><li><a href="recipes.html#groups">Groups</a></li><li><a href="recipes.html#arguments">Arguments</a></li><li><a href="recipes.html#search">Search</a></li><li><a href="recipes.html#global">Global recipes</a></li></ul><h2>Slurm</h2><ul><li><a href="slurm.html">Submitting a recipe</a></li><li><a href="slurm.html#config">Config files</a></li><li><a href="slurm.html#logs">Where logs go</a></li><li><a href="slurm.html#batch">One recipe, many inputs</a></li><li><a href="slurm.html#chain">Dependencies as a chain</a></li></ul><h2>Jobs</h2><ul><li><a href="jobs.html">The job browser</a></li><li><a href="jobs.html#usage">Live memory and CPU</a></li><li><a href="jobs.html#actions">Kill and rerun</a></li><li><a href="jobs.html#history">Past submissions</a></li></ul><h2>Reference</h2><ul><li><a href="keys.html">Every key</a></li><li><a href="keys.html#files">Files it writes</a></li></ul></aside>
+  <aside class="sidebar"><p class="sidebar-label">All pages</p><h2>Getting started</h2><ul><li><a href="docs.html">Introduction</a></li><li><a href="docs.html#install">Installing</a></li><li><a href="docs.html#quickstart">Quickstart</a></li><li><a href="docs.html#panes">What the panes show</a></li></ul><h2>Browsing recipes</h2><ul><li><a href="recipes.html" aria-current="page">The explorer</a></li><li><a href="recipes.html#groups">Groups</a></li><li><a href="recipes.html#arguments">Arguments</a></li><li><a href="recipes.html#variables">Variables</a></li><li><a href="recipes.html#search">Search</a></li><li><a href="recipes.html#global">Global recipes</a></li></ul><h2>Slurm</h2><ul><li><a href="slurm.html">Submitting a recipe</a></li><li><a href="slurm.html#config">Config files</a></li><li><a href="slurm.html#logs">Where logs go</a></li><li><a href="slurm.html#batch">One recipe, many inputs</a></li><li><a href="slurm.html#chain">Dependencies as a chain</a></li></ul><h2>Jobs</h2><ul><li><a href="jobs.html">The job browser</a></li><li><a href="jobs.html#usage">Live memory and CPU</a></li><li><a href="jobs.html#actions">Kill and rerun</a></li><li><a href="jobs.html#history">Past submissions</a></li></ul><h2>Reference</h2><ul><li><a href="keys.html">Every key</a></li><li><a href="keys.html#files">Files it writes</a></li></ul></aside>
   <main>
     <p class="badge">Browsing recipes</p>
     
@@ -69,6 +69,25 @@ per parameter, with each default shown beside its row. Leave a row empty to keep
 for any recipe — one without parameters gets a single free row for whatever should follow its
 name. <a href="demo/">Try it in the demo</a> on <code>simulate-reads</code>.</p>
 
+<h2 id="variables">Variables</h2>
+
+<p><kbd>V</kbd> lists the variables of the module the selection is in. <kbd>Enter</kbd> on one opens
+a full-screen directory explorer at the path it currently names — the nearest directory that
+exists, relative values taken from where the module's recipes run. Walk with <kbd>⏎</kbd> and
+<kbd>←</kbd>, press <kbd>space</kbd> to choose what is highlighted or <kbd>c</kbd> for the directory
+you are in; <kbd>.</kbd> shows hidden entries, <kbd>~</kbd> goes home. In the list, <kbd>e</kbd>
+types a value instead and <kbd>d</kbd> drops an override.</p>
+
+<p>The justfile is never touched. A chosen value is an override, remembered per project in
+<code>.just-tui-overrides</code> and passed to <code>just</code> on every run and submission exactly
+as you would type it: <code>just --set sub::out /scratch/run1 sub::align</code>.</p>
+
+<div class="note">
+If you use <a href="https://github.com/olafurw/qwe">qwe</a> for directory bookmarks, the explorer
+shows them in a column of their own — <kbd>⇥</kbd> switches to it — read from
+<code>~/.qwe.data</code>.
+</div>
+
 <h2 id="search">Search</h2>
 
 <p><kbd>/</kbd> matches recipe names as a fuzzy subsequence and documentation literally, and
@@ -109,7 +128,7 @@ any of them. Hand-written <code>.just-tui-cluster-config</code> files still appl
     <nav class="pager"><a href="docs.html"><span>Previous</span>← Introduction</a><a class="next" href="slurm.html"><span>Next</span>Submitting a recipe →</a></nav>
   </main>
   <aside class="rail">
-    <div class="box"><h2>On this page</h2><ul><li><a href="#groups">Groups</a></li><li><a href="#arguments">Arguments</a></li><li><a href="#search">Search</a></li><li><a href="#global">Global recipes</a></li></ul></div>
+    <div class="box"><h2>On this page</h2><ul><li><a href="#groups">Groups</a></li><li><a href="#arguments">Arguments</a></li><li><a href="#variables">Variables</a></li><li><a href="#search">Search</a></li><li><a href="#global">Global recipes</a></li></ul></div>
     <div class="box"><h2>Repository</h2><ul>
       <li><a href="https://github.com/4less/just-tui">Browse the source</a></li>
       <li><a href="https://github.com/4less/just-tui/issues">Report an issue</a></li>
@@ -120,7 +139,7 @@ any of them. Hand-written <code>.just-tui-cluster-config</code> files still appl
 
 <details class="quicknav">
   <summary><span class="bars">☰</span> Contents</summary>
-  <nav><h2>Getting started</h2><ul><li><a href="docs.html">Introduction</a></li><li><a href="docs.html#install">Installing</a></li><li><a href="docs.html#quickstart">Quickstart</a></li><li><a href="docs.html#panes">What the panes show</a></li></ul><h2>Browsing recipes</h2><ul><li><a href="recipes.html" aria-current="page">The explorer</a></li><li><a href="recipes.html#groups">Groups</a></li><li><a href="recipes.html#arguments">Arguments</a></li><li><a href="recipes.html#search">Search</a></li><li><a href="recipes.html#global">Global recipes</a></li></ul><h2>Slurm</h2><ul><li><a href="slurm.html">Submitting a recipe</a></li><li><a href="slurm.html#config">Config files</a></li><li><a href="slurm.html#logs">Where logs go</a></li><li><a href="slurm.html#batch">One recipe, many inputs</a></li><li><a href="slurm.html#chain">Dependencies as a chain</a></li></ul><h2>Jobs</h2><ul><li><a href="jobs.html">The job browser</a></li><li><a href="jobs.html#usage">Live memory and CPU</a></li><li><a href="jobs.html#actions">Kill and rerun</a></li><li><a href="jobs.html#history">Past submissions</a></li></ul><h2>Reference</h2><ul><li><a href="keys.html">Every key</a></li><li><a href="keys.html#files">Files it writes</a></li></ul></nav>
+  <nav><h2>Getting started</h2><ul><li><a href="docs.html">Introduction</a></li><li><a href="docs.html#install">Installing</a></li><li><a href="docs.html#quickstart">Quickstart</a></li><li><a href="docs.html#panes">What the panes show</a></li></ul><h2>Browsing recipes</h2><ul><li><a href="recipes.html" aria-current="page">The explorer</a></li><li><a href="recipes.html#groups">Groups</a></li><li><a href="recipes.html#arguments">Arguments</a></li><li><a href="recipes.html#variables">Variables</a></li><li><a href="recipes.html#search">Search</a></li><li><a href="recipes.html#global">Global recipes</a></li></ul><h2>Slurm</h2><ul><li><a href="slurm.html">Submitting a recipe</a></li><li><a href="slurm.html#config">Config files</a></li><li><a href="slurm.html#logs">Where logs go</a></li><li><a href="slurm.html#batch">One recipe, many inputs</a></li><li><a href="slurm.html#chain">Dependencies as a chain</a></li></ul><h2>Jobs</h2><ul><li><a href="jobs.html">The job browser</a></li><li><a href="jobs.html#usage">Live memory and CPU</a></li><li><a href="jobs.html#actions">Kill and rerun</a></li><li><a href="jobs.html#history">Past submissions</a></li></ul><h2>Reference</h2><ul><li><a href="keys.html">Every key</a></li><li><a href="keys.html#files">Files it writes</a></li></ul></nav>
 </details>
 
 <footer><div class="inner">

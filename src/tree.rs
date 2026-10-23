@@ -56,6 +56,9 @@ pub struct Node {
     pub settings: Vec<(String, String)>,
     /// `name := value` assignments, for module nodes.
     pub variables: Vec<(String, String)>,
+    /// The same variables' bare names, in the same order, for looking up
+    /// their overrides.
+    pub variable_names: Vec<String>,
     pub is_root: bool,
 }
 
@@ -93,6 +96,7 @@ fn group_node(parent: &Node, name: &str, depth: usize, members: usize) -> Node {
         global: parent.global,
         settings: Vec::new(),
         variables: Vec::new(),
+        variable_names: Vec::new(),
         is_root: false,
     }
 }
@@ -246,6 +250,7 @@ impl Tree {
             global: source.global,
             settings: file.settings.summary(),
             variables: assignments(file),
+            variable_names: file.assignments.keys().cloned().collect(),
             is_root: true,
         });
         // The global root is searched by its name too, as `global log`.
@@ -307,6 +312,7 @@ impl Tree {
                 global,
                 settings: module.settings.summary(),
                 variables: assignments(module),
+                variable_names: module.assignments.keys().cloned().collect(),
                 is_root: false,
             });
             let children = self.add_level(
@@ -350,6 +356,7 @@ impl Tree {
                 global,
                 settings: Vec::new(),
                 variables: Vec::new(),
+                variable_names: Vec::new(),
                 is_root: false,
             });
             ids.push(id);
@@ -382,6 +389,7 @@ impl Tree {
                 global,
                 settings: Vec::new(),
                 variables: Vec::new(),
+                variable_names: Vec::new(),
                 is_root: false,
             }));
         }
