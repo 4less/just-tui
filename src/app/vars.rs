@@ -32,19 +32,28 @@ impl App {
         args
     }
 
+    /// The module the selection is in: itself, or for a recipe, an alias or
+    /// a group, the module above it.
+    pub fn selected_module(&self) -> Option<usize> {
+        let mut id = self.selected_id?;
+        while self.tree.nodes[id].kind != Kind::Module {
+            id = self.tree.nodes[id].parent?;
+        }
+        Some(id)
+    }
+
+    /// Whether `V` has anything to show for the selection.
+    pub fn selection_has_variables(&self) -> bool {
+        self.selected_module()
+            .is_some_and(|id| !self.tree.nodes[id].variable_names.is_empty())
+    }
+
     /// The variables of the module the selection is in.
     pub fn open_vars(&mut self) {
-        let Some(mut id) = self.selected_id else {
+        let Some(id) = self.selected_module() else {
             self.error("select a module or recipe first");
             return;
         };
-        // From a recipe, an alias or a group, up to the module it is in.
-        while self.tree.nodes[id].kind != Kind::Module {
-            match self.tree.nodes[id].parent {
-                Some(parent) => id = parent,
-                None => break,
-            }
-        }
         let node = &self.tree.nodes[id];
         let module = node.namepath.clone();
         let source = self

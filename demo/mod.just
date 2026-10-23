@@ -1,5 +1,7 @@
 # Recipes used to show off nested modules
 
+test_var := "/home/joachim/git/4less/just-tui"
+
 # Print a greeting
 #
 # Demonstrates parameters with defaults and a variadic tail.
@@ -20,3 +22,5 @@ report:
 [group('demo')]
 pipeline: greet
     echo "done"
+
+

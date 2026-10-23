@@ -281,6 +281,17 @@ fn hints(app: &App) -> Line<'static> {
         ));
         spans.push(Span::styled(label, theme::label()));
     }
+    // Only where it would open something: the selection's module declares
+    // variables.
+    if app.selection_has_variables() {
+        spans.push(Span::styled(
+            " V ",
+            Style::default()
+                .fg(theme::ACCENT)
+                .add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::styled("vars", theme::label()));
+    }
     if app.zoom {
         spans.push(Span::styled("   [zoom]", Style::default().fg(theme::MATCH)));
     }
