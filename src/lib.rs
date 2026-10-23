@@ -21,6 +21,7 @@ pub mod submit;
 pub mod theme;
 pub mod tree;
 pub mod ui;
+pub mod vars;
 pub mod world;
 
 /// The command line, the event loop, and handing the screen to another

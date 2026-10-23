@@ -2,6 +2,7 @@
 .just-tui-cluster-state
 .just-tui-cluster-history
 .just-tui-run-args
+.just-tui-overrides
 logs/
 __pycache__/
 /.demo-serve

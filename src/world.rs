@@ -177,6 +177,17 @@ pub fn read_dir(path: &std::path::Path) -> Vec<(std::path::PathBuf, bool)> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+pub fn is_dir(path: &std::path::Path) -> bool {
+    path.is_dir()
+}
+
+/// The demo knows directories only by what is in them.
+#[cfg(target_arch = "wasm32")]
+pub fn is_dir(path: &std::path::Path) -> bool {
+    !demo::read_dir(path).is_empty()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub fn exists(path: &std::path::Path) -> bool {
     path.exists()
 }

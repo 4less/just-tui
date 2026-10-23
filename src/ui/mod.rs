@@ -8,6 +8,7 @@ mod params;
 mod recall;
 mod submit;
 mod tree;
+mod vars;
 
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -97,6 +98,12 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     }
     if app.mode == Mode::Args {
         params::draw(frame, app, frame.area());
+    }
+    if app.mode == Mode::Vars {
+        vars::draw_vars(frame, app, frame.area());
+    }
+    if app.mode == Mode::Explorer {
+        vars::draw_explorer(frame, app, frame.area());
     }
     if app.mode == Mode::History {
         recall::draw(frame, app, frame.area());
@@ -273,6 +280,17 @@ fn hints(app: &App) -> Line<'static> {
                 .add_modifier(Modifier::BOLD),
         ));
         spans.push(Span::styled(label, theme::label()));
+    }
+    // Only where it would open something: the selection's module declares
+    // variables.
+    if app.selection_has_variables() {
+        spans.push(Span::styled(
+            " V ",
+            Style::default()
+                .fg(theme::ACCENT)
+                .add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::styled("vars", theme::label()));
     }
     if app.zoom {
         spans.push(Span::styled("   [zoom]", Style::default().fg(theme::MATCH)));

@@ -30,7 +30,7 @@ fn contents(app: &App) -> Vec<Line<'static>> {
     match app.selected() {
         None => vec![Line::from(Span::styled("no recipes match", theme::label()))],
         Some(node) => match node.kind {
-            Kind::Module => module_lines(node),
+            Kind::Module => module_lines(node, app),
             Kind::Group => group_lines(node),
             Kind::Alias => alias_lines(node),
             Kind::Recipe => recipe_lines(node),
@@ -67,7 +67,7 @@ fn group_lines(node: &Node) -> Vec<Line<'static>> {
     lines
 }
 
-fn module_lines(node: &Node) -> Vec<Line<'static>> {
+fn module_lines(node: &Node, app: &App) -> Vec<Line<'static>> {
     let kind = if node.is_root && node.global {
         "global recipes"
     } else {
@@ -87,13 +87,32 @@ fn module_lines(node: &Node) -> Vec<Line<'static>> {
         lines.push(Line::default());
         lines.extend(highlight::doc(doc));
     }
-    for (title, entries) in [("Settings", &node.settings), ("Variables", &node.variables)] {
-        if entries.is_empty() {
-            continue;
-        }
+    if !node.settings.is_empty() {
         lines.push(Line::default());
-        lines.push(section(title));
-        lines.extend(entries.iter().map(|(key, value)| pair(key, value)));
+        lines.push(section("Settings"));
+        lines.extend(node.settings.iter().map(|(key, value)| pair(key, value)));
+    }
+    if !node.variables.is_empty() {
+        let source = app.sources.get(node.root_index).unwrap_or(&app.sources[0]);
+        let overrides = app.overrides_for(source);
+        lines.push(Line::default());
+        lines.push(section("Variables"));
+        for ((label, value), name) in node.variables.iter().zip(&node.variable_names) {
+            let key = crate::vars::join(&node.namepath, name);
+            match overrides.get(&key) {
+                Some(set) => lines.push(Line::from(vec![
+                    Span::styled(format!("  {label}"), Style::default().fg(theme::VARIABLE)),
+                    Span::styled(" = ", theme::label()),
+                    Span::styled(shorten_home(set), Style::default().fg(theme::STRING)),
+                    Span::styled(format!("   --set, not {value}"), theme::label()),
+                ])),
+                None => lines.push(pair(label, value)),
+            }
+        }
+        lines.push(Line::from(Span::styled(
+            "  V sets them for every run and submission",
+            theme::label(),
+        )));
     }
     lines
 }

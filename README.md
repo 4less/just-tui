@@ -64,6 +64,23 @@ parameter, with each default shown beside its row. Leave a row empty to keep its
 so the form opens the way you left it. `a` opens the form for any recipe — one without
 parameters gets a single free row for whatever should follow its name.
 
+### Variables
+
+`V` lists the variables of the module the selection is in. `Enter` on one opens a
+full-screen directory explorer at the path it currently names — the nearest directory that
+exists, relative values taken from where the module's recipes run. Walk with `⏎`/`→` and
+`←`, press `space` to choose what is highlighted or `c` for the directory you are in; `.`
+shows hidden entries, `~` goes home. In the list, `e` types a value instead and `d` drops an
+override.
+
+The justfile is never touched. A chosen value is an override that just-tui remembers per
+project in `.just-tui-overrides` and passes to `just` on every run and submission, exactly as
+you would type it: `just --set sub::out /scratch/run1 sub::align`. The documentation pane
+shows which variables are overridden.
+
+If you use [qwe](https://github.com/olafurw/qwe) for directory bookmarks, the explorer shows
+them in a column of their own (`⇥` switches to it), read from `~/.qwe.data`.
+
 ## Global recipes
 
 just-tui's global recipes are just's own: whatever `just --global-justfile` (`just -g`) sees,
@@ -114,6 +131,7 @@ and opens with the same remembered settings in each. Hand-written
 | `Enter` `Space` | run a recipe (asking for its arguments first, if it has any), toggle a module, follow an alias |
 | `r` | run the selected recipe |
 | `a` | fill in its arguments, then run — the form remembers them |
+| `V` | override the module's variables, picking paths in a directory explorer |
 | `n` | dry run (`just --dry-run`) |
 | `/` | fuzzy search names, literal search in docs |
 | `Tab` `Shift-Tab` | cycle pane focus |

@@ -233,6 +233,25 @@ per parameter, with each default shown beside its row. Leave a row empty to keep
 for any recipe — one without parameters gets a single free row for whatever should follow its
 name. <a href="demo/">Try it in the demo</a> on <code>simulate-reads</code>.</p>
 
+<h2 id="variables">Variables</h2>
+
+<p><kbd>V</kbd> lists the variables of the module the selection is in. <kbd>Enter</kbd> on one opens
+a full-screen directory explorer at the path it currently names — the nearest directory that
+exists, relative values taken from where the module's recipes run. Walk with <kbd>⏎</kbd> and
+<kbd>←</kbd>, press <kbd>space</kbd> to choose what is highlighted or <kbd>c</kbd> for the directory
+you are in; <kbd>.</kbd> shows hidden entries, <kbd>~</kbd> goes home. In the list, <kbd>e</kbd>
+types a value instead and <kbd>d</kbd> drops an override.</p>
+
+<p>The justfile is never touched. A chosen value is an override, remembered per project in
+<code>.just-tui-overrides</code> and passed to <code>just</code> on every run and submission exactly
+as you would type it: <code>just --set sub::out /scratch/run1 sub::align</code>.</p>
+
+<div class="note">
+If you use <a href="https://github.com/olafurw/qwe">qwe</a> for directory bookmarks, the explorer
+shows them in a column of their own — <kbd>⇥</kbd> switches to it — read from
+<code>~/.qwe.data</code>.
+</div>
+
 <h2 id="search">Search</h2>
 
 <p><kbd>/</kbd> matches recipe names as a fuzzy subsequence and documentation literally, and
@@ -639,6 +658,7 @@ KEYS = f"""
 <tr><td><kbd>Enter</kbd> <kbd>Space</kbd></td><td>run a recipe (asking for its arguments first, if it has any), toggle a module, follow an alias</td></tr>
 <tr><td><kbd>r</kbd></td><td>run the selected recipe</td></tr>
 <tr><td><kbd>a</kbd></td><td>fill in its arguments, then run — the form remembers them</td></tr>
+<tr><td><kbd>V</kbd></td><td>override the module's variables, picking paths in a directory explorer</td></tr>
 <tr><td><kbd>n</kbd></td><td>dry run (<code>just --dry-run</code>)</td></tr>
 <tr><td><kbd>/</kbd></td><td>fuzzy search names, literal search in docs</td></tr>
 <tr><td><kbd>Tab</kbd> <kbd>Shift-Tab</kbd></td><td>cycle pane focus</td></tr>
@@ -701,6 +721,7 @@ KEYS = f"""
 <tr><td><code>logs/…</code></td><td>Slurm</td><td>Job output, mirroring the module tree. Gitignored.</td></tr>
 <tr><td><code>logs/….args</code></td><td>just-tui</td><td>An expansion's manifest, one line of arguments per array task.</td></tr>
 <tr><td><code>.just-tui-run-args</code></td><td>just-tui</td><td>What each recipe's argument form held when it was last run. Gitignored.</td></tr>
+<tr><td><code>.just-tui-overrides</code></td><td>just-tui</td><td>Variables set with <kbd>V</kbd>, passed as <code>--set</code> on every run. Gitignored.</td></tr>
 </table>
 <p>All of these sit beside the root justfile, except for global recipes: theirs go in
 <code>~/.just-tui</code>, whichever directory the recipe was run from.</p>
