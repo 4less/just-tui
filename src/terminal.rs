@@ -7,24 +7,38 @@ use std::process::Command;
 
 use anyhow::Result;
 use ratatui::DefaultTerminal;
-use ratatui::crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind,
-};
-use ratatui::crossterm::execute;
+use ratatui::crossterm::event::{self, Event, KeyEventKind};
 use ratatui::crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
 use crate::app::{App, Mode};
 
+/// Clicks and the wheel (1000), reported in SGR form (1006) — all just-tui
+/// reads. crossterm's `EnableMouseCapture` also asks for every movement
+/// (1002, 1003). Over SSH that is a report per pixel of travel, and when the
+/// connection drops before `leave` runs, the terminal keeps typing those
+/// reports into the shell until it is `reset`. Without movement, a dropped
+/// session leaves at most a few stray characters per click.
+const MOUSE_ON: &str = "\x1b[?1000h\x1b[?1006h";
+
+/// Everything a mouse mode could have been left at, crossterm's included.
+const MOUSE_OFF: &str = "\x1b[?1006l\x1b[?1015l\x1b[?1003l\x1b[?1002l\x1b[?1000l";
+
 /// Take over the screen. Mouse capture is not part of `ratatui::init`.
 pub fn enter() -> Result<DefaultTerminal> {
     let terminal = ratatui::try_init()?;
-    let _ = execute!(io::stdout(), EnableMouseCapture);
+    let mut stdout = io::stdout();
+    let _ = stdout
+        .write_all(MOUSE_ON.as_bytes())
+        .and_then(|()| stdout.flush());
     Ok(terminal)
 }
 
 /// Hand the screen back, leaving the cursor where the shell expects it.
 pub fn leave() {
-    let _ = execute!(io::stdout(), DisableMouseCapture);
+    let mut stdout = io::stdout();
+    let _ = stdout
+        .write_all(MOUSE_OFF.as_bytes())
+        .and_then(|()| stdout.flush());
     ratatui::restore();
 }
 
