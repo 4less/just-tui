@@ -248,8 +248,13 @@ impl Configs {
         let mut origins = Origins::new();
 
         // Weakest first: what the recipe was last submitted with is only a
-        // convenience, so any hand-written config overrides it.
-        if let Some(last) = self.state.recipes.get(namepath).cloned() {
+        // convenience, so any hand-written config overrides it. Its resources
+        // carry over; its arguments and task file do not: they say what one
+        // submission ran, and carried over they turn the next, plain submit
+        // into an array over a stale task list (or pass it stale arguments).
+        if let Some(mut last) = self.state.recipes.get(namepath).cloned() {
+            last.get_mut(Field::Each).clear();
+            last.get_mut(Field::Args).clear();
             overlay(&mut settings, &last, "last run", &mut origins);
             sources.push("last run".to_owned());
         }

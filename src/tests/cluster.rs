@@ -268,6 +268,25 @@ fn nearer_configs_override_wider_ones() {
     assert_eq!(resolved.origin(Field::Nodes).unwrap(), "last run");
     assert_eq!(resolved.settings.mem, "256G");
 
+    // A task file or arguments from the last submit never come back on their
+    // own: the next plain submit stays one job with the recipe's defaults.
+    configs
+        .remember(
+            "level3::db::tree",
+            &Settings {
+                nodes: "4".into(),
+                each: "@data/interim/run_tasks.txt".into(),
+                args: "wheat flexalign-main".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let mut reloaded = Configs::new(&dir);
+    let resolved = reloaded.resolve(&[dir.clone(), module.clone()], "level3::db::tree");
+    assert_eq!(resolved.settings.nodes, "4", "resources still carry over");
+    assert_eq!(resolved.settings.each, "", "the task file does not");
+    assert_eq!(resolved.settings.args, "", "nor the arguments");
+
     std::fs::remove_dir_all(&dir).ok();
 }
 
