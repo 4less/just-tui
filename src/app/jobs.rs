@@ -340,6 +340,10 @@ impl App {
                 true => SPIN,
                 false => Duration::from_secs(1),
             }),
+            // The picker over the form has asked the queue and is waiting.
+            Mode::AfterPick if self.after_pick.as_ref().is_some_and(|pick| pick.fetching()) => {
+                Some(SPIN)
+            }
             _ => None,
         }
     }
@@ -492,6 +496,7 @@ impl App {
     /// Take delivery of whatever the background threads have finished, and
     /// act on it. Never blocks: this runs before every frame.
     pub fn poll_background(&mut self) {
+        self.poll_after_pick();
         let mut landed = Vec::new();
         if let Some(view) = self.jobs.as_mut() {
             while let Ok(fetched) = view.inbox.try_recv() {
@@ -886,7 +891,10 @@ impl App {
         // A link of a chain ran `just --no-deps`, and so should its rerun:
         // its dependencies were jobs of their own. The waits are not kept,
         // since the jobs they named are long gone.
-        let link = record.chained().then_some(&[][..]);
+        let waits = match record.chained() {
+            true => slurm::Waits::link(&[]),
+            false => slurm::Waits::ALONE,
+        };
         match slurm::submit(
             &base,
             &logs,
@@ -894,7 +902,7 @@ impl App {
             &record.namepath,
             &record.settings,
             batch,
-            link,
+            waits,
         ) {
             slurm::Submission::Failed { message } => Err(format!("sbatch: {message}")),
             slurm::Submission::Ok { job_id } => {

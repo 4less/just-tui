@@ -62,6 +62,10 @@ pub struct SubmitForm {
     /// it depends on change, since globbing on every frame would be wasteful.
     pub plan: Option<Plan>,
     pub plan_error: Option<String>,
+    /// Queued jobs this one waits on, picked by hand: `--dependency=afterok`
+    /// on each. Not a setting, since the ids mean nothing to the next
+    /// submission, so it is neither remembered nor saved to a config.
+    pub after: Vec<String>,
 }
 
 impl SubmitForm {
@@ -89,6 +93,7 @@ impl SubmitForm {
             scope_index: 0,
             plan: None,
             plan_error: None,
+            after: Vec::new(),
         };
         form.refresh_plan();
         form
@@ -402,6 +407,9 @@ pub struct ChainRow {
     pub global: bool,
     /// Directory of the module the recipe lives in, for the form's saves.
     pub scope_dir: PathBuf,
+    /// Queued jobs outside the chain this row waits on as well, picked in
+    /// its form.
+    pub after: Vec<String>,
 }
 
 impl ChainRow {
@@ -428,6 +436,7 @@ impl ChainRow {
             just_args: Vec::new(),
             global: false,
             scope_dir,
+            after: Vec::new(),
         }
     }
 
@@ -547,21 +556,33 @@ impl ChainForm {
             .collect()
     }
 
-    /// `waits on tree, s00_fetch`, naming rows by their recipe.
+    /// `waits on tree, s00_fetch, job 4210`: rows by their recipe, then the
+    /// queued jobs picked for this row.
     pub fn waits_label(&self, index: usize) -> String {
-        let names: Vec<&str> = self
+        let mut names: Vec<String> = self
             .waits_on(index)
             .into_iter()
-            .map(|i| leaf(&self.rows[i].link.namepath))
+            .map(|i| leaf(&self.rows[i].link.namepath).to_owned())
             .collect();
+        names.extend(self.rows[index].after.iter().map(|id| format!("job {id}")));
         match names.is_empty() {
             true => String::new(),
             false => format!("waits on {}", names.join(", ")),
         }
     }
 
-    /// Placeholder job ids for a preview, before anything is submitted.
+    /// Job ids for a preview, before anything is submitted: a placeholder
+    /// for each row this one waits on, and the real ids of the queued jobs
+    /// picked for it.
     pub fn placeholder_ids(&self, index: usize) -> Vec<String> {
+        let mut ids = self.row_placeholders(index);
+        ids.extend(self.rows[index].after.iter().cloned());
+        ids
+    }
+
+    /// `<tree>`, `<s00_fetch>`: the rows this one waits on, standing in for
+    /// the ids they get when they are submitted.
+    pub fn row_placeholders(&self, index: usize) -> Vec<String> {
         self.waits_on(index)
             .into_iter()
             .map(|i| format!("<{}>", leaf(&self.rows[i].link.namepath)))
@@ -598,10 +619,12 @@ impl ChainForm {
             .collect()
     }
 
-    /// Adopt what the form ended with for the row whose step it was.
-    pub fn accept(&mut self, settings: Settings) {
+    /// Adopt what the form ended with for the row whose step it was: its
+    /// settings, and the queued jobs it was told to wait on.
+    pub fn accept(&mut self, settings: Settings, after: Vec<String>) {
         if let Some(row) = self.step.and_then(|i| self.rows.get_mut(i)) {
             row.settings = settings;
+            row.after = after;
             row.edited = true;
         }
         self.step = None;

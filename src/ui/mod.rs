@@ -70,11 +70,14 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .picker
         .as_ref()
         .is_some_and(|pick| pick.from == Mode::Submit);
-    if matches!(app.mode, Mode::Submit | Mode::ConfigPick) || over_submit {
+    if matches!(app.mode, Mode::Submit | Mode::ConfigPick | Mode::AfterPick) || over_submit {
         submit::draw(frame, app, frame.area());
     }
     if app.mode == Mode::ConfigPick {
         submit::draw_config_pick(frame, app, frame.area());
+    }
+    if app.mode == Mode::AfterPick {
+        submit::draw_after_pick(frame, app, frame.area());
     }
     if matches!(app.mode, Mode::Chain | Mode::ConfirmChain) {
         submit::draw_chain(frame, app, frame.area());

@@ -1,5 +1,6 @@
 //! Test fixtures shared by the suites below.
 
+mod after;
 mod app;
 mod batch;
 mod chain;

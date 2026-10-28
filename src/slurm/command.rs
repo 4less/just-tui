@@ -133,10 +133,38 @@ pub fn in_logs(base: &Path, logs: &Path, relative: &Path) -> PathBuf {
     }
 }
 
-/// The full `sbatch` argument list for a recipe. `chain` is `None` for a job
-/// submitted alone; in a chain it names the job ids this one waits on, empty
-/// for the first link, and the job runs `just --no-deps` so the dependencies
-/// that are jobs of their own are not run a second time inside it.
+/// What a job waits on before it may start, and how it came to.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Waits<'a> {
+    /// Job ids it waits on, as `--dependency=afterok:…`. Empty waits on
+    /// nothing.
+    pub after: &'a [String],
+    /// It is a link of a chain, whose dependencies are jobs of their own: it
+    /// runs `just --no-deps` so they are not run a second time inside it.
+    pub link: bool,
+}
+
+impl<'a> Waits<'a> {
+    /// A job submitted by itself, with its dependencies run inside it.
+    pub const ALONE: Waits<'static> = Waits {
+        after: &[],
+        link: false,
+    };
+
+    /// One link of a chain, after the links named — none, for the first.
+    pub fn link(after: &'a [String]) -> Self {
+        Self { after, link: true }
+    }
+
+    /// A job on its own, after queued jobs picked by hand. Its own
+    /// dependencies still run inside it: the jobs it waits on are not them.
+    pub fn after(after: &'a [String]) -> Self {
+        Self { after, link: false }
+    }
+}
+
+/// The full `sbatch` argument list for a recipe. `waits` names the jobs this
+/// one waits on, and whether it is a link of a chain.
 ///
 /// `just_args` come before the recipe, as [`crate::just::file_args`] gives
 /// them: without `--justfile` a global recipe could not be found on the node.
@@ -148,7 +176,7 @@ pub fn build_command(
     namepath: &str,
     settings: &Settings,
     batch: Option<(&Path, usize)>,
-    chain: Option<&[String]>,
+    waits: Waits,
 ) -> Vec<String> {
     let (out, err) = log_paths(namepath, settings);
     let (out, err) = (in_logs(base, logs, &out), in_logs(base, logs, &err));
@@ -181,10 +209,8 @@ pub fn build_command(
     }
     // A job whose upstream fails can never start; without the second flag
     // Slurm leaves it pending forever rather than cancelling it.
-    if let Some(after) = chain
-        && !after.is_empty()
-    {
-        args.push(format!("--dependency=afterok:{}", after.join(":")));
+    if !waits.after.is_empty() {
+        args.push(format!("--dependency=afterok:{}", waits.after.join(":")));
         args.push("--kill-on-invalid-dep=yes".to_owned());
     }
 
@@ -194,7 +220,7 @@ pub fn build_command(
         namepath,
         settings,
         batch.map(|(path, _)| path),
-        chain.is_some(),
+        waits.link,
     ));
     args
 }
@@ -249,7 +275,7 @@ pub fn preview_command(
     namepath: &str,
     settings: &Settings,
     batch: Option<(&Path, usize)>,
-    chain: Option<&[String]>,
+    waits: Waits,
 ) -> String {
     let skip = [
         "--parsable",
@@ -258,7 +284,7 @@ pub fn preview_command(
         "--output=",
         "--error=",
     ];
-    let shown: Vec<String> = build_command(base, logs, just_args, namepath, settings, batch, chain)
+    let shown: Vec<String> = build_command(base, logs, just_args, namepath, settings, batch, waits)
         .into_iter()
         .filter(|arg| !skip.iter().any(|prefix| arg.starts_with(prefix)))
         .collect();
@@ -296,7 +322,7 @@ pub fn submit(
     namepath: &str,
     settings: &Settings,
     batch: Option<(&Path, usize)>,
-    chain: Option<&[String]>,
+    waits: Waits,
 ) -> Submission {
     let dir = log_dir(logs, namepath, settings);
     if let Err(err) = std::fs::create_dir_all(&dir) {
@@ -305,7 +331,7 @@ pub fn submit(
         };
     }
 
-    let args = build_command(base, logs, just_args, namepath, settings, batch, chain);
+    let args = build_command(base, logs, just_args, namepath, settings, batch, waits);
     let borrowed: Vec<&str> = args.iter().map(String::as_str).collect();
 
     match super::cluster::capture_in("sbatch", &borrowed, base) {

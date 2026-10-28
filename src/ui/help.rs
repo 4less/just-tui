@@ -18,6 +18,10 @@ const KEYS: &[(&str, &str)] = &[
     ("s", "submit to Slurm (sbatch)"),
     ("←→ ^u", "in the form: move the caret, clear a field"),
     (
+        "F6 / F7",
+        "in the form: past submissions, wait on queued jobs",
+    ),
+    (
         "space / a / n / f",
         "in the chain chooser: toggle, all, none, form",
     ),

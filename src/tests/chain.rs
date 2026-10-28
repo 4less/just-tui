@@ -10,7 +10,7 @@ use crate::config::ConfigFile;
 use crate::input::{KeyCode, KeyEvent, KeyModifiers};
 use crate::just;
 use crate::model::Justfile;
-use crate::slurm::{self, Settings};
+use crate::slurm::{self, Settings, Waits};
 use crate::source::SourceCache;
 use crate::tree::Tree;
 
@@ -156,7 +156,7 @@ fn a_chained_job_waits_with_afterok_and_runs_without_deps() {
         "align",
         &settings,
         None,
-        Some(&after),
+        Waits::link(&after),
     );
 
     assert!(
@@ -178,7 +178,7 @@ fn a_chained_job_waits_with_afterok_and_runs_without_deps() {
         "fetch",
         &settings,
         None,
-        Some(&[]),
+        Waits::link(&[]),
     );
     assert!(!first.iter().any(|a| a.starts_with("--dependency")));
     assert!(first.contains(&"just --no-deps fetch".to_owned()));
@@ -191,7 +191,7 @@ fn a_chained_job_waits_with_afterok_and_runs_without_deps() {
         "align",
         &settings,
         None,
-        None,
+        Waits::ALONE,
     );
     assert!(alone.contains(&"just align".to_owned()));
     assert!(!alone.iter().any(|a| a.contains("no-deps")));
@@ -753,7 +753,7 @@ fn a_global_recipe_is_submitted_with_its_justfile() {
 #[test]
 fn the_job_names_the_justfile_before_the_recipe() {
     let just_args = ["--justfile", "/home/u/my lib/git.just"].map(str::to_owned);
-    let wrap = |chain: Option<&[String]>| {
+    let wrap = |waits: Waits| {
         let args = slurm::build_command(
             Path::new("/tmp/cwd"),
             Path::new("/tmp/cwd"),
@@ -761,14 +761,17 @@ fn the_job_names_the_justfile_before_the_recipe() {
             "st",
             &Settings::default(),
             None,
-            chain,
+            waits,
         );
         args.last().unwrap().clone()
     };
     // Quoted, since sbatch hands the line to a shell.
-    assert_eq!(wrap(None), "just --justfile '/home/u/my lib/git.just' st");
     assert_eq!(
-        wrap(Some(&[])),
+        wrap(Waits::ALONE),
+        "just --justfile '/home/u/my lib/git.just' st"
+    );
+    assert_eq!(
+        wrap(Waits::link(&[])),
         "just --justfile '/home/u/my lib/git.just' --no-deps st"
     );
 }

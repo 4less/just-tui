@@ -54,7 +54,7 @@ fn a_global_recipe_logs_and_remembers_in_the_library() {
         &form.namepath,
         &form.settings,
         None,
-        None,
+        slurm::Waits::ALONE,
     );
     let out = format!("--output={}", library.join("logs/st-%j.out").display());
     assert!(args.contains(&out), "logs go to the library: {args:?}");

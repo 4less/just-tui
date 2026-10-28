@@ -7,7 +7,7 @@ use crate::config;
 use crate::history::{self, Record};
 use std::path::Path;
 
-use crate::slurm::{self, Cluster, Settings};
+use crate::slurm::{self, Cluster, Settings, Waits};
 use crate::submit::{ChainForm, ChainRow, Purpose, SaveScope, SubmitForm};
 
 impl App {
@@ -157,6 +157,7 @@ impl App {
         );
         form.place(entry.just_args.clone(), entry.logs.clone(), entry.global);
         form.adopt(entry.settings.clone());
+        form.after = entry.after.clone();
         chain.step = Some(row);
         chain.cursor = row;
         self.form = Some(form);
@@ -185,7 +186,7 @@ impl App {
             return;
         };
         let step = chain.step.unwrap_or(0);
-        chain.accept(form.settings);
+        chain.accept(form.settings, form.after);
         match chain.next_needing_form(step + 1) {
             Some(next) => self.open_chain_step(next),
             None => self.mode = Mode::ConfirmChain,
@@ -248,11 +249,14 @@ impl App {
             if !row.checked {
                 continue;
             }
-            let after: Vec<String> = chain
+            // The links before it that it waits on, then any queued jobs
+            // picked for it by hand.
+            let mut after: Vec<String> = chain
                 .waits_on(index)
                 .into_iter()
                 .filter_map(|upstream| ids[upstream].clone())
                 .collect();
+            after.extend(row.after.iter().cloned());
             match self.submit_link(row, &after, &first) {
                 Ok(job_id) => {
                     if first.is_empty() {
@@ -319,7 +323,7 @@ impl App {
             namepath,
             settings,
             batch,
-            Some(after),
+            Waits::link(after),
         ) {
             slurm::Submission::Ok { job_id } => job_id,
             slurm::Submission::Failed { message } => return Err(format!("sbatch: {message}")),
@@ -342,7 +346,7 @@ impl App {
                 namepath,
                 settings,
                 batch,
-                Some(after),
+                Waits::link(after),
             ),
             base: row.base.display().to_string(),
             just_args: row.just_args.clone(),
@@ -419,7 +423,7 @@ impl App {
             &form.namepath,
             &form.settings,
             form.batch(),
-            None,
+            Waits::after(&form.after),
         ) {
             slurm::Submission::Ok { job_id } => {
                 let (out, err) = slurm::resolved_log_paths(
@@ -444,7 +448,7 @@ impl App {
                         &form.namepath,
                         &form.settings,
                         form.batch(),
-                        None,
+                        Waits::after(&form.after),
                     ),
                     base: form.base.display().to_string(),
                     just_args: form.just_args.clone(),
@@ -456,12 +460,16 @@ impl App {
                         .map(|plan| plan.manifest.display().to_string())
                         .unwrap_or_default(),
                     tasks: form.plan.as_ref().map_or(0, |plan| plan.count()),
-                    after: Vec::new(),
+                    after: form.after.clone(),
                     chain: String::new(),
                     settings: form.settings.clone(),
                 };
                 let name = record.name.clone();
                 let tasks = record.tasks;
+                let after = match form.after.is_empty() {
+                    true => String::new(),
+                    false => format!(" after {}", form.after.join(", ")),
+                };
 
                 let saved = self
                     .configs_for(form.global)
@@ -469,8 +477,8 @@ impl App {
                     .and_then(|()| self.history.append(record));
                 match saved {
                     Ok(()) => self.info(match tasks {
-                        0 => format!("submitted {name} as job {job_id} — log {out}"),
-                        n => format!("submitted {name} as job {job_id} — {n} tasks"),
+                        0 => format!("submitted {name} as job {job_id}{after} — log {out}"),
+                        n => format!("submitted {name} as job {job_id}{after} — {n} tasks"),
                     }),
                     Err(err) => self.error(format!(
                         "submitted {job_id}, but could not save settings: {err}"

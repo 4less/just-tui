@@ -327,6 +327,33 @@ dependencies open it titled `Run align and what it runs with`, and `Enter` there
 `just --no-deps` per checked row, in order, stopping at the first failure. A recipe without
 dependencies runs at once, as it always did. What was unchecked is remembered for both.
 
+### Waiting on jobs already queued
+
+A chain orders the jobs of one submission. To start a job only once something **already on
+the queue** has finished — last night's alignment, a colleague's download you are not part
+of — press `F7` in the form. It lists your running and pending jobs; `space` ticks any
+number of them, `Enter` keeps the ticks, `Esc` drops them:
+
+```
+╭ Wait for which jobs? ────────────────────────────────────────────────────╮
+│ ▸ [x] 23474919  level3-run-s02_refilter   RUNNING   01:12:33  qib-compute│
+│   [ ] 23474920  level3-run-s03_tree       PENDING   Dependency           │
+│   [x] 23474901  fetch-hg38                RUNNING   00:04:12  qib-compute│
+│                                                                          │
+│   waits on 2 jobs   starts once each has finished ok; cancelled if one fails
+╰ space toggle · a all · n none · r refresh · ⏎ done · esc back ───────────╯
+```
+
+The form then shows an `after` line and the command carries
+`--dependency=afterok:23474919:23474901 --kill-on-invalid-dep=yes`, the same terms a chain
+uses. Unlike a link of a chain the job keeps running its own `just` dependencies: the jobs
+it waits on are not them. The not-yet-started remainder of an array is offered as the array
+as a whole, so the job waits for every task. The ids are not a setting — they are recorded
+in the history, but neither saved to a config nor carried into the next submission.
+
+In a chain, `f` opens a row's form, and `F7` there makes that link wait on the picked jobs
+as well as on the links before it.
+
 ### Logs
 
 Always under `logs/` in the justfile's base directory, mirroring the module structure:
@@ -538,6 +565,8 @@ selected field's value came from, next to it.
 | `F3` | write them as **project** defaults |
 | `F4` | write them as a `[recipe]` section, for this recipe only |
 | `F5` | pick a scope and open its config in `$EDITOR` (created from a template if absent) |
+| `F6` | past submissions of this recipe, to load one back |
+| `F7` | tick running or pending jobs this one waits on (`--dependency=afterok`) |
 
 Saving or editing re-reads the files at once, so the form updates in place.
 

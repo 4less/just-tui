@@ -239,7 +239,7 @@ fn a_submission_carries_the_override_into_the_job() {
         &form.namepath,
         &form.settings,
         None,
-        None,
+        crate::slurm::Waits::ALONE,
     );
     assert_eq!(
         args.last().unwrap(),

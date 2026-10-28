@@ -103,6 +103,15 @@ impl Job {
         self.id.contains("_[")
     }
 
+    /// The id `--dependency` takes to wait on this row: the array as a whole
+    /// for its remainder, whose own id is a moving target; else the job's.
+    pub fn dependency_id(&self) -> &str {
+        match self.array_remainder() {
+            true => self.base_id(),
+            false => &self.id,
+        }
+    }
+
     /// Whether `queue` still holds this job. An array remainder counts as held
     /// while anything of the same array is queued: a remainder with another
     /// range, or tasks that have started.

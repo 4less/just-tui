@@ -17,6 +17,7 @@ impl App {
             Mode::Chain => return self.handle_chain_key(key),
             Mode::ConfirmChain => return self.handle_chain_confirm_key(key),
             Mode::ConfigPick => return self.handle_config_pick_key(key),
+            Mode::AfterPick => return self.handle_after_key(key),
             Mode::Jobs => return self.handle_jobs_key(key),
             Mode::ConfirmJob => return self.handle_confirm_key(key),
             Mode::JobFilter => return self.handle_job_filter_key(key),
@@ -317,6 +318,10 @@ impl App {
                 self.open_history(namepath);
                 return Action::None;
             }
+            KeyCode::F(7) => {
+                self.open_after_pick();
+                return Action::None;
+            }
             KeyCode::Left | KeyCode::Right => {
                 let delta = if key.code == KeyCode::Left { -1 } else { 1 };
                 // A field the cluster offers choices for steps through them;
@@ -406,6 +411,34 @@ impl App {
         match key.code {
             KeyCode::Char('y') | KeyCode::Char('Y') => self.submit_chain(),
             _ => self.mode = Mode::Chain,
+        }
+        Action::None
+    }
+
+    /// The picker of queued jobs to wait on. Ticking changes nothing until
+    /// Enter; Esc leaves the form as it was.
+    fn handle_after_key(&mut self, key: KeyEvent) -> Action {
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+            return Action::Quit;
+        }
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') => self.leave_after_pick(),
+            KeyCode::Enter => self.accept_after_pick(),
+            KeyCode::Char('r') => self.refresh_after_pick(),
+            _ => {
+                let Some(pick) = self.after_pick.as_mut() else {
+                    self.mode = Mode::Submit;
+                    return Action::None;
+                };
+                match key.code {
+                    KeyCode::Down | KeyCode::Char('j') | KeyCode::Tab => pick.move_cursor(1),
+                    KeyCode::Up | KeyCode::Char('k') | KeyCode::BackTab => pick.move_cursor(-1),
+                    KeyCode::Char(' ') => pick.toggle(),
+                    KeyCode::Char('a') => pick.set_all(true),
+                    KeyCode::Char('n') => pick.set_all(false),
+                    _ => {}
+                }
+            }
         }
         Action::None
     }

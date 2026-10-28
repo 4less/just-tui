@@ -119,7 +119,7 @@ fn builds_an_sbatch_command() {
         "level3::db::tree",
         &settings,
         None,
-        None,
+        slurm::Waits::ALONE,
     );
 
     assert!(args.contains(&"--chdir=/work/proj".to_owned()));

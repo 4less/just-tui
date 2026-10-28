@@ -9,7 +9,7 @@ use ratatui::widgets::{Clear, Paragraph};
 use super::{centered, overlay_block, pad, shorten_home, truncate};
 use crate::app::App;
 use crate::config::CONFIG_NAME;
-use crate::slurm::{self, Cluster, Field, Partition};
+use crate::slurm::{self, Cluster, Field, Partition, Waits};
 use crate::submit::{ChainForm, SubmitForm, leaf};
 use crate::theme;
 
@@ -56,12 +56,12 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
             };
             (
                 title,
-                " ↑↓ field · ←→ move/pick · ^u clear · ⏎ accept · F2/F3/F4 save · esc back to the chain ",
+                " ↑↓ ←→ move · ^u clear · ⏎ accept · F2-F4 save · F7 after · esc back to the chain ",
             )
         }
         None => (
             format!(" Submit {} to Slurm ", form.namepath),
-            " ↑↓ field · ←→ move/pick · ^u clear · ⏎ submit · F2/F3/F4 save · F5 edit · F6 history ",
+            " ↑↓ ←→ move · ^u clear · ⏎ submit · F2-F4 save · F5 edit · F6 history · F7 after ",
         ),
     };
 
@@ -81,8 +81,15 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
         .collect();
 
     lines.push(Line::default());
-    let placeholders = step.map(|(chain, step)| chain.placeholder_ids(step));
-    lines.extend(summary(form, cluster, inner, placeholders.as_deref()));
+    // What it waits on: in a chain the rows before it, by name until they
+    // have ids, then whatever queued jobs were picked in this form.
+    let mut after = step.map_or(Vec::new(), |(chain, step)| chain.row_placeholders(step));
+    after.extend(form.after.iter().cloned());
+    let waits = match step.is_some() {
+        true => Waits::link(&after),
+        false => Waits::after(&after),
+    };
+    lines.extend(summary(form, cluster, inner, waits));
     if let Some((chain, step)) = step {
         lines.push(progress_line(chain, step, inner));
     }
@@ -260,14 +267,9 @@ fn note(
 }
 
 /// Log path, the command as it will be run, warnings, and provenance.
-/// `chain` is the job ids this one waits on, stood in for by names until
-/// the chain is submitted.
-fn summary(
-    form: &SubmitForm,
-    cluster: &Cluster,
-    width: usize,
-    chain: Option<&[String]>,
-) -> Vec<Line<'static>> {
+/// `waits` names the jobs this one waits on, stood in for by names until a
+/// chain is submitted.
+fn summary(form: &SubmitForm, cluster: &Cluster, width: usize, waits: Waits) -> Vec<Line<'static>> {
     let (out, _) = slurm::log_paths(&form.namepath, &form.settings);
     let command = slurm::preview_command(
         &form.base,
@@ -276,10 +278,25 @@ fn summary(
         &form.namepath,
         &form.settings,
         form.batch(),
-        chain,
+        waits,
     );
 
     let mut lines = Vec::new();
+
+    // Queued jobs picked by hand are named before the command, so what the
+    // `--dependency` in it stands for is plain.
+    if !form.after.is_empty() {
+        lines.push(Line::from(vec![
+            Span::styled("   after     ", theme::label()),
+            Span::styled(
+                truncate(&form.after.join(" · "), width.saturating_sub(48)),
+                Style::default()
+                    .fg(theme::MATCH)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled("  starts once they have finished ok · F7", theme::label()),
+        ]));
+    }
 
     // An expansion changes what "submitting" means, so it is said plainly and
     // before anything else.
@@ -421,6 +438,146 @@ pub fn draw_config_pick(frame: &mut Frame, app: &App, area: Rect) {
     );
 }
 
+/// Which queued jobs the one in the form waits on. Ticks take effect on
+/// Enter, so Esc is a real way out.
+pub fn draw_after_pick(frame: &mut Frame, app: &App, area: Rect) {
+    let Some(pick) = app.after_pick.as_ref() else {
+        return;
+    };
+    let width = 76.min(area.width.saturating_sub(2));
+    let inner = width.saturating_sub(2) as usize;
+    let name_width = pick
+        .rows
+        .iter()
+        .filter_map(|row| row.job.as_ref())
+        .map(|job| job.name.chars().count())
+        .max()
+        .unwrap_or(0)
+        .clamp(8, inner.saturating_sub(44));
+
+    let mut lines: Vec<Line> = Vec::new();
+    for (index, row) in pick.rows.iter().enumerate() {
+        let selected = index == pick.cursor;
+        let chosen = pick.is_chosen(&row.id);
+        let mut spans = vec![
+            Span::styled(
+                if selected { " ▸ " } else { "   " },
+                Style::default().fg(theme::ACCENT),
+            ),
+            Span::styled(
+                if chosen { "[x] " } else { "[ ] " },
+                Style::default().fg(if chosen { theme::RECIPE } else { theme::DIM }),
+            ),
+            Span::styled(
+                format!("{:<10}", truncate(&row.id, 10)),
+                Style::default().fg(theme::MATCH),
+            ),
+        ];
+        match row.job.as_ref() {
+            Some(job) => {
+                let state = job.state_word().to_owned();
+                // A pending job's reason says why it waits; a running one's
+                // clock says how long it has been at it.
+                let detail = match job.pending() {
+                    true => job.nodes.clone(),
+                    false => job.elapsed_now(0),
+                };
+                spans.push(Span::styled(
+                    format!("{:<name_width$}  ", truncate(&job.name, name_width)),
+                    Style::default().fg(theme::FG),
+                ));
+                spans.push(Span::styled(
+                    format!("{state:<10}"),
+                    Style::default().fg(match state.as_str() {
+                        "RUNNING" => theme::RECIPE,
+                        "PENDING" => theme::MATCH,
+                        _ => theme::VARIABLE,
+                    }),
+                ));
+                let used: usize = spans.iter().map(|s| s.content.chars().count()).sum();
+                spans.push(Span::styled(
+                    truncate(
+                        &format!("{detail}  {}", job.partition),
+                        inner.saturating_sub(used),
+                    ),
+                    theme::label(),
+                ));
+            }
+            None => {
+                let used: usize = spans.iter().map(|s| s.content.chars().count()).sum();
+                spans.push(Span::styled(
+                    truncate(
+                        "not in your queue any more — untick it unless you are sure",
+                        inner.saturating_sub(used),
+                    ),
+                    Style::default().fg(theme::DIM),
+                ));
+            }
+        }
+        pad(&mut spans, inner);
+        let line = Line::from(spans);
+        lines.push(match selected {
+            true => line.style(Style::default().bg(theme::SELECTION_BG)),
+            false => line,
+        });
+    }
+    if pick.rows.is_empty() {
+        lines.push(Line::from(Span::styled(
+            match pick.fetching() {
+                true => "   asking squeue…".to_owned(),
+                false => format!(
+                    "   {}",
+                    pick.note
+                        .as_deref()
+                        .unwrap_or("no jobs of yours are queued")
+                ),
+            },
+            theme::label(),
+        )));
+    } else if let Some(note) = pick.note.as_deref() {
+        lines.push(Line::from(Span::styled(
+            format!("   ! {note}"),
+            Style::default().fg(theme::MATCH),
+        )));
+    }
+
+    lines.push(Line::default());
+    let count = pick.chosen.len();
+    let summary = match count {
+        0 => "   waits on nothing".to_owned(),
+        1 => "   waits on 1 job".to_owned(),
+        n => format!("   waits on {n} jobs"),
+    };
+    lines.push(Line::from(vec![
+        Span::styled(summary.clone(), Style::default().fg(theme::FG)),
+        Span::styled(
+            truncate(
+                match count {
+                    0 => "",
+                    _ => "   starts once each has finished ok; cancelled if one fails",
+                },
+                inner.saturating_sub(summary.chars().count()),
+            ),
+            theme::label(),
+        ),
+    ]));
+
+    let title = match pick.fetching() {
+        true => " Wait for which jobs?  (refreshing) ",
+        false => " Wait for which jobs? ",
+    };
+    let popup = centered(area, width, lines.len() as u16 + 2);
+    frame.render_widget(Clear, popup);
+    frame.render_widget(
+        Paragraph::new(lines).block(overlay_block(
+            title,
+            " space toggle · a all · n none · r refresh · ⏎ done · esc back ",
+            theme::MATCH,
+        )),
+        popup,
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Chains
 // ---------------------------------------------------------------------------
@@ -495,11 +652,15 @@ pub fn draw_chain(frame: &mut Frame, app: &App, area: Rect) {
             false => line,
         });
 
-        let waits = chain.waits_on(index);
+        let mut waits: Vec<String> = chain
+            .waits_on(index)
+            .iter()
+            .map(|i| (i + 1).to_string())
+            .collect();
+        waits.extend(row.after.iter().map(|id| format!("job {id}")));
         if !waits.is_empty() {
-            let numbers: Vec<String> = waits.iter().map(|i| (i + 1).to_string()).collect();
             lines.push(Line::from(Span::styled(
-                format!("{:>10}↳ after {}", "", numbers.join(", ")),
+                format!("{:>10}↳ after {}", "", waits.join(", ")),
                 theme::label(),
             )));
         }
@@ -586,7 +747,7 @@ pub fn draw_chain_confirm(frame: &mut Frame, app: &App, area: Rect) {
             &row.link.namepath,
             &row.settings,
             batch,
-            Some(&placeholders),
+            Waits::link(&placeholders),
         );
         lines.push(Line::from(vec![
             Span::styled(format!("  {:>2}  ", index + 1), theme::label()),

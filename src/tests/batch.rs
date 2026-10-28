@@ -195,7 +195,7 @@ fn an_expansion_submits_as_one_array() {
         "count",
         &settings,
         Some((manifest, 37)),
-        None,
+        slurm::Waits::ALONE,
     );
 
     assert!(args.contains(&"--array=0-36%4".to_owned()), "got {args:?}");

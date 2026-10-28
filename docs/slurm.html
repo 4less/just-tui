@@ -114,6 +114,7 @@ recorded state. The form shows where the selected field's value came from, besid
 <tr><td><kbd>F4</kbd></td><td>as a <code>[recipe]</code> section, this recipe only</td></tr>
 <tr><td><kbd>F5</kbd></td><td>pick a scope and open its config in <code>$EDITOR</code></td></tr>
 <tr><td><kbd>F6</kbd></td><td>past submissions of this recipe, to load one back</td></tr>
+<tr><td><kbd>F7</kbd></td><td>tick queued jobs this one waits on (<code>--dependency=afterok</code>)</td></tr>
 </table>
 
 <h2 id="logs">Where logs go</h2>
@@ -255,6 +256,31 @@ notices.</p>
 <code>Run align and what it runs with</code>, and <kbd>Enter</kbd> there runs one
 <code>just --no-deps</code> per checked row, in order, stopping at the first failure. A recipe
 without dependencies runs at once, as it always did. What was unchecked is remembered for both.</p>
+
+<h3 id="after">Waiting on jobs already queued</h3>
+
+<p>A chain orders the jobs of one submission. To start a job only once something
+<strong>already on the queue</strong> has finished — last night's alignment, a download you are not
+part of — press <kbd>F7</kbd> in the form. It lists your running and pending jobs;
+<kbd>space</kbd> ticks any number of them, <kbd>Enter</kbd> keeps the ticks, <kbd>Esc</kbd> drops
+them:</p>
+
+<pre><code>╭ Wait for which jobs? ────────────────────────────────────────────────────╮
+│ ▸ [x] 418823  align-reads   RUNNING   00:04:12  compute                  │
+│   [ ] 418826  align-sort    PENDING   Dependency                         │
+│   [x] 418827  align-depth   PENDING   Dependency                         │
+│                                                                          │
+│   waits on 2 jobs   starts once each has finished ok; cancelled if one fails
+╰ space toggle · a all · n none · r refresh · ⏎ done · esc back ───────────╯</code></pre>
+
+<p>The form then shows an <code>after</code> line and the command carries
+<code>--dependency=afterok:418823:418827 --kill-on-invalid-dep=yes</code>, the same terms a chain
+uses. Unlike a link of a chain the job keeps running its own <code>just</code> dependencies: the
+jobs it waits on are not them. The not-yet-started remainder of an array is offered as the array
+as a whole, so the job waits for every task. The ids are not a setting — they are recorded in the
+history, but neither saved to a config nor carried into the next submission. In a chain,
+<kbd>f</kbd> opens a row's form, and <kbd>F7</kbd> there makes that link wait on the picked jobs as
+well as on the links before it.</p>
 
 <div class="note">
 In the job browser a chained job shows <code>↳</code> before its name, a pending one says

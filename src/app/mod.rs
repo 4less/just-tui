@@ -2,6 +2,7 @@
 //! [`navigate`] for the explorer, [`keys`] for input, and [`cluster`]
 //! for the Slurm submit form.
 
+mod after;
 mod cluster;
 mod jobs;
 mod keys;
@@ -24,6 +25,7 @@ use crate::tree::{Filter, Kind, Tree};
 use crate::ui::Panes;
 use crate::vars::{Explorer, Overrides, VarsForm};
 
+pub use after::AfterPick;
 pub use jobs::{JobsView, LogKind, PendingAction};
 pub use recall::HistoryPick;
 
@@ -65,6 +67,8 @@ pub enum Mode {
     ConfirmChain,
     /// Choosing which `.just-tui-cluster-config` to open in an editor.
     ConfigPick,
+    /// Ticking queued jobs the one in the form waits on.
+    AfterPick,
     /// Browsing Slurm jobs and their logs.
     Jobs,
     /// Confirming something that touches the queue: a kill, a rerun, or both.
@@ -159,6 +163,8 @@ pub struct App {
     /// Detection in flight, so the form need not wait for it.
     pub detecting: Option<std::sync::mpsc::Receiver<Cluster>>,
     pub form: Option<SubmitForm>,
+    /// The picker of queued jobs to wait on, while it is over the form.
+    pub after_pick: Option<AfterPick>,
     /// The chain chooser, while a recipe with dependencies is being submitted.
     pub chain: Option<ChainForm>,
     /// Every job submitted from this project, with the settings it used.
@@ -215,6 +221,7 @@ impl App {
             cluster: None,
             detecting: None,
             form: None,
+            after_pick: None,
             chain: None,
             history,
             jobs: None,
