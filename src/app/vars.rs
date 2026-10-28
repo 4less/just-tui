@@ -184,8 +184,11 @@ impl App {
         };
         match key.code {
             KeyCode::Esc | KeyCode::Char('q') => {
+                self.mode = match explorer.field {
+                    Some(_) => Mode::Submit,
+                    None => Mode::Vars,
+                };
                 self.explorer = None;
-                self.mode = Mode::Vars;
             }
             KeyCode::Up | KeyCode::Char('k') => explorer.move_cursor(-1),
             KeyCode::Down | KeyCode::Char('j') => explorer.move_cursor(1),
@@ -226,6 +229,32 @@ impl App {
         Action::None
     }
 
+    /// The explorer, over the submit form, picking a path for the field the
+    /// cursor is on, and starting on the file that field already names.
+    pub(super) fn open_path_picker(&mut self) {
+        let Some(form) = self.form.as_ref() else {
+            return;
+        };
+        let field = form.current();
+        if !crate::submit::SubmitForm::takes_path(field) {
+            self.error("^o picks a path for each or args");
+            return;
+        }
+        let (dir, focus) = form.path_start();
+        let mut explorer = Explorer::open(
+            field.label().to_owned(),
+            dir,
+            crate::vars::qwe_pins(),
+            form.global,
+        );
+        explorer.field = Some(field);
+        if let Some(focus) = focus {
+            explorer.focus_on(&focus);
+        }
+        self.explorer = Some(explorer);
+        self.mode = Mode::Explorer;
+    }
+
     /// Set the variable the explorer is open for, to `path` or what is
     /// highlighted, and go back to the list.
     fn choose_path(&mut self, path: Option<PathBuf>) {
@@ -233,6 +262,14 @@ impl App {
             return;
         };
         let chosen = path.unwrap_or_else(|| explorer.choice());
+        if let Some(field) = explorer.field {
+            self.mode = Mode::Submit;
+            let is_dir = crate::world::is_dir(&chosen);
+            if let Some(form) = self.form.as_mut() {
+                form.set_path(field, &chosen, is_dir);
+            }
+            return;
+        }
         self.mode = Mode::Vars;
         self.set_override(Some(chosen.display().to_string()));
     }

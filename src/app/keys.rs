@@ -262,6 +262,10 @@ impl App {
     }
 
     fn handle_submit_key(&mut self, key: KeyEvent) -> Action {
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('o') {
+            self.open_path_picker();
+            return Action::None;
+        }
         if key.modifiers.contains(KeyModifiers::CONTROL) {
             let Some(form) = self.form.as_mut() else {
                 return Action::None;

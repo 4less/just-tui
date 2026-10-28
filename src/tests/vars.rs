@@ -248,3 +248,97 @@ fn a_submission_carries_the_override_into_the_job() {
     );
     let _ = std::fs::remove_dir_all(&base);
 }
+
+/// A submit form running in `base`, with nothing resolved.
+fn form_in(base: &Path) -> crate::submit::SubmitForm {
+    crate::submit::SubmitForm::new(
+        "build::index".into(),
+        crate::config::Resolved::default(),
+        base.to_path_buf(),
+        base.to_path_buf(),
+    )
+}
+
+#[test]
+fn the_explorer_opens_on_the_file_each_names() {
+    use crate::slurm::Field;
+    let dir = std::env::temp_dir().join("just-tui-each-picker");
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::create_dir_all(dir.join("data/interim")).unwrap();
+    std::fs::write(dir.join("data/interim/a.txt"), "").unwrap();
+    std::fs::write(dir.join("data/interim/tasks.txt"), "x\n").unwrap();
+
+    let mut form = form_in(&dir);
+    while form.current() != Field::Each {
+        form.move_field(1);
+    }
+    form.settings.each = "@data/interim/tasks.txt".into();
+    let (start, focus) = form.path_start();
+    assert_eq!(start, dir.join("data/interim"));
+    assert_eq!(focus, Some(dir.join("data/interim/tasks.txt")));
+
+    let mut explorer = Explorer::open("each".into(), start, Vec::new(), false);
+    explorer.focus_on(&focus.unwrap());
+    assert_eq!(explorer.selected().unwrap().name, "tasks.txt");
+
+    // A glob opens where its pattern starts; a missing file in the nearest
+    // directory that exists.
+    form.settings.each = "data/interim/*.txt".into();
+    assert_eq!(form.path_start(), (dir.join("data/interim"), None));
+    form.settings.each = "@data/gone/tasks.txt".into();
+    assert_eq!(form.path_start(), (dir.join("data"), None));
+
+    // A file is a task list, a directory a glob, both relative to the base.
+    form.set_path(Field::Each, &dir.join("data/interim/a.txt"), false);
+    assert_eq!(form.settings.each, "@data/interim/a.txt");
+    form.set_path(Field::Each, &dir.join("data/interim"), true);
+    assert_eq!(form.settings.each, "data/interim/*");
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn a_picked_path_replaces_the_word_under_the_caret_in_args() {
+    use crate::slurm::Field;
+    let dir = PathBuf::from("/work");
+    let mut form = form_in(&dir);
+    while form.current() != Field::Args {
+        form.move_field(1);
+    }
+    form.settings.args = "human old.fna 8".into();
+    form.cursor = 8; // inside `old.fna`
+    form.set_path(Field::Args, Path::new("/work/ref/new.fna"), false);
+    assert_eq!(form.settings.args, "human ref/new.fna 8");
+
+    // Elsewhere than under the base, the path stays absolute; on a space it
+    // goes in as a word of its own.
+    form.settings.args = "human".into();
+    form.cursor = 5;
+    form.set_path(Field::Args, Path::new("/elsewhere/x"), false);
+    assert_eq!(form.settings.args, "human /elsewhere/x");
+}
+
+#[test]
+fn ctrl_o_picks_a_path_for_the_form_and_esc_returns_to_it() {
+    use crate::slurm::Field;
+    let mut app = super::fixture_app();
+    app.cluster = Some(super::test_cluster());
+    app.open_submit_single();
+    let ctrl_o = KeyEvent::new(KeyCode::Char('o'), KeyModifiers::CONTROL);
+
+    // Not a path field: nothing opens.
+    app.handle_key(ctrl_o);
+    assert_eq!(app.mode, Mode::Submit);
+
+    let form = app.form.as_mut().unwrap();
+    while form.current() != Field::Each {
+        form.move_field(1);
+    }
+    app.handle_key(ctrl_o);
+    assert_eq!(app.mode, Mode::Explorer);
+    assert_eq!(app.explorer.as_ref().unwrap().field, Some(Field::Each));
+
+    app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+    assert_eq!(app.mode, Mode::Submit, "esc goes back to the form");
+    assert!(app.form.is_some());
+}

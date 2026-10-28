@@ -271,6 +271,102 @@ impl SubmitForm {
         self.refresh_plan();
     }
 
+    /// Whether the explorer can pick a path for this field: `each` (a task
+    /// file, or a directory to glob) and `args`.
+    pub fn takes_path(field: Field) -> bool {
+        matches!(field, Field::Each | Field::Args)
+    }
+
+    /// Where the explorer opens for the current field, and the entry it lands
+    /// on: the file the value names, in its directory; else the nearest
+    /// directory above that exists; else where the job runs.
+    pub fn path_start(&self) -> (PathBuf, Option<PathBuf>) {
+        let value = self.settings.get(self.current());
+        let word = match self.current() {
+            Field::Each => value.trim().trim_start_matches('@').to_owned(),
+            _ => word_at(value, self.cursor).map_or(String::new(), |(_, word)| word.to_owned()),
+        };
+        // A glob is looked up from the directory its pattern starts in.
+        let word = match word.find(['*', '?', '[']) {
+            Some(at) => word[..at]
+                .rsplit_once('/')
+                .map_or("", |(dir, _)| dir)
+                .to_owned(),
+            None => word,
+        };
+        if word.is_empty() || word.contains(',') {
+            return (self.base.clone(), None);
+        }
+        let path = self.base.join(word);
+        if crate::world::is_dir(&path) {
+            return (path, None);
+        }
+        if crate::world::exists(&path)
+            && let Some(dir) = path.parent()
+        {
+            return (dir.to_path_buf(), Some(path));
+        }
+        let mut current = path.parent();
+        while let Some(dir) = current {
+            if crate::world::is_dir(dir) {
+                return (dir.to_path_buf(), None);
+            }
+            current = dir.parent();
+        }
+        (self.base.clone(), None)
+    }
+
+    /// Fill `field` with a path the explorer chose: `each` reads a file as a
+    /// task list (`@file`) and globs a directory (`dir/*`); `args` gets the
+    /// path in place of the word under the caret. Paths under where the job
+    /// runs are written relative to it.
+    pub fn set_path(&mut self, field: Field, path: &Path, is_dir: bool) {
+        let shown = path
+            .strip_prefix(&self.base)
+            .unwrap_or(path)
+            .display()
+            .to_string();
+        let value = self.settings.get_mut(field);
+        match field {
+            Field::Each if is_dir => *value = format!("{shown}/*"),
+            Field::Each => *value = format!("@{shown}"),
+            _ => {
+                let cursor = match slurm::FIELDS[self.field] == field {
+                    true => self.cursor,
+                    false => value.chars().count(),
+                };
+                *value = match word_at(value, cursor) {
+                    Some((start, word)) => {
+                        format!("{}{shown}{}", &value[..start], &value[start + word.len()..])
+                    }
+                    None => {
+                        let at = value
+                            .char_indices()
+                            .nth(cursor)
+                            .map_or(value.len(), |(at, _)| at);
+                        let (before, after) = value.split_at(at);
+                        let lead = if before.is_empty() || before.ends_with(' ') {
+                            ""
+                        } else {
+                            " "
+                        };
+                        let trail = if after.is_empty() || after.starts_with(' ') {
+                            ""
+                        } else {
+                            " "
+                        };
+                        format!("{before}{lead}{shown}{trail}{after}")
+                    }
+                };
+            }
+        }
+        if let Some(index) = slurm::FIELDS.iter().position(|f| *f == field) {
+            self.field = index;
+        }
+        self.cursor_end();
+        self.refresh_plan();
+    }
+
     /// The directory and optional recipe section a save should write to.
     pub fn save_target(&self, scope: SaveScope, project: &Path) -> (PathBuf, Option<String>) {
         match scope {
@@ -510,6 +606,21 @@ impl ChainForm {
         }
         self.step = None;
     }
+}
+
+/// The whitespace-separated word the caret (a character index) is on, as
+/// its byte offset and text. A caret past the end or on a space is on none,
+/// so a pick there adds a word instead of replacing one.
+fn word_at(value: &str, cursor: usize) -> Option<(usize, &str)> {
+    let (at, c) = value.char_indices().nth(cursor)?;
+    if c == ' ' {
+        return None;
+    }
+    let start = value[..at].rfind(' ').map_or(0, |space| space + 1);
+    let end = value[at..]
+        .find(' ')
+        .map_or(value.len(), |space| at + space);
+    (start < end).then(|| (start, &value[start..end]))
 }
 
 /// The recipe name without its module path.

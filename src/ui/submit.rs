@@ -238,7 +238,10 @@ fn note(
     if field == Field::Each
         && let Some(plan) = form.plan.as_ref()
     {
-        return format!("{} matches", plan.count());
+        return format!("{} matches · ^o pick", plan.count());
+    }
+    if SubmitForm::takes_path(field) {
+        return format!("{} · ^o pick a file", field.hint());
     }
     let choices = cluster.choices(field);
     if choices.is_empty() {

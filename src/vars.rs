@@ -188,6 +188,9 @@ pub struct Explorer {
     pub focus: ExplorerFocus,
     /// The global justfile's variables are stored with the global memory.
     pub global: bool,
+    /// Set when the explorer picks a path for a submit-form field instead of
+    /// a variable: choosing fills that field and goes back to the form.
+    pub field: Option<crate::slurm::Field>,
 }
 
 impl Explorer {
@@ -202,9 +205,17 @@ impl Explorer {
             pin_cursor: 0,
             focus: ExplorerFocus::Listing,
             global,
+            field: None,
         };
         explorer.go(dir);
         explorer
+    }
+
+    /// Put the cursor on `path`, when it is listed here.
+    pub fn focus_on(&mut self, path: &Path) {
+        if let Some(index) = self.entries.iter().position(|entry| entry.path == path) {
+            self.cursor = index;
+        }
     }
 
     /// Show `dir`, directories first, each group by name.

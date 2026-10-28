@@ -533,6 +533,7 @@ selected field's value came from, next to it.
 | `Home` `End` · `Ctrl-a` `Ctrl-e` | start and end of the field |
 | `Del` `Backspace` | delete forwards, delete backwards |
 | `Ctrl-u` | clear the field |
+| `Ctrl-o` | on `each` or `args`: pick a path in the directory explorer, starting on the file the field names — a file becomes `each = @file`, a directory `dir/*`; in `args` it replaces the word under the caret |
 | `F2` | write the current values as **module** defaults |
 | `F3` | write them as **project** defaults |
 | `F4` | write them as a `[recipe]` section, for this recipe only |
