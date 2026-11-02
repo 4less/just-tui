@@ -236,6 +236,7 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
             &app.search,
             "Enter accept · Esc clear",
         ),
+        Mode::Edit if app.status.is_none() => edit_hints(),
         _ => match &app.status {
             Some((message, kind)) => {
                 let color = match kind {
@@ -264,12 +265,36 @@ fn prompt(tag: &str, color: Color, prefix: &str, input: &str, help: &str) -> Lin
     ])
 }
 
+fn edit_hints() -> Line<'static> {
+    let mut spans = vec![Span::styled(
+        " edit ",
+        Style::default().bg(theme::MATCH).fg(theme::BG),
+    )];
+    for (key, label) in [
+        ("^s", "save"),
+        ("Esc", "cancel"),
+        ("^z/^y", "undo/redo"),
+        ("^k", "delete line"),
+        ("⇥/⇧⇥", "indent"),
+    ] {
+        spans.push(Span::styled(
+            format!(" {key} "),
+            Style::default()
+                .fg(theme::ACCENT)
+                .add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::styled(label, theme::label()));
+    }
+    Line::from(spans)
+}
+
 fn hints(app: &App) -> Line<'static> {
     let mut spans = Vec::new();
     for (key, label) in [
         ("↑↓", "move"),
         ("→←", "open/close"),
         ("⏎", "run"),
+        ("i", "edit"),
         ("s", "submit"),
         ("S", "jobs"),
         ("/", "search"),

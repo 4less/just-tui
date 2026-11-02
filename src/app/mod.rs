@@ -4,6 +4,7 @@
 
 mod after;
 mod cluster;
+mod edit;
 mod jobs;
 mod keys;
 mod navigate;
@@ -15,6 +16,7 @@ use std::path::PathBuf;
 use ratatui::widgets::ListState;
 
 use crate::config::Configs;
+use crate::editor::Editor;
 use crate::history::History;
 use crate::just::{self, Loaded};
 use crate::params::{ParamForm, RunArgs, quote};
@@ -81,6 +83,8 @@ pub enum Mode {
     Vars,
     /// The full-screen directory explorer, picking a variable's path.
     Explorer,
+    /// Editing the selected recipe in the source pane.
+    Edit,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -141,6 +145,8 @@ pub struct App {
     pub global_overrides: Overrides,
     pub vars: Option<VarsForm>,
     pub explorer: Option<Explorer>,
+    /// The recipe being edited in the source pane.
+    pub editor: Option<Editor>,
     pub show_private: bool,
     /// Show `[group('x')]` folders inside modules that are divided by one.
     pub group_layer: bool,
@@ -203,6 +209,7 @@ impl App {
             global_overrides: Overrides::default(),
             vars: None,
             explorer: None,
+            editor: None,
             show_private: false,
             group_layer: true,
             doc_scroll: 0,
@@ -286,19 +293,8 @@ impl App {
 
         let mut reloaded = Vec::with_capacity(self.sources.len());
         for source in &self.sources {
-            let fresh = match source.global {
-                true => just::load_global(&source.working_dir).and_then(|global| {
-                    global.ok_or_else(|| anyhow::anyhow!("the global justfile is gone"))
-                }),
-                false => just::load(&source.working_dir, source.explicit_file.as_deref()),
-            };
-            match fresh {
-                Ok(mut fresh) => {
-                    fresh.label = source.label.clone();
-                    fresh.global = source.global;
-                    fresh.working_dir = source.working_dir.clone();
-                    reloaded.push(fresh);
-                }
+            match load_again(source) {
+                Ok(fresh) => reloaded.push(fresh),
                 Err(err) => {
                     self.error(format!("reload failed: {err}"));
                     return;
@@ -453,6 +449,20 @@ impl App {
             dry,
         }
     }
+}
+
+/// Ask `just` for a source again, keeping what it was loaded as.
+pub(crate) fn load_again(source: &Loaded) -> anyhow::Result<Loaded> {
+    let mut fresh = match source.global {
+        true => just::load_global(&source.working_dir).and_then(|global| {
+            global.ok_or_else(|| anyhow::anyhow!("the global justfile is gone"))
+        })?,
+        false => just::load(&source.working_dir, source.explicit_file.as_deref())?,
+    };
+    fresh.label = source.label.clone();
+    fresh.global = source.global;
+    fresh.working_dir = source.working_dir.clone();
+    Ok(fresh)
 }
 
 /// An argument line as the words a shell would make of it, so a value

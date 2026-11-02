@@ -11,7 +11,7 @@ use clap::Parser;
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event::{self, Event, KeyEventKind, MouseButton, MouseEventKind};
 
-use crate::app::{Action, App};
+use crate::app::{Action, App, Mode};
 use crate::just::Loaded;
 use crate::source::SourceCache;
 use crate::{just, snapshot, terminal, tree, ui};
@@ -238,6 +238,24 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
 /// pane, and in the tree it also selects the row.
 fn handle_mouse(app: &mut App, mouse: event::MouseEvent) {
     let (column, row) = (mouse.column, mouse.row);
+    // While a recipe is edited the mouse only moves the caret, so the
+    // selection cannot change under the editor.
+    if app.mode == Mode::Edit {
+        if let Some(editor) = app.editor.as_mut() {
+            let view = editor.view;
+            match mouse.kind {
+                MouseEventKind::ScrollDown => editor.move_rows(3),
+                MouseEventKind::ScrollUp => editor.move_rows(-3),
+                MouseEventKind::Down(MouseButton::Left)
+                    if view.contains(ratatui::layout::Position::new(column, row)) =>
+                {
+                    editor.click((column - view.x) as usize, (row - view.y) as usize);
+                }
+                _ => {}
+            }
+        }
+        return;
+    }
     if let Some(pane) = app.panes.at(column, row) {
         app.focus = pane;
     }
