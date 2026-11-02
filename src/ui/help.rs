@@ -20,7 +20,7 @@ const KEYS: &[(&str, &str)] = &[
     ("^o", "in a form: pick a path in the directory explorer"),
     (
         "F6 / F7",
-        "in the form: past submissions, wait on queued jobs",
+        "in the form: recall settings, wait on queued jobs",
     ),
     (
         "space / a / n / f",

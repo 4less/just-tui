@@ -162,7 +162,7 @@ impl SubmitForm {
     /// One line naming every file that contributed a value.
     pub fn provenance(&self) -> String {
         match self.resolved.sources.is_empty() {
-            true => "nothing prefilled — submitting records it in the state file".to_owned(),
+            true => "nothing prefilled — F6 offers presets and other recipes' settings".to_owned(),
             false => format!("from {}", self.resolved.sources.join(" · ")),
         }
     }

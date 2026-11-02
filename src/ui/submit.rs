@@ -61,7 +61,7 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
         }
         None => (
             format!(" Submit {} to Slurm ", form.namepath),
-            " ↑↓ ←→ move · ^u clear · ⏎ submit · F2-F4 save · F5 edit · F6 history · F7 after ",
+            " ↑↓ ←→ move · ^u clear · ⏎ submit · F2-F4 save · F5 edit · F6 recall · F7 after ",
         ),
     };
 

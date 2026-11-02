@@ -364,7 +364,8 @@ time = 96:00:00
 
 <h3>Precedence, weakest first</h3>
 
-<ol class="prose">
+<ol class="prose" start="0">
+<li>the <code>[default]</code> preset, only when nothing below says anything for this recipe</li>
 <li>what that recipe was last submitted with (<code>.just-tui-cluster-state</code>)</li>
 <li><code>~/.just-tui-cluster-config</code></li>
 <li><code>&lt;justfile dir&gt;/.just-tui-cluster-config</code></li>
@@ -376,6 +377,29 @@ time = 96:00:00
 <p><strong>The nearer config always wins</strong>, and every config beats the automatically
 recorded state. The form shows where the selected field's value came from, beside it.</p>
 
+<h3 id="presets">Presets: <code>~/.just-tui/cluster-presets</code></h3>
+
+<p>Named settings kept once for every project, in the same format:</p>
+
+{code('''
+[default]        # a recipe with no settings of its own starts from this
+partition = compute
+time      = 04:00:00
+mem       = 8G
+
+[gpu]            # picked by hand with F6 in the form
+partition = gpu
+gpus      = 1
+mem       = 64G
+''')}
+
+<p><code>[default]</code> fills the form only for a recipe that has never been submitted and that no
+config file mentions; the form then says <code>from preset default</code>. Every preset,
+<code>[default]</code> included, can be picked with <kbd>F6</kbd>, and sets only the fields it
+names — so <code>[gpu]</code> adds a GPU to whatever else the form holds. Keys before any section
+count as <code>[default]</code>; <code>name</code>, <code>args</code> and <code>each</code> are
+ignored in a preset.</p>
+
 <h3>Writing one from the form</h3>
 
 <table>
@@ -384,7 +408,7 @@ recorded state. The form shows where the selected field's value came from, besid
 <tr><td><kbd>F3</kbd></td><td>as <strong>project</strong> defaults</td></tr>
 <tr><td><kbd>F4</kbd></td><td>as a <code>[recipe]</code> section, this recipe only</td></tr>
 <tr><td><kbd>F5</kbd></td><td>pick a scope and open its config in <code>$EDITOR</code></td></tr>
-<tr><td><kbd>F6</kbd></td><td>past submissions of this recipe, to load one back</td></tr>
+<tr><td><kbd>F6</kbd></td><td>past submissions of this recipe, then presets and other recipes' settings</td></tr>
 <tr><td><kbd>F7</kbd></td><td>tick queued jobs this one waits on (<code>--dependency=afterok</code>)</td></tr>
 </table>
 
@@ -670,8 +694,11 @@ by any config file, this one forgets nothing.</p>
 
 <ul class="prose">
 <li><kbd>H</kbd> lists every past submission; <kbd>Enter</kbd> loads one back into the form.</li>
-<li><kbd>F6</kbd> in the form lists only that recipe's past runs — and since the title already names
-the recipe, those rows show the <strong>arguments</strong>, which is what tells two runs apart.</li>
+<li><kbd>F6</kbd> in the form lists that recipe's past runs first — and since the title already names
+the recipe, those rows show the <strong>arguments</strong>, which is what tells two runs apart. Below
+them come your <a href="#presets">presets</a>, then what <strong>other recipes</strong> were submitted
+with, newest first and each allocation once. Taking another recipe's settings or a preset changes
+only the allocation: this recipe's arguments, task file and job name stay.</li>
 <li><kbd>u</kbd> in the job browser jumps from a job to the settings it ran with.</li>
 </ul>
 
@@ -726,7 +753,7 @@ KEYS = f"""
 <tr><td><kbd>Enter</kbd></td><td>submit</td></tr>
 <tr><td><kbd>F2</kbd> <kbd>F3</kbd> <kbd>F4</kbd></td><td>save as module / project / recipe defaults</td></tr>
 <tr><td><kbd>F5</kbd></td><td>open a config in <code>$EDITOR</code></td></tr>
-<tr><td><kbd>F6</kbd></td><td>past submissions of this recipe</td></tr>
+<tr><td><kbd>F6</kbd></td><td>past submissions, presets, other recipes' settings</td></tr>
 <tr><td><kbd>F7</kbd></td><td>wait on running or pending jobs: <kbd>space</kbd> ticks, <kbd>Enter</kbd> keeps, <kbd>Esc</kbd> drops</td></tr>
 <tr><td><kbd>Esc</kbd></td><td>close without submitting</td></tr>
 </table>
