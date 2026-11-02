@@ -17,6 +17,10 @@ jobs:
           components: clippy, rustfmt
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
+      # The editor's tests save through the real `just`, as the app does.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just
       - name: Formatting
         run: cargo fmt --check
       - name: Clippy

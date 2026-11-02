@@ -24,6 +24,7 @@ impl App {
             Mode::History => return self.handle_history_key(key),
             Mode::Vars => return self.handle_vars_key(key),
             Mode::Explorer => return self.handle_explorer_key(key),
+            Mode::Edit => return self.handle_edit_key(key),
             Mode::Help => {
                 self.mode = Mode::Normal;
                 return Action::None;
@@ -195,6 +196,10 @@ impl App {
                     Action::None
                 }
             },
+            KeyCode::Char('i') => {
+                self.open_editor();
+                Action::None
+            }
             KeyCode::Char('o') => {
                 let target = self
                     .selected()

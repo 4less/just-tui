@@ -44,6 +44,7 @@ const KEYS: &[(&str, &str)] = &[
     ("w", "wrap long source lines"),
     ("f", "zoom the focused pane"),
     ("y", "copy recipe source (OSC 52)"),
+    ("i", "edit the recipe in place (^s save, Esc cancel)"),
     ("o", "open the justfile in $EDITOR"),
     ("R", "reload the justfile"),
     ("?", "this help"),

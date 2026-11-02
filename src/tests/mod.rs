@@ -6,6 +6,7 @@ mod batch;
 mod chain;
 mod cluster;
 mod demo;
+mod editor;
 mod highlight;
 mod jobs;
 mod justfile;
