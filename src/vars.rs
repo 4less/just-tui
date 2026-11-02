@@ -188,9 +188,20 @@ pub struct Explorer {
     pub focus: ExplorerFocus,
     /// The global justfile's variables are stored with the global memory.
     pub global: bool,
-    /// Set when the explorer picks a path for a submit-form field instead of
-    /// a variable: choosing fills that field and goes back to the form.
-    pub field: Option<crate::slurm::Field>,
+    /// What the chosen path is for, and so where `Esc` and a choice go back to.
+    pub target: PickFor,
+}
+
+/// What a path chosen in the [`Explorer`] fills in.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PickFor {
+    /// The variable named by [`Explorer::key`], as an override.
+    Variable,
+    /// A field of the submit form.
+    Submit(crate::slurm::Field),
+    /// A row of the run form. The path is written relative to `base`, the
+    /// directory the recipe runs in, when it lies under it.
+    Param { row: usize, base: PathBuf },
 }
 
 impl Explorer {
@@ -205,7 +216,7 @@ impl Explorer {
             pin_cursor: 0,
             focus: ExplorerFocus::Listing,
             global,
-            field: None,
+            target: PickFor::Variable,
         };
         explorer.go(dir);
         explorer

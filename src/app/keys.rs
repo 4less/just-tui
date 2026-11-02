@@ -482,6 +482,10 @@ impl App {
             self.mode = Mode::Normal;
             return Action::None;
         }
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('o') {
+            self.open_param_picker();
+            return Action::None;
+        }
         let Some(form) = self.params.as_mut() else {
             self.mode = Mode::Normal;
             return Action::None;

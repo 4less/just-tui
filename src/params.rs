@@ -2,6 +2,8 @@
 //! argument list the filled-in rows turn into. Shared by the run-with-
 //! arguments overlay and the Slurm submit form.
 
+use std::path::{Component, Path, PathBuf};
+
 use crate::model::{Parameter, Recipe};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -122,6 +124,60 @@ impl ParamForm {
     /// [`Self::prefill`] from a shell-style line such as a config's `args`.
     pub fn prefill_line(&mut self, line: &str) {
         self.prefill(&split_words(line));
+    }
+
+    /// Where the explorer opens for the current row: on the file its value
+    /// names (the last word, in a variadic row), in that file's directory;
+    /// else the nearest directory above it that exists; else `base`.
+    pub fn path_start(&self, base: &Path) -> (PathBuf, Option<PathBuf>) {
+        let value = self.values.get(self.cursor).map_or("", |v| v.trim());
+        let word = match self.params.get(self.cursor).is_some_and(Param::is_variadic) {
+            true => split_words(value).pop().unwrap_or_default(),
+            false => value.to_owned(),
+        };
+        if word.is_empty() {
+            return (base.to_path_buf(), None);
+        }
+        let path = lexical(&base.join(word));
+        if crate::world::is_dir(&path) {
+            return (path, None);
+        }
+        if crate::world::exists(&path)
+            && let Some(dir) = path.parent()
+        {
+            return (dir.to_path_buf(), Some(path));
+        }
+        let mut current = path.parent();
+        while let Some(dir) = current {
+            if crate::world::is_dir(dir) {
+                return (dir.to_path_buf(), None);
+            }
+            current = dir.parent();
+        }
+        (base.to_path_buf(), None)
+    }
+
+    /// Put a picked path into `row`, relative to `base` when it lies under
+    /// it. It replaces a single value, and is added as one more word to a
+    /// variadic row.
+    pub fn set_path(&mut self, row: usize, path: &Path, base: &Path) {
+        let path = lexical(path);
+        let shown = match path.strip_prefix(lexical(base)) {
+            Ok(rel) if rel.as_os_str().is_empty() => ".".to_owned(),
+            Ok(rel) => rel.display().to_string(),
+            Err(_) => path.display().to_string(),
+        };
+        let variadic = self.params.get(row).is_some_and(Param::is_variadic);
+        if let Some(value) = self.values.get_mut(row) {
+            *value = match variadic {
+                true if !value.trim().is_empty() => {
+                    format!("{} {}", value.trim_end(), quote(&shown))
+                }
+                true => quote(&shown),
+                false => shown,
+            };
+            self.cursor = row;
+        }
     }
 
     pub fn move_cursor(&mut self, delta: isize) {
@@ -273,6 +329,24 @@ pub fn split_words(line: &str) -> Vec<String> {
 }
 
 /// Quote a word so a shell reads it back as one argument.
+/// `path` with `.` and `..` worked out by hand, without asking the disk, so
+/// two spellings of one place compare equal.
+pub fn lexical(path: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for part in path.components() {
+        match part {
+            Component::CurDir => {}
+            Component::ParentDir
+                if matches!(out.components().next_back(), Some(Component::Normal(_))) =>
+            {
+                out.pop();
+            }
+            other => out.push(other),
+        }
+    }
+    out
+}
+
 pub fn quote(word: &str) -> String {
     let safe = |c: char| c.is_ascii_alphanumeric() || "_-+=:,./@%".contains(c);
     if !word.is_empty() && word.chars().all(safe) {

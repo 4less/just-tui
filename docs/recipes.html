@@ -69,6 +69,12 @@ per parameter, with each default shown beside its row. Leave a row empty to keep
 for any recipe — one without parameters gets a single free row for whatever should follow its
 name. <a href="demo/">Try it in the demo</a> on <code>simulate-reads</code>.</p>
 
+<p><kbd>Ctrl-o</kbd> on a row picks a path in the directory explorer instead of typing it. The
+explorer starts on the file the row names, read from the directory the recipe runs in (its
+module's directory, or its <code>working-directory</code>), and the chosen path is written
+relative to that directory — or in full, if it lies outside. In the free row, and in a
+<code>*</code>/<code>+</code> parameter, each pick is added as one more word.</p>
+
 <h2 id="variables">Variables</h2>
 
 <p><kbd>V</kbd> lists the variables of the module the selection is in. <kbd>Enter</kbd> on one opens

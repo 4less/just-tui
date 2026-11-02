@@ -336,7 +336,10 @@ fn ctrl_o_picks_a_path_for_the_form_and_esc_returns_to_it() {
     }
     app.handle_key(ctrl_o);
     assert_eq!(app.mode, Mode::Explorer);
-    assert_eq!(app.explorer.as_ref().unwrap().field, Some(Field::Each));
+    assert_eq!(
+        app.explorer.as_ref().unwrap().target,
+        crate::vars::PickFor::Submit(Field::Each)
+    );
 
     app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
     assert_eq!(app.mode, Mode::Submit, "esc goes back to the form");
