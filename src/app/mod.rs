@@ -15,7 +15,7 @@ use std::path::PathBuf;
 
 use ratatui::widgets::ListState;
 
-use crate::config::Configs;
+use crate::config::{Configs, Presets};
 use crate::editor::Editor;
 use crate::history::History;
 use crate::just::{self, Loaded};
@@ -29,7 +29,7 @@ use crate::vars::{Explorer, Overrides, VarsForm};
 
 pub use after::AfterPick;
 pub use jobs::{JobsView, LogKind, PendingAction};
-pub use recall::HistoryPick;
+pub use recall::{Choice, HistoryPick};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Pane {
@@ -139,6 +139,8 @@ pub struct App {
     /// [`Self::configs`] with the global library's state file.
     pub global_configs: Configs,
     pub global_run_args: RunArgs,
+    /// Named Slurm settings from the global library, for every project.
+    pub presets: Presets,
     /// Variables set with `--set` on every run: the project's, and the
     /// global justfile's, kept with the global memory.
     pub overrides: Overrides,
@@ -205,6 +207,7 @@ impl App {
             global_dir: None,
             global_configs: Configs::default(),
             global_run_args: RunArgs::default(),
+            presets: Presets::default(),
             overrides,
             global_overrides: Overrides::default(),
             vars: None,
@@ -261,6 +264,11 @@ impl App {
         self.history = History::load(&base).with_global(self.global_dir.as_deref());
     }
 
+    /// Read the cluster presets from `dir`, the global library.
+    pub fn load_presets(&mut self, dir: Option<PathBuf>) {
+        self.presets = Presets::load(dir.as_deref());
+    }
+
     /// The global library's directory, when this source's memory lives there
     /// rather than with the project.
     pub fn global_home(&self, source: &Loaded) -> Option<&PathBuf> {
@@ -314,6 +322,7 @@ impl App {
         self.run_args = RunArgs::load(&self.project().working_dir);
         self.overrides = Overrides::load(&self.project().working_dir);
         self.set_global_dir(self.global_dir.clone());
+        self.load_presets(self.presets.dir.clone());
         self.refresh_form();
         self.info("reloaded");
     }

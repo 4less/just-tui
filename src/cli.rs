@@ -81,6 +81,7 @@ pub fn main() -> Result<()> {
     }
 
     let mut app = App::new(sources, cache);
+    app.load_presets(just::memory_dir());
     if !cli.no_global {
         app.set_global_dir(just::memory_dir());
     }

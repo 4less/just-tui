@@ -8,8 +8,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Clear, Paragraph};
 
 use super::{centered, overlay_block, pad, truncate};
-use crate::app::App;
-use crate::history::Record;
+use crate::app::{App, Choice};
 use crate::theme;
 
 /// The overlay takes what the terminal offers, up to this. Past runs of one
@@ -38,7 +37,7 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
     let rest = inner.saturating_sub(FIXED + 2);
     let longest = records
         .iter()
-        .map(|record| shown(record, scoped).chars().count())
+        .map(|choice| columns(choice, scoped).what.chars().count())
         .max()
         .unwrap_or(0);
     // Never let the floor climb above the ceiling: on a narrow terminal
@@ -53,11 +52,11 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
         .enumerate()
         .skip(first)
         .take(ROWS)
-        .map(|(index, record)| row(record, index == pick.index, scoped, label, inner))
+        .map(|(index, choice)| row(choice, index == pick.index, scoped, label, inner))
         .collect();
 
     let title = match &pick.namepath {
-        Some(name) => format!(" Past submissions of {name} ({}) ", records.len()),
+        Some(name) => format!(" Settings for {name} ({}) ", records.len()),
         None => format!(" Past submissions ({}) ", records.len()),
     };
 
@@ -76,48 +75,85 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
 /// Columns before the two that flex: the cursor, the timestamp and the id.
 const FIXED: usize = 3 + 20 + 10;
 
-/// What tells one run of a recipe apart from the next. Inside a single
-/// recipe's history that is the arguments alone; across recipes it is the
-/// recipe as well.
-fn shown(record: &Record, scoped: bool) -> String {
-    let what = match scoped {
-        true => record.settings.args.trim().to_owned(),
-        false => record.label(),
-    };
-    match what.is_empty() {
-        true => "(no arguments)".to_owned(),
-        false => what,
+/// A row's text, column by column.
+struct Columns {
+    when: String,
+    id: String,
+    what: String,
+    /// `what` is a placeholder, drawn dim.
+    empty: bool,
+    settings: String,
+}
+
+/// What tells one row apart from the next. Inside a single recipe's history
+/// that is the arguments alone; across recipes it is the recipe as well; a
+/// preset is its name.
+fn columns(choice: &Choice, scoped: bool) -> Columns {
+    match choice {
+        Choice::Past(record) => {
+            let what = match scoped {
+                true => record.settings.args.trim().to_owned(),
+                false => record.label(),
+            };
+            Columns {
+                when: record.when.clone(),
+                id: record.job_id.clone(),
+                empty: what.is_empty(),
+                what: match what.is_empty() {
+                    true => "(no arguments)".to_owned(),
+                    false => what,
+                },
+                settings: record.asked_for(),
+            }
+        }
+        Choice::Preset(name, settings) => Columns {
+            when: "preset".to_owned(),
+            id: String::new(),
+            what: (*name).to_owned(),
+            empty: false,
+            settings: settings.asked_for(),
+        },
+        Choice::Other(record) => Columns {
+            when: record.when.clone(),
+            id: record.job_id.clone(),
+            what: format!("from {}", record.namepath),
+            empty: false,
+            settings: record.asked_for(),
+        },
     }
 }
 
-fn row(record: &Record, selected: bool, scoped: bool, label: usize, width: usize) -> Line<'static> {
-    let what = shown(record, scoped);
-    let empty = record.settings.args.trim().is_empty() && scoped;
+fn row(choice: &Choice, selected: bool, scoped: bool, label: usize, width: usize) -> Line<'static> {
+    let row = columns(choice, scoped);
     let settings = width.saturating_sub(FIXED + 2 + label);
+    let what_style = match choice {
+        _ if row.empty => theme::label(),
+        Choice::Past(_) => Style::default().fg(theme::RECIPE),
+        Choice::Preset(..) => Style::default().fg(theme::MATCH),
+        Choice::Other(_) => Style::default().fg(theme::MODULE),
+    };
+    let when_style = match choice {
+        Choice::Preset(..) => Style::default().fg(theme::MATCH),
+        _ => theme::label(),
+    };
 
     let mut spans = vec![
         Span::styled(
             if selected { " ▸ " } else { "   " },
             Style::default().fg(theme::ACCENT),
         ),
+        Span::styled(format!("{:<20}", truncate(&row.when, 19)), when_style),
         Span::styled(
-            format!("{:<20}", truncate(&record.when, 19)),
-            theme::label(),
-        ),
-        Span::styled(
-            format!("{:<10}", truncate(&record.job_id, 9)),
+            format!("{:<10}", truncate(&row.id, 9)),
             Style::default().fg(theme::VARIABLE),
         ),
         Span::styled(
-            format!("{:<label$}", truncate(&what, label)),
-            match empty {
-                true => theme::label(),
-                false => Style::default().fg(theme::RECIPE),
-            },
+            format!("{:<label$}", truncate(&row.what, label)),
+            what_style,
         ),
         Span::raw("  "),
         Span::styled(
-            truncate(&record.asked_for(), settings),
+            truncate(&row.settings, settings),
             Style::default().fg(theme::STRING),
         ),
     ];

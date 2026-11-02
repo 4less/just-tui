@@ -375,7 +375,11 @@ impl App {
     fn resolve_settings(&mut self, id: usize, namepath: &str) -> config::Resolved {
         let dirs = config::scope_dirs(&self.project().working_dir, &self.tree.module_dirs(id));
         let global = self.tree.nodes[id].global;
-        self.configs_for(global).resolve(&dirs, namepath)
+        let mut resolved = self.configs_for(global).resolve(&dirs, namepath);
+        if let Some(preset) = self.presets.fallback() {
+            resolved.fall_back_to(preset, "preset default");
+        }
+        resolved
     }
 
     /// Re-read the config files and refresh the open form from them.

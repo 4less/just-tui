@@ -44,6 +44,10 @@ pub const TEMPLATE: &str = "\
 
 pub const CONFIG_NAME: &str = ".just-tui-cluster-config";
 pub const STATE_NAME: &str = ".just-tui-cluster-state";
+/// Named settings in the global library, `~/.just-tui/cluster-presets`.
+pub const PRESETS_NAME: &str = "cluster-presets";
+/// The preset a recipe with no settings of its own starts from.
+pub const DEFAULT_PRESET: &str = "default";
 
 /// One parsed config file.
 #[derive(Debug, Clone, Default)]
@@ -181,8 +185,85 @@ pub struct Resolved {
 }
 
 impl Resolved {
+    /// Start from `settings` when nothing else had anything to say: no
+    /// config file in scope, and no earlier submission of the recipe.
+    pub fn fall_back_to(&mut self, settings: &Settings, label: &str) {
+        if !self.sources.is_empty() {
+            return;
+        }
+        overlay(&mut self.settings, settings, label, &mut self.origins);
+        self.sources.push(label.to_owned());
+    }
+
     pub fn origin(&self, field: Field) -> Option<&str> {
         self.origins.get(&field).map(String::as_str)
+    }
+}
+
+/// Named settings to start a form from, kept once for every project:
+///
+/// ```text
+/// [default]        # fills a recipe that has no settings of its own
+/// partition = compute
+/// time      = 04:00:00
+///
+/// [gpu]            # picked by hand, with F6 in the submit form
+/// partition = gpu
+/// gpus      = 1
+/// ```
+///
+/// Keys before any section belong to `[default]`. A preset is about the
+/// allocation, so a job name, arguments or task file in one are ignored.
+#[derive(Debug, Clone, Default)]
+pub struct Presets {
+    /// The directory the file is read from, so a reload reads it again.
+    pub dir: Option<PathBuf>,
+    pub named: BTreeMap<String, Settings>,
+}
+
+impl Presets {
+    pub fn load(dir: Option<&Path>) -> Self {
+        let Some(dir) = dir else {
+            return Self::default();
+        };
+        let path = dir.join(PRESETS_NAME);
+        let mut named = BTreeMap::new();
+        if let Ok(text) = crate::world::read(&path) {
+            let file = ConfigFile::parse(&path, &text);
+            if file.defaults != Settings::default() {
+                named.insert(DEFAULT_PRESET.to_owned(), file.defaults.clone());
+            }
+            for (name, settings) in file.recipes {
+                let mut merged = named.remove(&name).unwrap_or_default();
+                let mut ignored = Origins::new();
+                overlay(&mut merged, &settings, "", &mut ignored);
+                named.insert(name, merged);
+            }
+        }
+        for settings in named.values_mut() {
+            for field in [Field::Name, Field::Args, Field::Each] {
+                settings.get_mut(field).clear();
+            }
+        }
+        Self {
+            dir: Some(dir.to_path_buf()),
+            named,
+        }
+    }
+
+    pub fn fallback(&self) -> Option<&Settings> {
+        self.named.get(DEFAULT_PRESET)
+    }
+
+    /// `default` first, then the rest by name.
+    pub fn ordered(&self) -> Vec<(&str, &Settings)> {
+        let mut presets: Vec<_> = self
+            .named
+            .iter()
+            .map(|(name, settings)| (name.as_str(), settings))
+            .collect();
+        presets.sort_by_key(|(name, _)| *name != DEFAULT_PRESET);
+        presets
     }
 }
 

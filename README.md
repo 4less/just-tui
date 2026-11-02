@@ -512,8 +512,11 @@ the time, the exact `sbatch` line, and every field the form held. Unlike
 any config file, this file forgets nothing.
 
 - `H` lists every past submission; `Enter` loads one back into the submit form.
-- `F6` in the form lists only that recipe's past runs — and since the title already names the
-  recipe, those rows show the **arguments** instead, which is what tells two runs apart.
+- `F6` in the form lists that recipe's past runs first — and since the title already names the
+  recipe, those rows show the **arguments** instead, which is what tells two runs apart. Below
+  them come your [presets](#presets-just-tuicluster-presets), then what **other recipes** were
+  submitted with, newest first and each allocation once. Taking another recipe's settings or a
+  preset changes only the allocation: this recipe's arguments, task file and job name stay.
 - `u` in the job browser jumps from a job straight to the settings it ran with.
 
 So a job that failed three weeks ago can be found, read, and resubmitted with one field
@@ -540,6 +543,7 @@ The state file alone also carries `skip`, the chain rows left unchecked last tim
 Precedence, weakest first — **the nearer config always wins**, and every config beats the
 automatically recorded state:
 
+0. the `[default]` preset, only when nothing below says anything for this recipe
 1. what that recipe was last submitted with (`.just-tui-cluster-state`)
 2. `~/.just-tui-cluster-config`
 3. `<justfile dir>/.just-tui-cluster-config`
@@ -551,6 +555,28 @@ So a module setting `partition = bigmem` overrides the project's `partition = ge
 every recipe in that module — and editing a config immediately overrides what you last
 submitted with. The state file only fills in fields no config sets. The form shows where the
 selected field's value came from, next to it.
+
+### Presets: `~/.just-tui/cluster-presets`
+
+Named settings kept once for every project, in the same format:
+
+```ini
+[default]        # a recipe with no settings of its own starts from this
+partition = compute
+time      = 04:00:00
+mem       = 8G
+
+[gpu]            # picked by hand with F6 in the form
+partition = gpu
+gpus      = 1
+mem       = 64G
+```
+
+`[default]` fills the form only for a recipe that has never been submitted and that no
+config file mentions; the form then says `from preset default`. Every preset, `[default]`
+included, can be picked with `F6`, and sets only the fields it names — so `[gpu]` adds a GPU
+to whatever else the form holds. Keys before any section count as `[default]`; `name`,
+`args` and `each` are ignored in a preset.
 
 ### Editing configs from the TUI
 
@@ -566,7 +592,7 @@ selected field's value came from, next to it.
 | `F3` | write them as **project** defaults |
 | `F4` | write them as a `[recipe]` section, for this recipe only |
 | `F5` | pick a scope and open its config in `$EDITOR` (created from a template if absent) |
-| `F6` | past submissions of this recipe, to load one back |
+| `F6` | past submissions of this recipe, then presets and other recipes' settings |
 | `F7` | tick running or pending jobs this one waits on (`--dependency=afterok`) |
 
 Saving or editing re-reads the files at once, so the form updates in place.

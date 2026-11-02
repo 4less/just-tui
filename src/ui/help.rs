@@ -19,7 +19,7 @@ const KEYS: &[(&str, &str)] = &[
     ("←→ ^u", "in the form: move the caret, clear a field"),
     (
         "F6 / F7",
-        "in the form: past submissions, wait on queued jobs",
+        "in the form: recall settings, wait on queued jobs",
     ),
     (
         "space / a / n / f",
