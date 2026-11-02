@@ -17,6 +17,7 @@ const KEYS: &[(&str, &str)] = &[
     ("r", "run the selected recipe"),
     ("s", "submit to Slurm (sbatch)"),
     ("←→ ^u", "in the form: move the caret, clear a field"),
+    ("^o", "in a form: pick a path in the directory explorer"),
     (
         "F6 / F7",
         "in the form: past submissions, wait on queued jobs",

@@ -64,6 +64,12 @@ parameter, with each default shown beside its row. Leave a row empty to keep its
 so the form opens the way you left it. `a` opens the form for any recipe — one without
 parameters gets a single free row for whatever should follow its name.
 
+`Ctrl-o` on a row picks a path in the directory explorer instead of typing it. The explorer
+starts on the file the row names, read from the directory the recipe runs in (its module's
+directory, or its `working-directory`), and the chosen path is written relative to that
+directory — or in full, if it lies outside. In the free row, and in a `*`/`+` parameter, each
+pick is added as one more word.
+
 ### Variables
 
 `V` lists the variables of the module the selection is in. `Enter` on one opens a

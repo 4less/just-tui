@@ -40,7 +40,7 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
                 true => format!(" Dry run {target} "),
                 false => format!(" Run {target} "),
             },
-            " ↑↓ field · del clear · ⏎ run · esc cancel ",
+            " ↑↓ field · ^o pick path · del clear · ⏎ run · esc cancel ",
             theme::MODULE,
         )),
         popup,

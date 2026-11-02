@@ -8,7 +8,9 @@ use crate::input::{KeyCode, KeyEvent, KeyModifiers};
 use crate::just::Loaded;
 use crate::model::Justfile;
 use crate::tree::Kind;
-use crate::vars::{Explorer, ExplorerFocus, Overrides, VarRow, VarsForm, join, variable_keys};
+use crate::vars::{
+    Explorer, ExplorerFocus, Overrides, PickFor, VarRow, VarsForm, join, variable_keys,
+};
 use serde_json::Value;
 
 impl App {
@@ -184,9 +186,10 @@ impl App {
         };
         match key.code {
             KeyCode::Esc | KeyCode::Char('q') => {
-                self.mode = match explorer.field {
-                    Some(_) => Mode::Submit,
-                    None => Mode::Vars,
+                self.mode = match explorer.target {
+                    PickFor::Variable => Mode::Vars,
+                    PickFor::Submit(_) => Mode::Submit,
+                    PickFor::Param { .. } => Mode::Args,
                 };
                 self.explorer = None;
             }
@@ -247,7 +250,7 @@ impl App {
             crate::vars::qwe_pins(),
             form.global,
         );
-        explorer.field = Some(field);
+        explorer.target = PickFor::Submit(field);
         if let Some(focus) = focus {
             explorer.focus_on(&focus);
         }
@@ -262,16 +265,63 @@ impl App {
             return;
         };
         let chosen = path.unwrap_or_else(|| explorer.choice());
-        if let Some(field) = explorer.field {
-            self.mode = Mode::Submit;
-            let is_dir = crate::world::is_dir(&chosen);
-            if let Some(form) = self.form.as_mut() {
-                form.set_path(field, &chosen, is_dir);
+        match explorer.target {
+            PickFor::Submit(field) => {
+                self.mode = Mode::Submit;
+                let is_dir = crate::world::is_dir(&chosen);
+                if let Some(form) = self.form.as_mut() {
+                    form.set_path(field, &chosen, is_dir);
+                }
             }
-            return;
+            PickFor::Param { row, base } => {
+                self.mode = Mode::Args;
+                if let Some(form) = self.params.as_mut() {
+                    form.set_path(row, &chosen, &base);
+                }
+            }
+            PickFor::Variable => {
+                self.mode = Mode::Vars;
+                self.set_override(Some(chosen.display().to_string()));
+            }
         }
-        self.mode = Mode::Vars;
-        self.set_override(Some(chosen.display().to_string()));
+    }
+
+    /// The explorer, over the run form, picking a path for the row the
+    /// cursor is on. It starts on the file the row names, read from the
+    /// directory the recipe runs in.
+    pub(super) fn open_param_picker(&mut self) {
+        let Some(form) = self.params.as_ref() else {
+            return;
+        };
+        let base = self.run_dir();
+        let (dir, focus) = form.path_start(&base);
+        let row = form.cursor;
+        let mut explorer = Explorer::open(
+            form.params[row].name.clone(),
+            dir,
+            crate::vars::qwe_pins(),
+            false,
+        );
+        explorer.target = PickFor::Param { row, base };
+        if let Some(focus) = focus {
+            explorer.focus_on(&focus);
+        }
+        self.explorer = Some(explorer);
+        self.mode = Mode::Explorer;
+    }
+
+    /// Where the recipe about to run has its working directory: what a
+    /// relative path argument is read against.
+    fn run_dir(&self) -> PathBuf {
+        let source = self.selected_source();
+        if source.global {
+            return source.working_dir.clone();
+        }
+        self.run_target()
+            .zip(self.selected().map(|node| node.root_index))
+            .and_then(|(target, root)| self.tree.find_namepath(root, &target))
+            .and_then(|id| self.tree.recipe_dir(id))
+            .unwrap_or_else(|| source.working_dir.clone())
     }
 
     /// Store, or with `None` drop, the override for the selected variable,

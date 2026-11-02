@@ -507,6 +507,29 @@ impl Tree {
         chain
     }
 
+    /// The directory recipe `id` runs in: that of the justfile or module file
+    /// declaring it, joined with that file's `working-directory`, if set.
+    /// (just does not pass the setting on to submodules.)
+    pub fn recipe_dir(&self, id: usize) -> Option<PathBuf> {
+        let mut current = Some(id);
+        while let Some(node_id) = current {
+            let node = &self.nodes[node_id];
+            if node.kind == Kind::Module {
+                let dir = node.source.as_ref()?.parent()?.to_path_buf();
+                let set = node
+                    .settings
+                    .iter()
+                    .find(|(key, _)| key == "working-directory");
+                return Some(match set {
+                    Some((_, wd)) => crate::params::lexical(&dir.join(wd)),
+                    None => dir,
+                });
+            }
+            current = node.parent;
+        }
+        None
+    }
+
     /// Expand every module above `id`, so a node found by name can be shown.
     pub fn reveal(&mut self, id: usize) {
         let mut current = self.nodes[id].parent;
