@@ -23,6 +23,7 @@ const KEYS: &[(&str, &str)] = &[
         "in the form: recall settings, wait on queued jobs",
     ),
     ("F8", "in a chain link's form: same settings for the rest"),
+    ("F9", "in the form: presets, and infer them from Slurm"),
     (
         "space / a / n / f",
         "in the chain chooser: toggle, all, none, form",

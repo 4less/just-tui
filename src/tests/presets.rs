@@ -215,3 +215,87 @@ fn a_preset_only_sets_what_it_names() {
     assert_eq!(form.settings.mem, "32G");
     assert_eq!(form.settings.args, "bob");
 }
+
+fn presets_app(name: &str) -> (App, std::path::PathBuf) {
+    let dir = std::env::temp_dir().join(format!("just-tui-f9-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join(PRESETS_NAME), "# mine\n[bigmem]\nmem = 512G\n").unwrap();
+    let mut app = fixture_app();
+    app.load_presets(Some(dir.clone()));
+    form_on(&mut app, "hello");
+    (app, dir)
+}
+
+#[test]
+fn f9_lists_saved_presets_then_partitions_not_saved_yet() {
+    let (mut app, dir) = presets_app("list");
+    press(&mut app, KeyCode::F(9));
+    assert_eq!(app.mode, Mode::Presets);
+    let rows: Vec<(String, bool)> = app
+        .preset_rows()
+        .into_iter()
+        .map(|row| (row.name, row.inferred))
+        .collect();
+    assert_eq!(
+        rows,
+        [("bigmem".to_owned(), false), ("short".to_owned(), true)]
+    );
+
+    // Enter applies the saved one, setting only what it names.
+    app.form.as_mut().unwrap().settings.time = "01:00:00".into();
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(app.mode, Mode::Submit);
+    let form = app.form.as_ref().unwrap();
+    assert_eq!(form.settings.mem, "512G");
+    assert_eq!(form.settings.time, "01:00:00");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn i_saves_what_slurm_suggests_without_touching_the_rest() {
+    let (mut app, dir) = presets_app("infer");
+    press(&mut app, KeyCode::F(9));
+    press(&mut app, KeyCode::Char('i'));
+    let (message, _) = app.status.clone().unwrap();
+    assert!(
+        message.starts_with("this one is saved already"),
+        "{message}"
+    );
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Char('i'));
+
+    let text = std::fs::read_to_string(dir.join(PRESETS_NAME)).unwrap();
+    assert!(text.starts_with("# mine\n[bigmem]\nmem = 512G\n"), "{text}");
+    assert!(text.contains("[short]\npartition  = short\n"), "{text}");
+    assert!(app.preset_rows().iter().all(|row| !row.inferred));
+    press(&mut app, KeyCode::Char('I'));
+    assert!(
+        app.status
+            .as_ref()
+            .unwrap()
+            .0
+            .starts_with("nothing to infer")
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn e_opens_the_file_at_the_preset_creating_it_if_needed() {
+    let (mut app, dir) = presets_app("edit");
+    press(&mut app, KeyCode::F(9));
+    let action = app.handle_key(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::NONE));
+    let crate::app::Action::Edit { path, line } = action else {
+        panic!("an edit");
+    };
+    assert_eq!(path, dir.join(PRESETS_NAME));
+    assert_eq!(line, 2, "the [bigmem] section");
+
+    std::fs::remove_file(dir.join(PRESETS_NAME)).unwrap();
+    app.load_presets(Some(dir.clone()));
+    let action = app.handle_key(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::NONE));
+    assert!(matches!(action, crate::app::Action::Edit { line: 1, .. }));
+    let text = std::fs::read_to_string(dir.join(PRESETS_NAME)).unwrap();
+    assert!(text.starts_with("# just-tui cluster presets"));
+    let _ = std::fs::remove_dir_all(&dir);
+}

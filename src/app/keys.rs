@@ -25,6 +25,7 @@ impl App {
             Mode::Vars => return self.handle_vars_key(key),
             Mode::Explorer => return self.handle_explorer_key(key),
             Mode::Edit => return self.handle_edit_key(key),
+            Mode::Presets => return self.handle_presets_key(key),
             Mode::Help => {
                 self.mode = Mode::Normal;
                 return Action::None;
@@ -328,6 +329,10 @@ impl App {
             }
             KeyCode::F(7) => {
                 self.open_after_pick();
+                return Action::None;
+            }
+            KeyCode::F(9) => {
+                self.open_presets();
                 return Action::None;
             }
             KeyCode::Left | KeyCode::Right => {

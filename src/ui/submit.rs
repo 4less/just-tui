@@ -56,12 +56,12 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
             };
             (
                 title,
-                " ↑↓ ←→ move · ⏎ accept · F8 same for the rest · F6 recall · F7 after · esc back to the chain ",
+                " ⏎ accept · F8 same for the rest · F6 recall · F9 presets · esc back to the chain ",
             )
         }
         None => (
             format!(" Submit {} to Slurm ", form.namepath),
-            " ↑↓ ←→ move · ^u clear · ⏎ submit · F2-F4 save · F5 edit · F6 recall · F7 after ",
+            " ↑↓ ←→ move · ⏎ submit · F2-F4 save · F5 edit · F6 recall · F7 after · F9 presets ",
         ),
     };
 

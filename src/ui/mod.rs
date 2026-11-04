@@ -5,6 +5,7 @@ mod doc;
 mod help;
 mod jobs;
 mod params;
+mod presets;
 mod recall;
 mod submit;
 mod tree;
@@ -70,11 +71,18 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .picker
         .as_ref()
         .is_some_and(|pick| pick.from == Mode::Submit);
-    if matches!(app.mode, Mode::Submit | Mode::ConfigPick | Mode::AfterPick) || over_submit {
+    if matches!(
+        app.mode,
+        Mode::Submit | Mode::ConfigPick | Mode::AfterPick | Mode::Presets
+    ) || over_submit
+    {
         submit::draw(frame, app, frame.area());
     }
     if app.mode == Mode::ConfigPick {
         submit::draw_config_pick(frame, app, frame.area());
+    }
+    if app.mode == Mode::Presets {
+        presets::draw(frame, app, frame.area());
     }
     if app.mode == Mode::AfterPick {
         submit::draw_after_pick(frame, app, frame.area());

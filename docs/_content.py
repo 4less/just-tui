@@ -399,6 +399,13 @@ gpus      = 1
 mem       = 64G
 ''')}
 
+<p><kbd>F9</kbd> in the submit form lists them, followed by a <code>slurm</code> row for every
+partition that has no preset of its name yet — its default time and memory, a GPU where its nodes
+have them, and your default account. <kbd>Enter</kbd> applies one, <kbd>e</kbd> opens the file in
+<code>$EDITOR</code> at that preset (creating it with an explanation the first time), <kbd>i</kbd>
+saves the <code>slurm</code> row under the cursor as a new section and <kbd>I</kbd> saves all of them.
+Saving appends, so what you wrote by hand stays as it was.</p>
+
 <p><code>[default]</code> fills the form only for a recipe that has never been submitted and that no
 config file mentions; the form then says <code>from preset default</code>. Every preset,
 <code>[default]</code> included, can be picked with <kbd>F6</kbd>, and sets only the fields it
@@ -417,6 +424,7 @@ ignored in a preset.</p>
 <tr><td><kbd>F6</kbd></td><td>past submissions of this recipe, then presets, partitions, and other recipes' settings</td></tr>
 <tr><td><kbd>F7</kbd></td><td>tick queued jobs this one waits on (<code>--dependency=afterok</code>)</td></tr>
 <tr><td><kbd>F8</kbd></td><td>in a chain link's form: the same allocation for every checked link after it</td></tr>
+<tr><td><kbd>F9</kbd></td><td>presets: apply one, edit the file, or save what Slurm suggests per partition</td></tr>
 </table>
 
 <h2 id="logs">Where logs go</h2>
@@ -766,6 +774,7 @@ KEYS = f"""
 <tr><td><kbd>F6</kbd></td><td>past submissions, presets, partitions, other recipes' settings</td></tr>
 <tr><td><kbd>F7</kbd></td><td>wait on running or pending jobs: <kbd>space</kbd> ticks, <kbd>Enter</kbd> keeps, <kbd>Esc</kbd> drops</td></tr>
 <tr><td><kbd>F8</kbd></td><td>in a chain link's form: same allocation for the rest of the chain</td></tr>
+<tr><td><kbd>F9</kbd></td><td>presets: <kbd>Enter</kbd> applies, <kbd>e</kbd> edits the file, <kbd>i</kbd> / <kbd>I</kbd> save what Slurm suggests</td></tr>
 <tr><td><kbd>Esc</kbd></td><td>close without submitting</td></tr>
 </table>
 

@@ -8,6 +8,7 @@ mod edit;
 mod jobs;
 mod keys;
 mod navigate;
+mod presets;
 mod recall;
 mod vars;
 
@@ -30,6 +31,7 @@ use crate::vars::{Explorer, Overrides, VarsForm};
 
 pub use after::AfterPick;
 pub use jobs::{JobsView, LogKind, PendingAction};
+pub use presets::{PresetPick, PresetRow};
 pub use recall::{Choice, HistoryPick};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,6 +88,8 @@ pub enum Mode {
     Explorer,
     /// Editing the selected recipe in the source pane.
     Edit,
+    /// The presets window over the submit form.
+    Presets,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -142,6 +146,8 @@ pub struct App {
     pub global_run_args: RunArgs,
     /// Named Slurm settings from the global library, for every project.
     pub presets: Presets,
+    /// The presets window, while it is open.
+    pub preset_pick: Option<PresetPick>,
     /// Allocations last set in any form, offered to every recipe.
     pub recent: Recent,
     /// Variables set with `--set` on every run: the project's, and the
@@ -211,6 +217,7 @@ impl App {
             global_configs: Configs::default(),
             global_run_args: RunArgs::default(),
             presets: Presets::default(),
+            preset_pick: None,
             recent: Recent::default(),
             overrides,
             global_overrides: Overrides::default(),

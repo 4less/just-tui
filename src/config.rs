@@ -50,6 +50,26 @@ pub const LAST_RUN: &str = "last run";
 pub const LAST_SET: &str = "last set";
 /// Named settings in the global library, `~/.just-tui/cluster-presets`.
 pub const PRESETS_NAME: &str = "cluster-presets";
+/// Written into a presets file that does not exist yet, so `$EDITOR` opens
+/// something explanatory rather than a blank buffer.
+pub const PRESETS_TEMPLATE: &str = "\
+# just-tui cluster presets, for every project. F9 in the submit form picks
+# one; i there adds what Slurm says about a partition as a new section.
+#
+# [default] fills the form of a recipe that has never been submitted and
+# that no .just-tui-cluster-config mentions. Any other section is a named
+# preset that sets only the fields it names.
+#
+# [default]
+# partition = general
+# time      = 04:00:00
+# mem       = 8G
+#
+# [gpu]
+# partition = gpu
+# gpus      = 1
+";
+
 /// The preset a recipe with no settings of its own starts from.
 pub const DEFAULT_PRESET: &str = "default";
 /// How a value the `[default]` preset supplied is labelled.
@@ -264,6 +284,22 @@ impl Presets {
             dir: Some(dir.to_path_buf()),
             named,
         }
+    }
+
+    /// Add sections to the end of `dir`'s presets file, leaving what is
+    /// already in it untouched.
+    pub fn append(dir: &Path, presets: &[(String, Settings)]) -> std::io::Result<()> {
+        let path = dir.join(PRESETS_NAME);
+        crate::world::create_dir_all(dir)?;
+        let mut text = crate::world::read(&path).unwrap_or_else(|_| PRESETS_TEMPLATE.to_owned());
+        for (name, settings) in presets {
+            if !text.ends_with("\n\n") {
+                text.push('\n');
+            }
+            let _ = writeln!(text, "[{name}]");
+            write_settings(&mut text, settings);
+        }
+        crate::world::write(&path, &text)
     }
 
     pub fn fallback(&self) -> Option<&Settings> {

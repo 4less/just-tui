@@ -581,6 +581,12 @@ gpus      = 1
 mem       = 64G
 ```
 
+`F9` in the submit form lists them, followed by a `slurm` row for every partition that has no
+preset of its name yet — its default time and memory, a GPU where its nodes have them, and your
+default account. `Enter` applies one, `e` opens the file in `$EDITOR` at that preset (creating
+it with an explanation the first time), `i` saves the `slurm` row under the cursor as a new
+section and `I` saves all of them. Saving appends, so what you wrote by hand stays as it was.
+
 `[default]` fills the form only for a recipe that has never been submitted and that no
 config file mentions; the form then says `from preset default`. Every preset, `[default]`
 included, can be picked with `F6`, and sets only the fields it names — so `[gpu]` adds a GPU
@@ -604,6 +610,7 @@ to whatever else the form holds. Keys before any section count as `[default]`; `
 | `F6` | past submissions of this recipe, then presets, partitions, and other recipes' settings |
 | `F7` | tick running or pending jobs this one waits on (`--dependency=afterok`) |
 | `F8` | in a chain link's form: the same allocation for every checked link after it |
+| `F9` | presets: apply one, edit the file, or save what Slurm suggests per partition |
 
 Saving or editing re-reads the files at once, so the form updates in place.
 
