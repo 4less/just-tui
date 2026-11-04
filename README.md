@@ -153,7 +153,7 @@ and opens with the same remembered settings in each. Hand-written
 | `H` | past submissions, to load old settings back |
 | `y` | copy the recipe source (OSC 52, works over ssh) |
 | `i` | edit the recipe right in the source pane: `Ctrl-s` saves, `Esc` cancels |
-| `o` | open the justfile at that line in `$EDITOR` |
+| `o` | open the justfile at that line in `$EDITOR` (nano when it is not set) |
 | `R` | reload |
 | `?` | help |
 | `q` | clear the search, then quit |

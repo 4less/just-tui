@@ -750,7 +750,7 @@ KEYS = f"""
 <tr><td><kbd>f</kbd></td><td>zoom the focused pane</td></tr>
 <tr><td><kbd>y</kbd></td><td>copy the recipe source (OSC 52, works over ssh)</td></tr>
 <tr><td><kbd>i</kbd></td><td>edit the recipe right in the source pane: <kbd>Ctrl-s</kbd> saves, <kbd>Esc</kbd> cancels</td></tr>
-<tr><td><kbd>o</kbd></td><td>open the justfile at that line in <code>$EDITOR</code></td></tr>
+<tr><td><kbd>o</kbd></td><td>open the justfile at that line in <code>$EDITOR</code> (nano when it is not set)</td></tr>
 <tr><td><kbd>R</kbd></td><td>reload</td></tr>
 <tr><td><kbd>s</kbd></td><td>submit the recipe to Slurm</td></tr>
 <tr><td><kbd>S</kbd></td><td>browse Slurm jobs, their usage and logs</td></tr>

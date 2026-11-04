@@ -116,7 +116,9 @@ pub fn run_just(
 pub fn edit(terminal: &mut DefaultTerminal, app: &mut App, path: &Path, line: usize) -> Result<()> {
     let editor = std::env::var("VISUAL")
         .or_else(|_| std::env::var("EDITOR"))
-        .unwrap_or_else(|_| "vi".to_owned());
+        .ok()
+        .filter(|editor| !editor.trim().is_empty())
+        .unwrap_or_else(fallback_editor);
 
     leave();
     let mut command = Command::new(&editor);
@@ -151,6 +153,18 @@ pub fn view(terminal: &mut DefaultTerminal, app: &mut App, path: &Path) -> Resul
         app.error(format!("could not launch {pager}: {err}"));
     }
     Ok(())
+}
+
+/// With neither `$VISUAL` nor `$EDITOR` set: nano, which shows its keys on
+/// screen, and `vi` only where nano is not installed.
+fn fallback_editor() -> String {
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    let nano = std::env::split_paths(&path).any(|dir| dir.join("nano").is_file());
+    match nano {
+        true => "nano",
+        false => "vi",
+    }
+    .to_owned()
 }
 
 /// Editors that understand `+42` as "start on line 42".
