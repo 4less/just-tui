@@ -5,7 +5,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::batch::{self, Plan};
-use crate::config::Resolved;
+use crate::config::{self, PRESET_DEFAULT, Resolved};
 use crate::slurm::{self, Cluster, Field, Settings};
 
 /// Which `.just-tui-cluster-config` a save from the form writes to.
@@ -140,6 +140,14 @@ impl SubmitForm {
         self.resolved = resolved;
         self.clamp_cursor();
         self.refresh_plan();
+    }
+
+    /// Whether the form asks for a different allocation than the config
+    /// chain gave it. Arguments are left out: a chain link opens with its
+    /// own, and they are not carried to the next submission anyway.
+    pub fn changed(&self) -> bool {
+        crate::recent::allocation(&self.settings)
+            != crate::recent::allocation(&self.resolved.settings)
     }
 
     /// Adopt settings from somewhere else — a past submission, say.
@@ -445,18 +453,25 @@ impl ChainRow {
         self.checked && !self.edited && !self.settings.configured()
     }
 
-    /// Where the settings stand: `edited`, `config`, `last run`, or nothing.
+    /// Where the settings stand: `edited`, `config`, `last run`, `last
+    /// set`, a preset, or nothing.
     pub fn status(&self) -> &'static str {
+        let remembered = [config::LAST_RUN, config::LAST_SET, PRESET_DEFAULT];
         if self.edited {
             return "edited";
         }
-        if self.resolved.sources.iter().any(|s| s != "last run") {
+        if self
+            .resolved
+            .sources
+            .iter()
+            .any(|s| !remembered.contains(&s.as_str()))
+        {
             return "config";
         }
-        if self.resolved.sources.iter().any(|s| s == "last run") {
-            return "last run";
-        }
-        "no settings"
+        remembered
+            .into_iter()
+            .find(|label| self.resolved.sources.iter().any(|s| s == label))
+            .unwrap_or("no settings")
     }
 }
 

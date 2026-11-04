@@ -366,7 +366,7 @@ time = 96:00:00
 
 <ol class="prose" start="0">
 <li>the <code>[default]</code> preset, only when nothing below says anything for this recipe</li>
-<li>what that recipe was last submitted with (<code>.just-tui-cluster-state</code>)</li>
+<li>what that recipe was last submitted with, or last set to in a form (<code>.just-tui-cluster-state</code>)</li>
 <li><code>~/.just-tui-cluster-config</code></li>
 <li><code>&lt;justfile dir&gt;/.just-tui-cluster-config</code></li>
 <li>each module directory's config, outermost first</li>
@@ -376,6 +376,12 @@ time = 96:00:00
 
 <p><strong>The nearer config always wins</strong>, and every config beats the automatically
 recorded state. The form shows where the selected field's value came from, beside it.</p>
+
+<p>The state file is written on submit, and also when you <strong>leave a form you changed</strong>
+without submitting — <kbd>Esc</kbd>, or <kbd>Enter</kbd> on a chain link — so the next form starts
+from it, labelled <code>last set</code> rather than <code>last run</code>. Every allocation set or
+submitted also goes to <code>~/.just-tui/.just-tui-cluster-recent</code>, the last 30, which is where
+<kbd>F6</kbd> finds other recipes' settings in any project.</p>
 
 <h3 id="presets">Presets: <code>~/.just-tui/cluster-presets</code></h3>
 
@@ -408,8 +414,9 @@ ignored in a preset.</p>
 <tr><td><kbd>F3</kbd></td><td>as <strong>project</strong> defaults</td></tr>
 <tr><td><kbd>F4</kbd></td><td>as a <code>[recipe]</code> section, this recipe only</td></tr>
 <tr><td><kbd>F5</kbd></td><td>pick a scope and open its config in <code>$EDITOR</code></td></tr>
-<tr><td><kbd>F6</kbd></td><td>past submissions of this recipe, then presets and other recipes' settings</td></tr>
+<tr><td><kbd>F6</kbd></td><td>past submissions of this recipe, then presets, partitions, and other recipes' settings</td></tr>
 <tr><td><kbd>F7</kbd></td><td>tick queued jobs this one waits on (<code>--dependency=afterok</code>)</td></tr>
+<tr><td><kbd>F8</kbd></td><td>in a chain link's form: the same allocation for every checked link after it</td></tr>
 </table>
 
 <h2 id="logs">Where logs go</h2>
@@ -696,9 +703,12 @@ by any config file, this one forgets nothing.</p>
 <li><kbd>H</kbd> lists every past submission; <kbd>Enter</kbd> loads one back into the form.</li>
 <li><kbd>F6</kbd> in the form lists that recipe's past runs first — and since the title already names
 the recipe, those rows show the <strong>arguments</strong>, which is what tells two runs apart. Below
-them come your <a href="#presets">presets</a>, then what <strong>other recipes</strong> were submitted
-with, newest first and each allocation once. Taking another recipe's settings or a preset changes
-only the allocation: this recipe's arguments, task file and job name stay.</li>
+them come your <a href="#presets">presets</a>, then a <code>cluster</code> row per partition (its name,
+the time and memory Slurm gives a job there by default, a GPU where its nodes have them, and your
+default account), then what <strong>other recipes</strong> were submitted with <em>or only set
+to</em> — <code>not sent</code> in the id column — newest first and each allocation once. Taking any
+of these changes only the allocation: this recipe's arguments, task file and job name stay; a preset
+or a partition row sets only the fields it names.</li>
 <li><kbd>u</kbd> in the job browser jumps from a job to the settings it ran with.</li>
 </ul>
 
@@ -753,8 +763,9 @@ KEYS = f"""
 <tr><td><kbd>Enter</kbd></td><td>submit</td></tr>
 <tr><td><kbd>F2</kbd> <kbd>F3</kbd> <kbd>F4</kbd></td><td>save as module / project / recipe defaults</td></tr>
 <tr><td><kbd>F5</kbd></td><td>open a config in <code>$EDITOR</code></td></tr>
-<tr><td><kbd>F6</kbd></td><td>past submissions, presets, other recipes' settings</td></tr>
+<tr><td><kbd>F6</kbd></td><td>past submissions, presets, partitions, other recipes' settings</td></tr>
 <tr><td><kbd>F7</kbd></td><td>wait on running or pending jobs: <kbd>space</kbd> ticks, <kbd>Enter</kbd> keeps, <kbd>Esc</kbd> drops</td></tr>
+<tr><td><kbd>F8</kbd></td><td>in a chain link's form: same allocation for the rest of the chain</td></tr>
 <tr><td><kbd>Esc</kbd></td><td>close without submitting</td></tr>
 </table>
 

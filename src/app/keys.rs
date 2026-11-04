@@ -299,8 +299,11 @@ impl App {
                 return Action::None;
             }
             KeyCode::Esc => {
-                self.form = None;
-                self.mode = Mode::Normal;
+                self.leave_form();
+                return Action::None;
+            }
+            KeyCode::F(8) if in_chain => {
+                self.apply_to_rest_of_chain();
                 return Action::None;
             }
             KeyCode::Enter if in_chain => {

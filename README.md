@@ -520,9 +520,12 @@ any config file, this file forgets nothing.
 - `H` lists every past submission; `Enter` loads one back into the submit form.
 - `F6` in the form lists that recipe's past runs first — and since the title already names the
   recipe, those rows show the **arguments** instead, which is what tells two runs apart. Below
-  them come your [presets](#presets-just-tuicluster-presets), then what **other recipes** were
-  submitted with, newest first and each allocation once. Taking another recipe's settings or a
-  preset changes only the allocation: this recipe's arguments, task file and job name stay.
+  them come your [presets](#presets-just-tuicluster-presets), then a `cluster` row per partition
+  (its name, the time and memory Slurm gives a job there by default, a GPU where its nodes have
+  them, and your default account), then what **other recipes** were submitted with *or only
+  set to* — `not sent` in the id column — newest first and each allocation once. Taking any of
+  these changes only the allocation: this recipe's arguments, task file and job name stay; a
+  preset or a partition row sets only the fields it names.
 - `u` in the job browser jumps from a job straight to the settings it ran with.
 
 So a job that failed three weeks ago can be found, read, and resubmitted with one field
@@ -550,7 +553,7 @@ Precedence, weakest first — **the nearer config always wins**, and every confi
 automatically recorded state:
 
 0. the `[default]` preset, only when nothing below says anything for this recipe
-1. what that recipe was last submitted with (`.just-tui-cluster-state`)
+1. what that recipe was last submitted with, or last set to in a form (`.just-tui-cluster-state`)
 2. `~/.just-tui-cluster-config`
 3. `<justfile dir>/.just-tui-cluster-config`
 4. each module directory's `.just-tui-cluster-config`, outermost first
@@ -598,14 +601,18 @@ to whatever else the form holds. Keys before any section count as `[default]`; `
 | `F3` | write them as **project** defaults |
 | `F4` | write them as a `[recipe]` section, for this recipe only |
 | `F5` | pick a scope and open its config in `$EDITOR` (created from a template if absent) |
-| `F6` | past submissions of this recipe, then presets and other recipes' settings |
+| `F6` | past submissions of this recipe, then presets, partitions, and other recipes' settings |
 | `F7` | tick running or pending jobs this one waits on (`--dependency=afterok`) |
+| `F8` | in a chain link's form: the same allocation for every checked link after it |
 
 Saving or editing re-reads the files at once, so the form updates in place.
 
 Submitting also records what was used in `.just-tui-cluster-state` (machine-written,
 gitignored) so the next submit starts where you left off — but only for fields no config
-file sets.
+file sets. So does **leaving a form you changed** without submitting — `Esc`, or `Enter` on a
+chain link — and the form then labels those values `last set` rather than `last run`. Every
+allocation set or submitted also goes to `~/.just-tui/.just-tui-cluster-recent`, the last 30,
+which is where `F6` finds other recipes' settings in any project.
 
 ## What the panes show
 

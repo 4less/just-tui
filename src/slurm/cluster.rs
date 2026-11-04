@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use super::{Field, format_mem, format_time, parse_mem, parse_time};
+use super::{Field, Settings, format_mem, format_time, parse_mem, parse_time};
 
 /// How long any one Slurm query may take before it is given up on.
 const QUERY_TIMEOUT: Duration = Duration::from_secs(4);
@@ -19,6 +19,8 @@ pub struct Partition {
     pub state: String,
     pub max_time: Option<u64>,
     pub default_time: Option<u64>,
+    /// What a job gets when it asks for no memory: `DefMemPerNode`, in MB.
+    pub default_mem_mb: Option<u64>,
     /// Memory on the largest node in the partition, in MB.
     pub max_mem_mb: Option<u64>,
     /// CPUs on the largest node in the partition.
@@ -64,6 +66,8 @@ impl Partition {
 pub struct Cluster {
     pub partitions: Vec<Partition>,
     pub accounts: Vec<String>,
+    /// The account Slurm charges when none is named.
+    pub default_account: Option<String>,
     pub qos: Vec<String>,
     pub detected: bool,
     pub note: Option<String>,
@@ -116,6 +120,7 @@ impl Cluster {
         }
 
         cluster.accounts = detect_accounts();
+        cluster.default_account = detect_default_account();
         cluster.qos = detect_qos();
 
         // A partition may restrict which of them are usable.
@@ -142,6 +147,39 @@ impl Cluster {
             .iter()
             .find(|p| p.is_default)
             .or_else(|| self.partitions.first())
+    }
+
+    /// A starting point per usable partition, from what Slurm says about
+    /// it: its name, the time and memory a job gets there when it asks for
+    /// none, a GPU where its nodes have them, and the default account.
+    /// These are the cluster's defaults, not a judgement of what a job needs.
+    pub fn profiles(&self) -> Vec<(String, Settings)> {
+        let mut partitions: Vec<&Partition> = self
+            .partitions
+            .iter()
+            .filter(|p| p.state.is_empty() || p.state.eq_ignore_ascii_case("UP"))
+            .collect();
+        partitions.sort_by_key(|p| !p.is_default);
+        partitions
+            .into_iter()
+            .map(|partition| {
+                let mut settings = Settings {
+                    partition: partition.name.clone(),
+                    account: self.default_account.clone().unwrap_or_default(),
+                    ..Default::default()
+                };
+                if let Some(minutes) = partition.default_time {
+                    settings.time = format_time(minutes);
+                }
+                if let Some(mb) = partition.default_mem_mb {
+                    settings.mem = format_mem(mb);
+                }
+                if partition.gres.iter().any(|gres| gres.contains("gpu")) {
+                    settings.gpus = "1".to_owned();
+                }
+                (partition.name.clone(), settings)
+            })
+            .collect()
     }
 
     pub fn partition_names(&self) -> Vec<String> {
@@ -178,6 +216,26 @@ fn detect_accounts() -> Vec<String> {
     dedup(raw.unwrap_or_default().lines().map(str::trim))
 }
 
+fn detect_default_account() -> Option<String> {
+    let user = crate::world::user();
+    if user.is_empty() {
+        return None;
+    }
+    let raw = capture(
+        "sacctmgr",
+        &[
+            "--noheader",
+            "--parsable2",
+            "show",
+            "user",
+            &user,
+            "format=defaultaccount",
+        ],
+    )?;
+    let account = raw.lines().next()?.trim();
+    (!account.is_empty() && account != "(null)").then(|| account.to_owned())
+}
+
 fn detect_qos() -> Vec<String> {
     let raw = capture(
         "sacctmgr",
@@ -197,7 +255,7 @@ fn dedup<'a>(items: impl Iterator<Item = &'a str>) -> Vec<String> {
 }
 
 /// `PartitionName=x Key=Value …` — one line per partition.
-fn parse_partition(line: &str) -> Option<Partition> {
+pub(crate) fn parse_partition(line: &str) -> Option<Partition> {
     let mut fields: BTreeMap<&str, &str> = BTreeMap::new();
     for token in line.split_whitespace() {
         if let Some((key, value)) = token.split_once('=') {
@@ -212,6 +270,7 @@ fn parse_partition(line: &str) -> Option<Partition> {
         state: fields.get("State").unwrap_or(&"").to_string(),
         max_time: fields.get("MaxTime").and_then(|v| parse_time(v)),
         default_time: fields.get("DefaultTime").and_then(|v| parse_time(v)),
+        default_mem_mb: fields.get("DefMemPerNode").and_then(|v| parse_mem(v)),
         max_mem_mb: fields.get("MaxMemPerNode").and_then(|v| parse_mem(v)),
         node_cpus: fields
             .get("MaxCPUsPerNode")

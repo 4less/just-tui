@@ -113,12 +113,22 @@ fn columns(choice: &Choice, scoped: bool) -> Columns {
             empty: false,
             settings: settings.asked_for(),
         },
-        Choice::Other(record) => Columns {
-            when: record.when.clone(),
-            id: record.job_id.clone(),
-            what: format!("from {}", record.namepath),
+        Choice::Cluster(name, settings) => Columns {
+            when: "cluster".to_owned(),
+            id: String::new(),
+            what: name.clone(),
             empty: false,
-            settings: record.asked_for(),
+            settings: settings.asked_for(),
+        },
+        Choice::Other(other) => Columns {
+            when: other.when.to_owned(),
+            id: match other.job_id.is_empty() {
+                true => "not sent".to_owned(),
+                false => other.job_id.to_owned(),
+            },
+            what: format!("from {}", other.namepath),
+            empty: false,
+            settings: other.settings.asked_for(),
         },
     }
 }
@@ -130,10 +140,12 @@ fn row(choice: &Choice, selected: bool, scoped: bool, label: usize, width: usize
         _ if row.empty => theme::label(),
         Choice::Past(_) => Style::default().fg(theme::RECIPE),
         Choice::Preset(..) => Style::default().fg(theme::MATCH),
+        Choice::Cluster(..) => Style::default().fg(theme::ATTRIBUTE),
         Choice::Other(_) => Style::default().fg(theme::MODULE),
     };
     let when_style = match choice {
         Choice::Preset(..) => Style::default().fg(theme::MATCH),
+        Choice::Cluster(..) => Style::default().fg(theme::ATTRIBUTE),
         _ => theme::label(),
     };
 

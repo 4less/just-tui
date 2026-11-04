@@ -16,8 +16,8 @@
 //! always overrides the project, which overrides the home file. Nothing is
 //! inferred from the justfile itself.
 
-use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -44,10 +44,16 @@ pub const TEMPLATE: &str = "\
 
 pub const CONFIG_NAME: &str = ".just-tui-cluster-config";
 pub const STATE_NAME: &str = ".just-tui-cluster-state";
+/// How the state file's settings are labelled in the form: submitted, or
+/// only set in a form and left.
+pub const LAST_RUN: &str = "last run";
+pub const LAST_SET: &str = "last set";
 /// Named settings in the global library, `~/.just-tui/cluster-presets`.
 pub const PRESETS_NAME: &str = "cluster-presets";
 /// The preset a recipe with no settings of its own starts from.
 pub const DEFAULT_PRESET: &str = "default";
+/// How a value the `[default]` preset supplied is labelled.
+pub const PRESET_DEFAULT: &str = "preset default";
 
 /// One parsed config file.
 #[derive(Debug, Clone, Default)]
@@ -60,6 +66,9 @@ pub struct ConfigFile {
     /// `skip = a, b` under a section: the links of that recipe's chain that
     /// were left unchecked last time. Only the state file writes it.
     pub skips: BTreeMap<String, Vec<String>>,
+    /// `unsent = yes` under a section: the settings were set in a form but
+    /// not submitted. Only the state file writes it.
+    pub unsent: BTreeSet<String>,
 }
 
 impl ConfigFile {
@@ -86,6 +95,12 @@ impl ConfigFile {
             if key.trim() == "skip" {
                 if let Some(name) = &section {
                     file.skips.insert(name.clone(), split_list(&value));
+                }
+                continue;
+            }
+            if key.trim() == "unsent" {
+                if let Some(name) = &section {
+                    file.unsent.insert(name.clone());
                 }
                 continue;
             }
@@ -336,8 +351,14 @@ impl Configs {
         if let Some(mut last) = self.state.recipes.get(namepath).cloned() {
             last.get_mut(Field::Each).clear();
             last.get_mut(Field::Args).clear();
-            overlay(&mut settings, &last, "last run", &mut origins);
-            sources.push("last run".to_owned());
+            let label = match self.state.unsent.contains(namepath) {
+                true => LAST_SET,
+                false => LAST_RUN,
+            };
+            if last != Settings::default() {
+                overlay(&mut settings, &last, label, &mut origins);
+                sources.push(label.to_owned());
+            }
         }
 
         for dir in dirs {
@@ -363,6 +384,17 @@ impl Configs {
         self.state
             .recipes
             .insert(namepath.to_owned(), settings.clone());
+        self.state.unsent.remove(namepath);
+        self.write_state()
+    }
+
+    /// Remember what a recipe's form was left holding, though it was not
+    /// submitted: the next form for it starts from there all the same.
+    pub fn remember_set(&mut self, namepath: &str, settings: &Settings) -> std::io::Result<()> {
+        self.state
+            .recipes
+            .insert(namepath.to_owned(), settings.clone());
+        self.state.unsent.insert(namepath.to_owned());
         self.write_state()
     }
 
@@ -393,7 +425,7 @@ impl Configs {
 
     fn write_state(&self) -> std::io::Result<()> {
         let mut text = String::from(
-            "# just-tui: settings each recipe was last submitted with.\n\
+            "# just-tui: settings each recipe was last submitted with, or set to.\n\
              # Written automatically — edit .just-tui-cluster-config instead.\n",
         );
         for (name, settings) in &self.state.recipes {
@@ -401,6 +433,9 @@ impl Configs {
             write_settings(&mut text, settings);
             if let Some(skipped) = self.state.skips.get(name) {
                 let _ = writeln!(text, "{:<10} = {}", "skip", skipped.join(", "));
+            }
+            if self.state.unsent.contains(name) {
+                let _ = writeln!(text, "{:<10} = yes", "unsent");
             }
         }
         crate::world::write(&self.state_path, &text)

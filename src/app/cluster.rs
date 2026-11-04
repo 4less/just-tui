@@ -164,13 +164,91 @@ impl App {
         self.mode = Mode::Submit;
     }
 
-    /// Back from a row's form to the chooser, keeping nothing typed there.
+    /// Back from a row's form to the chooser. What was changed there stays
+    /// with the row, and is remembered for the recipe.
     pub fn leave_chain_step(&mut self) {
-        if let Some(chain) = self.chain.as_mut() {
-            chain.step = None;
+        let form = self.form.take();
+        if let Some(form) = form.as_ref() {
+            self.remember_if_changed(form);
         }
-        self.form = None;
+        if let Some(chain) = self.chain.as_mut() {
+            let row = chain.step.and_then(|i| chain.rows.get(i));
+            let kept = form.filter(|form| {
+                row.is_some_and(|row| row.settings != form.settings || row.after != form.after)
+            });
+            match kept {
+                Some(form) => chain.accept(form.settings, form.after),
+                None => chain.step = None,
+            }
+        }
         self.mode = Mode::Chain;
+    }
+
+    /// Esc on a lone form: gone, but what was set in it is remembered.
+    pub fn leave_form(&mut self) {
+        if let Some(form) = self.form.take() {
+            self.remember_if_changed(&form);
+        }
+        self.mode = Mode::Normal;
+    }
+
+    /// A form left holding something other than what it opened with is
+    /// remembered as the recipe's last set values, and its allocation is
+    /// offered to every other recipe.
+    fn remember_if_changed(&mut self, form: &SubmitForm) {
+        if !form.changed() {
+            return;
+        }
+        let saved = self
+            .configs_for(form.global)
+            .remember_set(&form.namepath, &form.settings)
+            .and_then(|()| self.recent.add(&form.namepath, &form.settings, ""));
+        if let Err(err) = saved {
+            self.error(format!("could not remember the settings: {err}"));
+        }
+    }
+
+    /// F8 in a chain row's form: these resources for this row and every
+    /// checked row after it, keeping each one's arguments and task file.
+    pub fn apply_to_rest_of_chain(&mut self) {
+        let Some(form) = self.form.as_ref() else {
+            return;
+        };
+        let allocation = crate::recent::allocation(&form.settings);
+        let Some(chain) = self.chain.as_mut() else {
+            return;
+        };
+        let step = chain.step.unwrap_or(0);
+        let mut changed = Vec::new();
+        for row in chain
+            .rows
+            .iter_mut()
+            .skip(step + 1)
+            .filter(|row| row.checked)
+        {
+            for field in slurm::FIELDS {
+                if !matches!(
+                    field,
+                    slurm::Field::Name | slurm::Field::Args | slurm::Field::Each
+                ) {
+                    *row.settings.get_mut(field) = allocation.get(field).to_owned();
+                }
+            }
+            row.edited = true;
+            changed.push((row.link.namepath.clone(), row.settings.clone(), row.global));
+        }
+        for (namepath, settings, global) in &changed {
+            if let Err(err) = self.configs_for(*global).remember_set(namepath, settings) {
+                self.error(format!("could not remember the settings: {err}"));
+            }
+        }
+        self.accept_chain_step();
+        if self.form.is_none() {
+            self.info(format!(
+                "these settings for this link and {} more",
+                changed.len()
+            ));
+        }
     }
 
     /// Enter on a row's form: keep its values and move on to the next row
@@ -186,6 +264,10 @@ impl App {
             return;
         };
         let step = chain.step.unwrap_or(0);
+        self.remember_if_changed(&form);
+        let Some(chain) = self.chain.as_mut() else {
+            return;
+        };
         chain.accept(form.settings, form.after);
         match chain.next_needing_form(step + 1) {
             Some(next) => self.open_chain_step(next),
@@ -366,6 +448,7 @@ impl App {
         };
         self.configs_for(row.global)
             .remember(namepath, settings)
+            .and_then(|()| self.recent.add(namepath, settings, &job_id))
             .and_then(|()| self.history.append(record))
             .map_err(|err| format!("queued as {job_id}, but could not save settings: {err}"))?;
         Ok(job_id)
@@ -377,7 +460,7 @@ impl App {
         let global = self.tree.nodes[id].global;
         let mut resolved = self.configs_for(global).resolve(&dirs, namepath);
         if let Some(preset) = self.presets.fallback() {
-            resolved.fall_back_to(preset, "preset default");
+            resolved.fall_back_to(preset, config::PRESET_DEFAULT);
         }
         resolved
     }
@@ -478,6 +561,7 @@ impl App {
                 let saved = self
                     .configs_for(form.global)
                     .remember(&form.namepath, &form.settings)
+                    .and_then(|()| self.recent.add(&form.namepath, &form.settings, &job_id))
                     .and_then(|()| self.history.append(record));
                 match saved {
                     Ok(()) => self.info(match tasks {

@@ -775,3 +775,51 @@ fn the_job_names_the_justfile_before_the_recipe() {
         "just --justfile '/home/u/my lib/git.just' --no-deps st"
     );
 }
+
+#[test]
+fn f8_gives_the_rest_of_the_chain_the_same_allocation() {
+    let dir = std::env::temp_dir().join(format!("just-tui-chain-f8-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut app = pipeline_app();
+    app.configs = crate::config::Configs::new(&dir);
+    app.open_submit();
+
+    // The walk starts on fetch; set it up once and hand it on.
+    app.handle_key(key(KeyCode::Enter));
+    assert_eq!(app.form.as_ref().unwrap().namepath, "fetch");
+    let form = app.form.as_mut().unwrap();
+    form.settings.mem = "64G".into();
+    form.settings.time = "12:00:00".into();
+    app.handle_key(key(KeyCode::F(8)));
+
+    assert_eq!(app.mode, Mode::ConfirmChain, "nothing is left to ask about");
+    let chain = app.chain.as_ref().unwrap();
+    for row in &chain.rows {
+        assert_eq!(row.settings.mem, "64G", "{}", row.link.namepath);
+        assert_eq!(row.settings.time, "12:00:00");
+    }
+    assert_eq!(
+        chain.rows[0].settings.args, "hg38",
+        "each keeps its arguments"
+    );
+    assert!(chain.rows[1].settings.args.is_empty());
+
+    // Every link remembers it, so the next chain starts there.
+    let mut configs = crate::config::Configs::new(&dir);
+    assert_eq!(configs.resolve(&[], "report").settings.mem, "64G");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn esc_from_a_links_form_keeps_what_was_changed() {
+    let mut app = pipeline_app();
+    app.open_submit();
+    app.handle_key(key(KeyCode::Enter));
+    app.form.as_mut().unwrap().settings.mem = "5G".into();
+    app.handle_key(key(KeyCode::Esc));
+    assert_eq!(app.mode, Mode::Chain);
+    let row = &app.chain.as_ref().unwrap().rows[0];
+    assert_eq!(row.settings.mem, "5G");
+    assert!(row.edited);
+}

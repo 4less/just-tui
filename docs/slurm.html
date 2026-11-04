@@ -95,7 +95,7 @@ time = 96:00:00</code></pre>
 
 <ol class="prose" start="0">
 <li>the <code>[default]</code> preset, only when nothing below says anything for this recipe</li>
-<li>what that recipe was last submitted with (<code>.just-tui-cluster-state</code>)</li>
+<li>what that recipe was last submitted with, or last set to in a form (<code>.just-tui-cluster-state</code>)</li>
 <li><code>~/.just-tui-cluster-config</code></li>
 <li><code>&lt;justfile dir&gt;/.just-tui-cluster-config</code></li>
 <li>each module directory's config, outermost first</li>
@@ -105,6 +105,12 @@ time = 96:00:00</code></pre>
 
 <p><strong>The nearer config always wins</strong>, and every config beats the automatically
 recorded state. The form shows where the selected field's value came from, beside it.</p>
+
+<p>The state file is written on submit, and also when you <strong>leave a form you changed</strong>
+without submitting — <kbd>Esc</kbd>, or <kbd>Enter</kbd> on a chain link — so the next form starts
+from it, labelled <code>last set</code> rather than <code>last run</code>. Every allocation set or
+submitted also goes to <code>~/.just-tui/.just-tui-cluster-recent</code>, the last 30, which is where
+<kbd>F6</kbd> finds other recipes' settings in any project.</p>
 
 <h3 id="presets">Presets: <code>~/.just-tui/cluster-presets</code></h3>
 
@@ -135,8 +141,9 @@ ignored in a preset.</p>
 <tr><td><kbd>F3</kbd></td><td>as <strong>project</strong> defaults</td></tr>
 <tr><td><kbd>F4</kbd></td><td>as a <code>[recipe]</code> section, this recipe only</td></tr>
 <tr><td><kbd>F5</kbd></td><td>pick a scope and open its config in <code>$EDITOR</code></td></tr>
-<tr><td><kbd>F6</kbd></td><td>past submissions of this recipe, then presets and other recipes' settings</td></tr>
+<tr><td><kbd>F6</kbd></td><td>past submissions of this recipe, then presets, partitions, and other recipes' settings</td></tr>
 <tr><td><kbd>F7</kbd></td><td>tick queued jobs this one waits on (<code>--dependency=afterok</code>)</td></tr>
+<tr><td><kbd>F8</kbd></td><td>in a chain link's form: the same allocation for every checked link after it</td></tr>
 </table>
 
 <h2 id="logs">Where logs go</h2>

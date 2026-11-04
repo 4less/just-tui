@@ -7,6 +7,8 @@ mod jobs;
 mod settings;
 mod units;
 
+#[cfg(test)]
+pub(crate) use cluster::parse_partition;
 pub use cluster::{Cluster, Partition};
 pub use command::{
     Submission, Waits, in_logs, job_name, log_dir, log_paths, log_stem, preview_command,

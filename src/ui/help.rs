@@ -22,6 +22,7 @@ const KEYS: &[(&str, &str)] = &[
         "F6 / F7",
         "in the form: recall settings, wait on queued jobs",
     ),
+    ("F8", "in a chain link's form: same settings for the rest"),
     (
         "space / a / n / f",
         "in the chain chooser: toggle, all, none, form",

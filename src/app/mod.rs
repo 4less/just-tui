@@ -20,6 +20,7 @@ use crate::editor::Editor;
 use crate::history::History;
 use crate::just::{self, Loaded};
 use crate::params::{ParamForm, RunArgs, quote};
+use crate::recent::Recent;
 use crate::slurm::Cluster;
 use crate::source::SourceCache;
 use crate::submit::{ChainForm, SubmitForm};
@@ -141,6 +142,8 @@ pub struct App {
     pub global_run_args: RunArgs,
     /// Named Slurm settings from the global library, for every project.
     pub presets: Presets,
+    /// Allocations last set in any form, offered to every recipe.
+    pub recent: Recent,
     /// Variables set with `--set` on every run: the project's, and the
     /// global justfile's, kept with the global memory.
     pub overrides: Overrides,
@@ -208,6 +211,7 @@ impl App {
             global_configs: Configs::default(),
             global_run_args: RunArgs::default(),
             presets: Presets::default(),
+            recent: Recent::default(),
             overrides,
             global_overrides: Overrides::default(),
             vars: None,
@@ -267,6 +271,11 @@ impl App {
     /// Read the cluster presets from `dir`, the global library.
     pub fn load_presets(&mut self, dir: Option<PathBuf>) {
         self.presets = Presets::load(dir.as_deref());
+    }
+
+    /// Keep the recently set allocations in `dir`, the global library.
+    pub fn load_recent(&mut self, dir: Option<PathBuf>) {
+        self.recent = Recent::load(dir.as_deref());
     }
 
     /// The global library's directory, when this source's memory lives there

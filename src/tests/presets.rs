@@ -62,6 +62,16 @@ fn open_picker(app: &mut App) {
     app.mode = Mode::History;
 }
 
+/// Move the picker's cursor to the first row `wanted` picks out.
+fn pick(app: &mut App, wanted: impl Fn(&Choice) -> bool) {
+    let index = app
+        .picked_entries()
+        .iter()
+        .position(wanted)
+        .expect("the row is offered");
+    app.picker.as_mut().unwrap().index = index;
+}
+
 fn form_on(app: &mut App, namepath: &str) {
     app.cluster = Some(test_cluster());
     assert!(app.select_namepath(namepath));
@@ -154,6 +164,7 @@ fn f6_lists_own_runs_then_presets_then_other_recipes_once_each() {
         .map(|choice| match choice {
             Choice::Past(r) => format!("past {}", r.job_id),
             Choice::Preset(name, _) => format!("preset {name}"),
+            Choice::Cluster(name, _) => format!("cluster {name}"),
             Choice::Other(r) => format!("other {}", r.job_id),
         })
         .collect();
@@ -174,6 +185,7 @@ fn another_recipes_settings_keep_this_recipes_arguments() {
     app.form.as_mut().unwrap().settings = settings(&[("args", "bob"), ("account", "lab")]);
 
     open_picker(&mut app);
+    pick(&mut app, |choice| matches!(choice, Choice::Other(_)));
     press(&mut app, KeyCode::Enter);
 
     assert_eq!(app.mode, Mode::Submit);

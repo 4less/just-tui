@@ -13,6 +13,7 @@ mod justfile;
 mod memory;
 mod params;
 mod presets;
+mod remembered;
 mod vars;
 
 use std::path::PathBuf;

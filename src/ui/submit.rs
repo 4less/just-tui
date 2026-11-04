@@ -56,7 +56,7 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
             };
             (
                 title,
-                " ↑↓ ←→ move · ^u clear · ⏎ accept · F2-F4 save · F7 after · esc back to the chain ",
+                " ↑↓ ←→ move · ⏎ accept · F8 same for the rest · F6 recall · F7 after · esc back to the chain ",
             )
         }
         None => (

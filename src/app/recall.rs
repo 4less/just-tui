@@ -1,9 +1,11 @@
 //! Reading past submissions back: the history picker, and loading one of its
 //! records into the submit form. Opened from the form, it also offers the
-//! cluster presets and what other recipes were submitted with.
+//! cluster presets, starting points read off the partitions, and what other
+//! recipes were submitted with or set to.
 
 use super::{App, Mode};
 use crate::history::Record;
+use crate::recent::allocation as resources;
 use crate::slurm::{Field, Settings};
 use crate::tree::Kind;
 
@@ -11,24 +13,40 @@ use crate::tree::Kind;
 const OTHERS: usize = 30;
 
 /// One row of the picker.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Choice<'a> {
     /// A submission of the recipe in the form, or of any recipe when the
     /// list is not limited to one.
     Past(&'a Record),
     /// A named preset from the global library.
     Preset(&'a str, &'a Settings),
-    /// What another recipe was submitted with: only its allocation carries.
-    Other(&'a Record),
+    /// A partition's own defaults, as Slurm reports them.
+    Cluster(String, Box<Settings>),
+    /// What another recipe was submitted with or set to: only its
+    /// allocation carries.
+    Other(Other<'a>),
 }
 
-/// The allocation alone: what may carry from one recipe to another.
-fn resources(settings: &Settings) -> Settings {
-    let mut settings = settings.clone();
-    for field in [Field::Name, Field::Args, Field::Each] {
-        settings.get_mut(field).clear();
+/// Another recipe's allocation, from the history or the recent list.
+#[derive(Debug, Clone, Copy)]
+pub struct Other<'a> {
+    pub namepath: &'a str,
+    pub when: &'a str,
+    /// The job it went out as; empty when it was only set.
+    pub job_id: &'a str,
+    pub settings: &'a Settings,
+    at: u64,
+}
+
+impl<'a> Choice<'a> {
+    fn settings(&self) -> &Settings {
+        match self {
+            Choice::Past(record) => &record.settings,
+            Choice::Preset(_, settings) => settings,
+            Choice::Cluster(_, settings) => settings,
+            Choice::Other(other) => other.settings,
+        }
     }
-    settings
 }
 
 /// Which past submissions are being browsed, and where the cursor is.
@@ -50,7 +68,9 @@ impl App {
         }
         if self.history_entries(namepath.as_deref()).is_empty() {
             self.error(match &namepath {
-                Some(_) => "no past submissions or presets yet".to_owned(),
+                Some(_) => {
+                    "nothing to offer yet: no past settings, presets or partitions".to_owned()
+                }
                 None => "nothing submitted from here yet".to_owned(),
             });
             return;
@@ -83,19 +103,45 @@ impl App {
                 .map(|(name, settings)| Choice::Preset(name, settings)),
         );
 
-        let mut seen: Vec<Settings> = entries
-            .iter()
-            .map(|choice| match choice {
-                Choice::Past(record) | Choice::Other(record) => resources(&record.settings),
-                Choice::Preset(_, settings) => resources(settings),
-            })
-            .collect();
-        let others = self
+        if let Some(cluster) = self.cluster.as_ref() {
+            entries.extend(
+                cluster
+                    .profiles()
+                    .into_iter()
+                    .map(|(name, settings)| Choice::Cluster(name, Box::new(settings))),
+            );
+        }
+
+        // Submitted or only set, newest first, whichever list it is in.
+        let mut others: Vec<Other> = self
             .history
             .recent()
-            .filter(|record| record.namepath != name)
-            .filter(|record| {
-                let allocation = resources(&record.settings);
+            .map(|record| Other {
+                namepath: &record.namepath,
+                when: &record.when,
+                job_id: &record.job_id,
+                settings: &record.settings,
+                at: record.at,
+            })
+            .chain(self.recent.entries().iter().map(|entry| Other {
+                namepath: &entry.namepath,
+                when: &entry.when,
+                job_id: &entry.job_id,
+                settings: &entry.settings,
+                at: entry.at,
+            }))
+            .filter(|other| other.namepath != name)
+            .collect();
+        others.sort_by_key(|other| std::cmp::Reverse(other.at));
+
+        let mut seen: Vec<Settings> = entries
+            .iter()
+            .map(|choice| resources(choice.settings()))
+            .collect();
+        let others = others
+            .into_iter()
+            .filter(|other| {
+                let allocation = resources(other.settings);
                 let fresh = allocation.configured() && !seen.contains(&allocation);
                 if fresh {
                     seen.push(allocation);
@@ -133,13 +179,13 @@ impl App {
         let Some(choice) = self
             .picker
             .as_ref()
-            .and_then(|pick| self.picked_entries().get(pick.index).copied())
+            .and_then(|pick| self.picked_entries().get(pick.index).cloned())
         else {
             return;
         };
         // Another recipe's allocation comes whole; a preset only sets what
         // it names, so `[gpu]` can add a GPU to the rest.
-        let whole = !matches!(choice, Choice::Preset(..));
+        let whole = matches!(choice, Choice::Past(_) | Choice::Other(_));
         let (record, carried, message) = match choice {
             Choice::Past(record) => (
                 Some(record.clone()),
@@ -152,10 +198,18 @@ impl App {
             Choice::Preset(name, settings) => {
                 (None, settings.clone(), format!("applied the {name} preset"))
             }
-            Choice::Other(record) => (
+            Choice::Cluster(name, settings) => (
                 None,
-                resources(&record.settings),
-                format!("took the settings {} ran with", record.namepath),
+                *settings,
+                format!("took the {name} partition's defaults"),
+            ),
+            Choice::Other(other) => (
+                None,
+                resources(other.settings),
+                match other.job_id.is_empty() {
+                    true => format!("took the settings {} was set to", other.namepath),
+                    false => format!("took the settings {} ran with", other.namepath),
+                },
             ),
         };
         self.picker = None;
