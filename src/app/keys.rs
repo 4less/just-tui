@@ -501,11 +501,9 @@ impl App {
         match key.code {
             KeyCode::Up | KeyCode::BackTab => form.move_cursor(-1),
             KeyCode::Down | KeyCode::Tab => form.move_cursor(1),
-            KeyCode::Delete => form.clear(),
-            KeyCode::Backspace => form.pop_char(),
-            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => form.clear(),
-            KeyCode::Char(c) => form.push_char(c),
-            _ => {}
+            _ => {
+                form.edit(key);
+            }
         }
         Action::None
     }

@@ -426,3 +426,43 @@ fn centered(area: Rect, width: u16, height: u16) -> Rect {
     area.centered_horizontally(Constraint::Length(width.min(area.width)))
         .centered_vertically(Constraint::Length(height.min(area.height)))
 }
+
+/// The value, with the character under the caret picked out. A value longer
+/// than its `width` columns scrolls, so the caret stays visible wherever it is.
+pub(super) fn caret_spans(value: &str, cursor: Option<usize>, width: usize) -> Vec<Span<'static>> {
+    let Some(cursor) = cursor else {
+        return vec![match value.is_empty() {
+            true => Span::styled(format!("{:<width$}", "—"), Style::default().fg(theme::DIM)),
+            false => Span::styled(
+                format!("{:<width$}", truncate(value, width)),
+                Style::default().fg(theme::STRING),
+            ),
+        }];
+    };
+
+    // Keep the caret in view: scroll only once it would fall off the end.
+    let chars: Vec<char> = value.chars().collect();
+    let first = (cursor + 1).saturating_sub(width);
+    let window: String = chars.iter().skip(first).take(width).collect();
+    let at = cursor - first;
+
+    let mut spans = Vec::new();
+    let shown: Vec<char> = window.chars().collect();
+    spans.push(Span::styled(
+        shown[..at.min(shown.len())].iter().collect::<String>(),
+        Style::default().fg(theme::STRING),
+    ));
+    // Past the end of the value the caret sits on a blank.
+    let under = shown.get(at).copied().unwrap_or(' ');
+    spans.push(Span::styled(
+        under.to_string(),
+        Style::default().bg(theme::ACCENT).fg(theme::BG),
+    ));
+    let rest: String = shown.iter().skip(at + 1).collect();
+    let used = at + 1 + rest.chars().count();
+    spans.push(Span::styled(
+        format!("{rest}{}", " ".repeat(width.saturating_sub(used))),
+        Style::default().fg(theme::STRING),
+    ));
+    spans
+}

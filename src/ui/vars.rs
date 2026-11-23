@@ -46,11 +46,8 @@ pub fn draw_vars(frame: &mut Frame, app: &App, area: Rect) {
             &row.overridden,
         ) {
             (Some(typed), _) => {
-                spans.push(Span::styled(
-                    typed.clone(),
-                    Style::default().fg(theme::STRING),
-                ));
-                spans.push(Span::styled("▏", Style::default().fg(theme::ACCENT)));
+                let room = inner.saturating_sub(3 + name_width + 2);
+                spans.extend(super::caret_spans(typed, Some(form.caret), room));
             }
             (None, Some(value)) => {
                 spans.push(Span::styled(
@@ -100,7 +97,7 @@ pub fn draw_vars(frame: &mut Frame, app: &App, area: Rect) {
         false => format!(" Variables of {} ", form.module),
     };
     let footer = match form.typing {
-        Some(_) => " ⏎ save · esc cancel · ^u clear ",
+        Some(_) => " ←→ caret · ⏎ save · esc cancel · ^u clear ",
         None => " ⏎ pick a path · e type · d reset · esc close ",
     };
     let popup = centered(area, width, lines.len() as u16 + 2);

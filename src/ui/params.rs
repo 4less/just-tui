@@ -14,6 +14,9 @@ use crate::theme;
 
 const WIDTH: u16 = 78;
 
+/// Columns a value gets before it scrolls under the caret.
+const VALUE: usize = 22;
+
 pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
     let Some(form) = app.params.as_ref() else {
         return;
@@ -40,7 +43,7 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
                 true => format!(" Dry run {target} "),
                 false => format!(" Run {target} "),
             },
-            " ↑↓ field · ^o pick path · del clear · ⏎ run · esc cancel ",
+            " ↑↓ field · ←→ caret · ^u clear · ^o pick path · ⏎ run · esc cancel ",
             theme::MODULE,
         )),
         popup,
@@ -67,15 +70,15 @@ pub fn row(
             format!("{:<10}", format!("{}{}", param.sigil(), param.name)),
             Style::default().fg(theme::VARIABLE),
         ),
-        match value.is_empty() {
-            true => Span::styled(format!("{:<22}", "—"), Style::default().fg(theme::DIM)),
-            false => Span::styled(format!("{value:<22}"), Style::default().fg(theme::STRING)),
-        },
-        Span::styled(
-            if selected { "▏" } else { " " },
-            Style::default().fg(theme::ACCENT),
-        ),
     ];
+    // The free row has no hints to make room for, so it takes the line.
+    let column = match form.free {
+        true => width.saturating_sub(14).max(VALUE),
+        false => VALUE,
+    };
+    let caret = selected.then_some(form.caret);
+    spans.extend(super::caret_spans(value, caret, column));
+    spans.push(Span::raw(" "));
 
     if selected && let Some(origin) = origin {
         spans.push(Span::styled(

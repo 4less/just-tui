@@ -62,7 +62,11 @@ just-tui --no-global     # project recipes only, without just's global justfile
 parameter, with each default shown beside its row. Leave a row empty to keep its default;
 `Enter` runs, `Esc` cancels. What you typed is remembered per recipe in `.just-tui-run-args`,
 so the form opens the way you left it. `a` opens the form for any recipe — one without
-parameters gets a single free row for whatever should follow its name.
+parameters gets a single free row for whatever should follow its name. Each row has a
+caret: `←` `→` move it (`Ctrl-←` `Ctrl-→` by word, `Home` `End` to the ends), typing goes in
+where it is, `Backspace` and `Del` delete around it, `Ctrl-w` takes a word and `Ctrl-u` the
+row. A long value scrolls to keep the caret in view. Typing a variable's value (`V`, then
+`e`) works the same way.
 
 `Ctrl-o` on a row picks a path in the directory explorer instead of typing it. The explorer
 starts on the file the row names, read from the directory the recipe runs in (its module's

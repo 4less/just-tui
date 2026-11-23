@@ -231,7 +231,12 @@ per parameter, with each default shown beside its row. Leave a row empty to keep
 <kbd>Enter</kbd> runs, <kbd>Esc</kbd> cancels. What you typed is remembered per recipe in
 <code>.just-tui-run-args</code>, so the form opens the way you left it. <kbd>a</kbd> opens the form
 for any recipe — one without parameters gets a single free row for whatever should follow its
-name. <a href="demo/">Try it in the demo</a> on <code>simulate-reads</code>.</p>
+name. Each row has a caret: <kbd>←</kbd> <kbd>→</kbd> move it (<kbd>Ctrl-←</kbd>
+<kbd>Ctrl-→</kbd> by word, <kbd>Home</kbd> <kbd>End</kbd> to the ends), typing goes in where it
+is, <kbd>Backspace</kbd> and <kbd>Del</kbd> delete around it, <kbd>Ctrl-w</kbd> takes a word and
+<kbd>Ctrl-u</kbd> the row. A long value scrolls to keep the caret in view. Typing a variable's
+value (<kbd>V</kbd>, then <kbd>e</kbd>) works the same way.
+<a href="demo/">Try it in the demo</a> on <code>simulate-reads</code>.</p>
 
 <p><kbd>Ctrl-o</kbd> on a row picks a path in the directory explorer instead of typing it. The
 explorer starts on the file the row names, read from the directory the recipe runs in (its

@@ -286,3 +286,46 @@ fn lexical_paths_resolve_dots_without_the_disk() {
     );
     assert_eq!(lexical(Path::new("../a/../b")), Path::new("../b"));
 }
+
+#[test]
+fn the_caret_moves_and_text_goes_in_where_it_is() {
+    let (mut app, base) = app_in("caret");
+    assert!(app.select_namepath("plain"));
+    app.handle_key(key(KeyCode::Char('a')));
+    type_text(&mut app, "x=1 tail");
+
+    // Back over `tail`, put a word in front of it.
+    for _ in 0..4 {
+        app.handle_key(key(KeyCode::Left));
+    }
+    type_text(&mut app, "mid ");
+    assert_eq!(app.params.as_ref().unwrap().values[0], "x=1 mid tail");
+
+    // Delete takes the character under the caret, Home and End jump.
+    app.handle_key(key(KeyCode::Home));
+    app.handle_key(key(KeyCode::Delete));
+    app.handle_key(key(KeyCode::End));
+    app.handle_key(key(KeyCode::Backspace));
+    assert_eq!(app.params.as_ref().unwrap().values[0], "=1 mid tai");
+
+    // ^w takes the word before the caret.
+    app.handle_key(KeyEvent::new(KeyCode::Char('w'), KeyModifiers::CONTROL));
+    assert_eq!(app.params.as_ref().unwrap().values[0], "=1 mid ");
+
+    // A value longer than its column scrolls so the caret stays in view.
+    type_text(&mut app, &"z".repeat(120));
+    type_text(&mut app, "END");
+    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(100, 30)).unwrap();
+    terminal
+        .draw(|frame| crate::ui::draw(frame, &mut app))
+        .unwrap();
+    let screen: String = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect();
+    assert!(screen.contains("zzzEND"), "the end is shown, not the start");
+    let _ = std::fs::remove_dir_all(&base);
+}

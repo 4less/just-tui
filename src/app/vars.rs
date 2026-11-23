@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 use super::{Action, App, Mode};
-use crate::input::{KeyCode, KeyEvent, KeyModifiers};
+use crate::input::{KeyCode, KeyEvent};
 use crate::just::Loaded;
 use crate::model::Justfile;
 use crate::tree::Kind;
@@ -110,6 +110,7 @@ impl App {
             cursor: 0,
             base,
             typing: None,
+            caret: 0,
             global,
         });
         self.mode = Mode::Vars;
@@ -129,14 +130,9 @@ impl App {
                     form.typing = None;
                     self.set_override((!value.is_empty()).then_some(value));
                 }
-                KeyCode::Backspace => {
-                    typed.pop();
+                _ => {
+                    crate::textedit::handle(typed, &mut form.caret, key);
                 }
-                KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    typed.clear()
-                }
-                KeyCode::Char(c) => typed.push(c),
-                _ => {}
             }
             return Action::None;
         }
@@ -158,6 +154,7 @@ impl App {
                             .unwrap_or_default()
                     })
                     .unwrap_or_default();
+                form.caret = crate::textedit::width(&current);
                 form.typing = Some(current);
             }
             KeyCode::Delete | KeyCode::Char('d') => self.set_override(None),

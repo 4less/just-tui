@@ -158,7 +158,11 @@ fn field_row(
             Style::default().fg(theme::VARIABLE),
         ),
     ];
-    spans.extend(value_spans(value, selected.then_some(form.cursor)));
+    spans.extend(super::caret_spans(
+        value,
+        selected.then_some(form.cursor),
+        VALUE,
+    ));
     spans.push(Span::raw(" "));
 
     // Only the selected row has space to say where its value came from.
@@ -188,46 +192,6 @@ fn field_row(
 
 /// Columns a field's value gets before it has to scroll under the caret.
 const VALUE: usize = 22;
-
-/// The value, with the character under the caret picked out. A value longer
-/// than its column scrolls, so the caret stays visible wherever it is.
-fn value_spans(value: &str, cursor: Option<usize>) -> Vec<Span<'static>> {
-    let Some(cursor) = cursor else {
-        return vec![match value.is_empty() {
-            true => Span::styled(format!("{:<VALUE$}", "—"), Style::default().fg(theme::DIM)),
-            false => Span::styled(
-                format!("{:<VALUE$}", truncate(value, VALUE)),
-                Style::default().fg(theme::STRING),
-            ),
-        }];
-    };
-
-    // Keep the caret in view: scroll only once it would fall off the end.
-    let chars: Vec<char> = value.chars().collect();
-    let first = (cursor + 1).saturating_sub(VALUE);
-    let window: String = chars.iter().skip(first).take(VALUE).collect();
-    let at = cursor - first;
-
-    let mut spans = Vec::new();
-    let shown: Vec<char> = window.chars().collect();
-    spans.push(Span::styled(
-        shown[..at.min(shown.len())].iter().collect::<String>(),
-        Style::default().fg(theme::STRING),
-    ));
-    // Past the end of the value the caret sits on a blank.
-    let under = shown.get(at).copied().unwrap_or(' ');
-    spans.push(Span::styled(
-        under.to_string(),
-        Style::default().bg(theme::ACCENT).fg(theme::BG),
-    ));
-    let rest: String = shown.iter().skip(at + 1).collect();
-    let used = at + 1 + rest.chars().count();
-    spans.push(Span::styled(
-        format!("{rest}{}", " ".repeat(VALUE.saturating_sub(used))),
-        Style::default().fg(theme::STRING),
-    ));
-    spans
-}
 
 /// What to show to the right of a field: detected choices, or its hint.
 fn note(

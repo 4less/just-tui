@@ -106,6 +106,8 @@ pub struct VarsForm {
     pub base: PathBuf,
     /// A value being typed by hand, in place of the selected row's.
     pub typing: Option<String>,
+    /// Where the caret sits in [`Self::typing`], in characters.
+    pub caret: usize,
     pub global: bool,
 }
 

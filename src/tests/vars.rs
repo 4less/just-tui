@@ -176,15 +176,18 @@ fn a_module_variable_is_set_by_its_full_path() {
     for c in "/scratch/x".chars() {
         app.handle_key(key(KeyCode::Char(c)));
     }
+    // The caret goes back to fix a typo in the middle.
+    app.handle_key(key(KeyCode::Left));
+    app.handle_key(key(KeyCode::Char('y')));
     press(&mut app, &[KeyCode::Enter, KeyCode::Esc]);
-    assert_eq!(app.overrides.get("sub::out"), Some("/scratch/x"));
+    assert_eq!(app.overrides.get("sub::out"), Some("/scratch/yx"));
 
     let Action::Run { commands, .. } = press(&mut app, &[KeyCode::Char('r')]) else {
         panic!("a run");
     };
     assert_eq!(
         commands[0],
-        ["--set", "sub::out", "/scratch/x", "sub::show"]
+        ["--set", "sub::out", "/scratch/yx", "sub::show"]
     );
     let _ = std::fs::remove_dir_all(&base);
 }

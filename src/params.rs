@@ -4,7 +4,9 @@
 
 use std::path::{Component, Path, PathBuf};
 
+use crate::input::{KeyCode, KeyEvent, KeyModifiers};
 use crate::model::{Parameter, Recipe};
+use crate::textedit;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParamKind {
@@ -80,6 +82,8 @@ pub struct ParamForm {
     pub params: Vec<Param>,
     pub values: Vec<String>,
     pub cursor: usize,
+    /// Where the caret sits in the current row, in characters.
+    pub caret: usize,
     /// The single free row of [`Self::free_text`], not declared parameters.
     pub free: bool,
 }
@@ -91,6 +95,7 @@ impl ParamForm {
             values: vec![String::new(); params.len()],
             params,
             cursor: 0,
+            caret: 0,
             free: false,
         }
     }
@@ -119,6 +124,7 @@ impl ParamForm {
                 *value = arg.clone();
             }
         }
+        self.caret_end();
     }
 
     /// [`Self::prefill`] from a shell-style line such as a config's `args`.
@@ -177,32 +183,44 @@ impl ParamForm {
                 false => shown,
             };
             self.cursor = row;
+            self.caret_end();
         }
     }
 
+    /// Move between rows; the caret lands at the end of the new one.
     pub fn move_cursor(&mut self, delta: isize) {
         let count = self.params.len() as isize;
         if count > 0 {
             self.cursor = (self.cursor as isize + delta).rem_euclid(count) as usize;
         }
+        self.caret_end();
+    }
+
+    fn caret_end(&mut self) {
+        self.caret = self
+            .values
+            .get(self.cursor)
+            .map_or(0, |v| textedit::width(v));
+    }
+
+    /// An editing key for the current row: see [`textedit::handle`].
+    pub fn edit(&mut self, key: KeyEvent) -> bool {
+        match self.values.get_mut(self.cursor) {
+            Some(value) => textedit::handle(value, &mut self.caret, key),
+            None => false,
+        }
     }
 
     pub fn push_char(&mut self, c: char) {
-        if let Some(value) = self.values.get_mut(self.cursor) {
-            value.push(c);
-        }
+        self.edit(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
     }
 
     pub fn pop_char(&mut self) {
-        if let Some(value) = self.values.get_mut(self.cursor) {
-            value.pop();
-        }
+        self.edit(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
     }
 
     pub fn clear(&mut self) {
-        if let Some(value) = self.values.get_mut(self.cursor) {
-            value.clear();
-        }
+        self.edit(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
     }
 
     /// The positional arguments to pass after the recipe name. Empty rows
@@ -409,6 +427,7 @@ impl ParamForm {
             }],
             values: vec![String::new()],
             cursor: 0,
+            caret: 0,
             free: true,
         }
     }

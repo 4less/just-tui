@@ -20,6 +20,7 @@ pub mod slurm;
 pub mod snapshot;
 pub mod source;
 pub mod submit;
+pub mod textedit;
 pub mod theme;
 pub mod tree;
 pub mod ui;
